@@ -9,23 +9,27 @@ export function getDashboardCounts({
     totalCandidates: candidates.length,
 
     inProbation: candidates.filter(
-      (candidate) => candidate.currentStatus === "PROBATION"
+      (candidate) => candidate.currentStatus === "IN_PROBATION"
     ).length,
 
-    approvedProbation: probationAttempts.filter(
-      (attempt) => attempt.status === "APPROVED"
+    probationPassed: probationAttempts.filter(
+      (attempt) => attempt.status === "PROBATION_PASSED"
     ).length,
 
-    rejectedProbation: probationAttempts.filter(
-      (attempt) => attempt.status === "REJECTED"
+    probationRejected: probationAttempts.filter(
+      (attempt) => attempt.status === "PROBATION_REJECTED"
     ).length,
 
-    offerApproved: offers.filter(
-      (offer) => offer.offerStatus === "APPROVED"
+    probationExtended: probationAttempts.filter(
+      (attempt) => attempt.status === "PROBATION_EXTENDED"
     ).length,
 
-    offerSent: offers.filter(
-      (offer) => offer.offerStatus === "EMAIL_SENT"
+    offerLetterGenerated: offers.filter(
+      (offer) => offer.offerStatus === "OFFER_LETTER_GENERATED"
+    ).length,
+
+    offerLetterSent: offers.filter(
+      (offer) => offer.offerStatus === "OFFER_LETTER_SENT"
     ).length,
 
     activeInterns: activeInterns.filter(

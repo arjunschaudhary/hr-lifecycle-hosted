@@ -7,22 +7,23 @@ This module manages the HR lifecycle from candidate probation submission to acti
 ## V1 Workflow
 
 1. Candidate submits the public probation form.
-2. Candidate record is created in the HR module.
-3. First probation attempt is created.
-4. Probation starts with default duration of 7 days.
-5. Probation start email is triggered.
-6. HR reviews probation after the probation period.
-7. HR can approve, reject, or extend probation.
-8. If rejected, the candidate can be reconsidered through a new probation attempt.
-9. If approved, HR approves the offer letter.
-10. MID is generated using ROLE_CODE / NAME_CODE / SERIAL format.
-11. Offer letter PDF is generated.
-12. Offer letter email is sent to the candidate.
-13. Candidate becomes an active intern after offer letter is sent.
-14. Candidate submits signed offer letter.
-15. HR verifies or rejects the signed offer.
-16. Signed offer verification does not affect active intern status.
-17. Signed offer status will matter later for certificate/LOR eligibility.
+2. Candidate record is created with status `HR_REVIEW_PENDING`.
+3. HR reviews the submitted form.
+4. If HR approves the candidate for probation, probation is initiated.
+5. Welcome mail is sent.
+6. Candidate enters probation with status `IN_PROBATION`.
+7. HR reviews probation after the probation period.
+8. HR can pass, reject, or extend probation.
+9. If rejected, the candidate can be reconsidered through a new probation attempt.
+10. If probation is passed, the system automatically starts the offer letter process.
+11. MID is generated using `ROLE_CODE / NAME_CODE / SERIAL` format.
+12. Offer letter is generated.
+13. Offer letter is sent to the candidate.
+14. Candidate becomes an active intern after offer letter is sent.
+15. Candidate submits signed offer letter.
+16. HR verifies or rejects the signed offer.
+17. Signed offer verification does not affect active intern status.
+18. Signed offer status will matter later for certificate/LOR eligibility.
 
 ## Important Business Rules
 
@@ -31,6 +32,10 @@ This module manages the HR lifecycle from candidate probation submission to acti
 - Candidate becomes active after offer letter is sent.
 - Signed offer is a separate process and does not block active status.
 - Rejected candidates can have a new probation attempt.
-- MID is generated only after HR offer approval.
+- MID is generated automatically after probation is passed.
 - Offer letter PDF will be stored in Google Drive for V1.
 - Supabase will store data, status, and file links.
+
+
+- There is no separate offer approval stage in V1.
+- `Probation Passed` directly triggers MID generation, offer letter generation, and offer letter sending.

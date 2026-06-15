@@ -19,7 +19,7 @@ The module covers:
 - Candidate probation form submission
 - Probation tracking and HR review
 - Probation approval, rejection, extension, and reconsideration
-- Offer approval
+- Offer Letter Process
 - MID generation
 - Offer letter tracking
 - Active intern creation
@@ -42,9 +42,9 @@ Probation Started
 ↓
 HR Review
 ↓
-Probation Approved / Rejected / Extended
+Probation Passed / Rejected / Extended
 ↓
-Offer Approval
+Offer Letter Approved
 ↓
 MID Generation
 ↓
@@ -82,7 +82,7 @@ Included in V1
 - Probation review flow
 - Probation approve, reject, and extend actions
 - Reconsideration attempt planning
-- Offer approval flow
+- Offer letter approval flow
 - MID generation logic
 - Offer letter tracking
 - Active intern list

@@ -12,16 +12,23 @@ Candidate status represents the overall lifecycle stage of a candidate/intern.
 
 | Status | Meaning |
 |---|---|
-| NEW | Candidate record has been created but probation has not started yet |
-| PROBATION | Candidate is currently in probation |
-| REJECTED | Candidate was rejected during probation review |
+| FORM_SUBMITTED | Candidate has submitted the public form |
+| HR_REVIEW_PENDING | Candidate form is waiting for HR review |
+| HR_APPROVED_FOR_PROBATION | HR approved the candidate to start probation |
+| PROBATION_INITIATED | Probation process has been initiated |
+| WELCOME_MAIL_SENT | Welcome/probation mail has been sent |
+| IN_PROBATION | Candidate is currently in probation |
+| PROBATION_REVIEW | Candidate probation is ready for HR review |
+| PROBATION_PASSED | Candidate passed probation |
+| PROBATION_REJECTED | Candidate was rejected during probation review |
+| PROBATION_EXTENDED | Candidate probation was extended |
 | RECONSIDERATION | Candidate is being reconsidered through a new probation attempt |
-| OFFER_APPROVED | HR has approved the offer process |
-| OFFER_SENT | Offer letter has been sent to the candidate |
+| MID_GENERATED | MID has been generated |
+| OFFER_LETTER_GENERATED | Offer letter has been generated |
+| OFFER_LETTER_SENT | Offer letter has been sent to the candidate |
 | ACTIVE | Candidate has become an active intern |
 | COMPLETED | Internship has been completed |
 | TERMINATED | Internship was ended before completion |
-
 ---
 
 ## Probation Status
@@ -30,30 +37,30 @@ Probation status tracks each probation attempt separately.
 
 | Status | Meaning |
 |---|---|
-| SUBMITTED | Candidate submitted the probation form |
-| PROBATION_STARTED | Probation has officially started |
-| UNDER_REVIEW | Probation is ready for HR review |
-| APPROVED | Candidate passed probation |
-| REJECTED | Candidate did not pass probation |
-| EXTENDED | Probation period has been extended |
+| FORM_SUBMITTED | Candidate submitted the probation form |
+| HR_REVIEW_PENDING | Candidate form is waiting for HR review |
+| HR_APPROVED_FOR_PROBATION | HR approved candidate for probation |
+| PROBATION_INITIATED | Probation has been initiated |
+| WELCOME_MAIL_SENT | Welcome/probation mail has been sent |
+| IN_PROBATION | Candidate is currently in probation |
+| PROBATION_REVIEW | Probation is ready for HR review |
+| PROBATION_PASSED | Candidate passed probation |
+| PROBATION_REJECTED | Candidate did not pass probation |
+| PROBATION_EXTENDED | Probation period has been extended |
 | RECONSIDERATION | New attempt created after rejection |
-
 ---
 
 ## Offer Letter Status
 
-Offer letter status tracks the offer approval, MID generation, PDF generation, and email flow.
+Offer letter status tracks MID generation, offer letter generation, and email sending. There is no separate offer approval stage in V1.
 
 | Status | Meaning |
 |---|---|
-| NOT_STARTED | Offer process has not started |
-| PENDING_APPROVAL | Offer is waiting for HR approval |
-| APPROVED | HR has approved offer generation |
+| NOT_STARTED | Offer letter process has not started |
 | MID_GENERATED | MID has been generated |
-| PDF_GENERATED | Offer letter PDF has been generated |
-| EMAIL_SENT | Offer email has been sent |
-| CANCELLED | Offer process was cancelled |
-
+| OFFER_LETTER_GENERATED | Offer letter has been generated |
+| OFFER_LETTER_SENT | Offer letter has been sent |
+| CANCELLED | Offer letter process was cancelled |
 ---
 
 ## Active Intern Status
@@ -107,21 +114,23 @@ These event types will be used in the activity/audit log.
 | Event Type | Meaning |
 |---|---|
 | CANDIDATE_FORM_SUBMITTED | Candidate submitted probation form |
-| PROBATION_STARTED | Probation started |
-| PROBATION_EXTENDED | Probation was extended |
-| PROBATION_APPROVED | HR approved probation |
+| HR_REVIEW_PENDING | Candidate form moved to HR review |
+| HR_APPROVED_FOR_PROBATION | HR approved candidate for probation |
+| PROBATION_INITIATED | Probation was initiated |
+| WELCOME_MAIL_SENT | Welcome/probation mail was sent |
+| PROBATION_REVIEW | Probation moved to HR review |
+| PROBATION_PASSED | Candidate passed probation |
 | PROBATION_REJECTED | HR rejected probation |
+| PROBATION_EXTENDED | Probation was extended |
 | RECONSIDERATION_CREATED | New probation attempt created |
-| OFFER_APPROVED | HR approved offer |
 | MID_GENERATED | MID generated |
-| OFFER_PDF_GENERATED | Offer PDF generated |
-| OFFER_EMAIL_SENT | Offer email sent |
+| OFFER_LETTER_GENERATED | Offer letter generated |
+| OFFER_LETTER_SENT | Offer letter sent |
 | INTERN_ACTIVATED | Candidate became active intern |
 | SIGNED_OFFER_SUBMITTED | Signed offer submitted |
-| SIGNED_OFFER_EMAIL_MISMATCH | Signed offer submitted with email/phone mismatch |
+| SIGNED_OFFER_MISMATCH_REVIEW | Signed offer submitted with email/phone mismatch |
 | SIGNED_OFFER_VERIFIED | HR verified signed offer |
 | SIGNED_OFFER_REJECTED | HR rejected signed offer |
-
 ---
 
 ## Notes for V1

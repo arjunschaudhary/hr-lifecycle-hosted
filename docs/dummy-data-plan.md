@@ -146,7 +146,7 @@ Do not overwrite the previous rejected probation attempt. Create a new probation
 
 ---
 
-Case 4: Offer Approved, MID Pending
+Case 4: Offer Letter Generated, MID Pending
 
 Field| Value
 Candidate ID| CAND-003
@@ -156,7 +156,7 @@ Phone| 9876543212
 Role Applied For| Automation Intern
 Role Code| AU
 Department| Technology
-Candidate Status| OFFER_APPROVED
+Candidate Status| OFFER_LETTER_GENERATED
 Probation Status| APPROVED
 Offer Status| APPROVED
 
@@ -181,7 +181,7 @@ Role Applied For| HR Intern
 Role Code| HR
 Department| Human Resources
 Candidate Status| ACTIVE
-Offer Status| EMAIL_SENT
+Offer Status| OFFER_LETTER_SENT
 Active Intern Status| ACTIVE
 MID| HR/KA/001
 
@@ -290,9 +290,9 @@ Dummy Offer Records
 
 Offer ID| Candidate ID| MID| Offer Status| PDF URL| Email Sent
 OFF-001| CAND-003| AU/AS/002| APPROVED| -| No
-OFF-002| CAND-004| HR/KA/001| EMAIL_SENT| Google Drive Link Placeholder| Yes
-OFF-003| CAND-005| OP/MS/001| EMAIL_SENT| Google Drive Link Placeholder| Yes
-OFF-004| CAND-006| OP/NV/001| EMAIL_SENT| Google Drive Link Placeholder| Yes
+OFF-002| CAND-004| HR/KA/001| OFFER_LETTER_SENT| Google Drive Link Placeholder| Yes
+OFF-003| CAND-005| OP/MS/001| OFFER_LETTER_SENT| Google Drive Link Placeholder| Yes
+OFF-004| CAND-006| OP/NV/001| OFFER_LETTER_SENT| Google Drive Link Placeholder| Yes
 
 ---
 
@@ -312,10 +312,10 @@ LOG-001| CAND-001| CANDIDATE_FORM_SUBMITTED| System| Candidate submitted probati
 LOG-002| CAND-001| PROBATION_STARTED| System| Probation started for 7 days
 LOG-003| CAND-002| PROBATION_REJECTED| USER-001| Candidate rejected after review
 LOG-004| CAND-002| RECONSIDERATION_CREATED| USER-002| New probation attempt created
-LOG-005| CAND-003| PROBATION_APPROVED| USER-001| Probation approved
-LOG-006| CAND-003| OFFER_APPROVED| USER-001| Offer approved
+LOG-005| CAND-003| PROBATION_PASSED| USER-001| Probation passed
+LOG-006| CAND-003| OFFER_LETTER_GENERATED| USER-001| Offer approved
 LOG-007| CAND-003| MID_GENERATED| System| MID generated as AU/AS/002
-LOG-008| CAND-004| OFFER_EMAIL_SENT| System| Offer email sent
+LOG-008| CAND-004| OFFER_LETTER_SENT| System| Offer email sent
 LOG-009| CAND-004| INTERN_ACTIVATED| System| Candidate became active intern
 LOG-010| CAND-006| SIGNED_OFFER_EMAIL_MISMATCH| System| Submitted email does not match registered email
 LOG-011| CAND-007| SIGNED_OFFER_REJECTED| USER-001| Signed offer rejected, resubmission required

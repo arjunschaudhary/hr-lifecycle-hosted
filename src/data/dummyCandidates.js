@@ -9,7 +9,7 @@ export const dummyCandidates = [
     roleCode: "AU",
     department: "Technology",
     createdSource: "candidate_form",
-    currentStatus: "PROBATION",
+    currentStatus: "IN_PROBATION",
     createdAt: "2026-06-13",
   },
   {
@@ -35,7 +35,7 @@ export const dummyCandidates = [
     roleCode: "AU",
     department: "Technology",
     createdSource: "candidate_form",
-    currentStatus: "OFFER_APPROVED",
+    currentStatus: "OFFER_LETTER_GENERATED",
     createdAt: "2026-06-08",
   },
   {

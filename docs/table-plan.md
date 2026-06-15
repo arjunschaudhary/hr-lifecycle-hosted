@@ -133,7 +133,7 @@ offer_status| Current offer status
 approved_by| HR user who approved offer
 approved_at| Offer approval date/time
 pdf_url| Google Drive PDF link
-email_sent_at| Offer email sent date/time
+offerlettersentat| Offer email sent date/time
 created_at| Record creation date
 updated_at| Last update date
 
@@ -290,12 +290,12 @@ Example Activity Events
 Event Type| Meaning
 CANDIDATE_FORM_SUBMITTED| Candidate submitted probation form
 PROBATION_STARTED| Probation started
-PROBATION_APPROVED| HR approved probation
+PROBATION_PASSED| HR approved probation
 PROBATION_REJECTED| HR rejected probation
 PROBATION_EXTENDED| HR extended probation
-OFFER_APPROVED| HR approved offer
+OFFER_LETTER_GENERATED| HR approved offer
 MID_GENERATED| MID generated
-OFFER_PDF_GENERATED| Offer PDF generated
+OFFER_LETTER_GENERATED| Offer PDF generated
 OFFER_EMAIL_SENT| Offer email sent
 INTERN_ACTIVATED| Candidate became active intern
 SIGNED_OFFER_SUBMITTED| Signed offer submitted

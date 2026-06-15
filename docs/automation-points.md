@@ -4,29 +4,68 @@ Purpose
 
 This document defines the automation points for the HR Lifecycle Module V1.
 
-The module will first be built using React screens and dummy data. Later, automation can be connected using Supabase, Google Apps Script, n8n, Supabase Edge Functions, or other approved tools.
+The goal is to clearly identify where automation should happen in the lifecycle, what should trigger it, what the system should update, and what should be logged.
 
-For V1, the main goal is to clearly identify where automation should happen in the workflow.
+This version follows the corrected V1 workflow where there is no separate “Offer Approval” stage after probation.
 
 ---
 
-Automation Overview
+Corrected V1 Workflow
 
-The HR Lifecycle Module includes automation points across the following stages:
+Form Submitted
+↓
+HR Review Pending
+↓
+HR Approved for Probation
+↓
+Probation Initiated
+↓
+Welcome Mail Sent
+↓
+In Probation
+↓
+Probation Review
+↓
+HR Decision:
+   - Probation Passed
+   - Probation Rejected
+   - Probation Extended
+↓
+If Probation Passed:
+   MID Generated
+   ↓
+   Offer Letter Generated
+   ↓
+   Offer Letter Sent
+   ↓
+   Active Intern
+↓
+Signed Offer Submitted
+↓
+HR Verification:
+   - Verified
+   - Rejected
+   - Email/Phone Mismatch Review
 
-1. Candidate probation form submission
-2. Probation start email
-3. Probation review reminder
-4. HR probation decision
-5. MID generation
-6. Offer letter PDF generation
-7. Offer letter email sending
-8. Active intern creation
-9. Signed offer submission
-10. Email/phone mismatch warning
-11. Signed offer verification or rejection
-12. Activity log creation
-13. Notification tracking
+---
+
+Important V1 Rule
+
+There is no separate “Offer Letter Generated” stage in Version 1.
+
+Once HR marks probation as passed, the system should automatically start the offer letter process:
+
+Probation Passed
+↓
+MID Generated
+↓
+Offer Letter Generated
+↓
+Offer Letter Sent
+↓
+Active Intern
+
+HR should not approve the same candidate again after probation has already been passed.
 
 ---
 
@@ -36,245 +75,325 @@ Trigger
 
 Candidate submits the public probation form.
 
-Action
+System Actions
 
-The system should:
+- Create a candidate record.
+- Set candidate status to "HR_REVIEW_PENDING".
+- Store candidate source as "candidate_form".
+- Create an activity log entry.
+- Do not start probation automatically.
+- Do not generate MID.
+- Do not generate offer letter.
 
-- Create a candidate record
-- Create first probation attempt
-- Set candidate status to "PROBATION"
-- Set probation status to "PROBATION_STARTED"
-- Store created source as "candidate_form"
-- Create an activity log entry
+Status Update
 
-Tables Affected
+FORM_SUBMITTED
+↓
+HR_REVIEW_PENDING
 
-- "hr_candidates"
-- "hr_probation_attempts"
-- "hr_activity_logs"
+Activity Log
 
-Current V1 Approach
+CANDIDATE_FORM_SUBMITTED
 
-For initial React prototype, this can be tested using dummy data.
+Notes
 
-Later, Supabase insert operation will create the candidate and probation attempt.
+The candidate form submission should only create the candidate record and place it in HR review.
+
+Probation should begin only after HR approves the candidate for probation.
 
 ---
 
-Automation 2: Probation Start Email
+Automation 2: HR Review of Submitted Form
 
 Trigger
 
-Candidate probation attempt is created.
+HR reviews the candidate form submission.
 
-Action
+Possible HR Decisions
 
-Send probation start email to the candidate or recruiter/HR, depending on final HR process.
+Approve for Probation
+Reject / Hold
 
-Tables Affected
+System Actions if HR Approves
 
-- "hr_notifications"
-- "hr_activity_logs"
+- Update candidate status to "HR_APPROVED_FOR_PROBATION".
+- Create activity log entry.
+- Prepare candidate for probation initiation.
+
+Status Update
+
+HR_REVIEW_PENDING
+↓
+HR_APPROVED_FOR_PROBATION
+
+Activity Log
+
+HR_APPROVED_FOR_PROBATION
+
+Notes
+
+This stage is only for approving the candidate to enter probation.
+
+It is not the same as probation passed.
+
+---
+
+Automation 3: Probation Initiation
+
+Trigger
+
+Candidate is approved by HR for probation.
+
+System Actions
+
+- Create probation attempt record.
+- Set probation attempt status to "PROBATION_INITIATED".
+- Set candidate status to "PROBATION_INITIATED".
+- Set probation start date.
+- Set probation end date.
+- Create activity log entry.
+
+Status Update
+
+HR_APPROVED_FOR_PROBATION
+↓
+PROBATION_INITIATED
+
+Activity Log
+
+PROBATION_INITIATED
+
+Notes
+
+This stage starts the probation process.
+
+---
+
+Automation 4: Welcome Mail Sent
+
+Trigger
+
+Probation is initiated.
+
+System Actions
+
+- Send welcome/probation email to candidate.
+- Update candidate status to "WELCOME_MAIL_SENT".
+- Update probation attempt status to "WELCOME_MAIL_SENT".
+- Create notification record.
+- Create activity log entry.
+
+Status Update
+
+PROBATION_INITIATED
+↓
+WELCOME_MAIL_SENT
+↓
+IN_PROBATION
+
+Activity Log
+
+WELCOME_MAIL_SENT
 
 Notification Type
 
-"PROBATION_START_EMAIL"
+PROBATION_START_EMAIL
 
-Current V1 Approach
+Notes
 
-Email sending can be added later.
-
-Possible tools:
-
-- Google Apps Script
-- n8n
-- Supabase Edge Function
-- Make.com
-
-For V1 planning, Supabase should store email status and notification record.
+After welcome mail is sent, the candidate is considered to be in probation.
 
 ---
 
-Automation 3: Probation Review Reminder
+Automation 5: In Probation
 
 Trigger
 
-Probation end date is reached.
+Welcome mail is sent successfully.
 
-Default probation duration:
+System Actions
 
-7 days
+- Update candidate status to "IN_PROBATION".
+- Update probation attempt status to "IN_PROBATION".
+- Track probation duration.
+- Prepare candidate for later HR review.
 
-Action
+Status Update
 
-Notify HR that the candidate probation is ready for review.
+WELCOME_MAIL_SENT
+↓
+IN_PROBATION
 
-Tables Affected
+Notes
 
-- "hr_probation_attempts"
-- "hr_notifications"
-- "hr_activity_logs"
-
-Notification Type
-
-"PROBATION_REVIEW_REMINDER"
-
-Current V1 Approach
-
-This can be kept as a planned automation.
-
-In React prototype, we can show candidates whose probation status is ready for review using dummy dates/statuses.
+This is the active probation stage.
 
 ---
 
-Automation 4: Probation Approval
+Automation 6: Probation Review Reminder
 
 Trigger
 
-HR approves probation.
+Probation end date is reached or probation is due for review.
 
-Action
+System Actions
 
-The system should:
+- Move probation attempt to "PROBATION_REVIEW".
+- Notify HR that candidate is ready for review.
+- Create activity log entry.
 
-- Update probation attempt status to "APPROVED"
-- Update candidate status as per workflow
-- Store reviewed_by and reviewed_at
-- Create activity log entry
+Status Update
 
-Tables Affected
+IN_PROBATION
+↓
+PROBATION_REVIEW
 
-- "hr_probation_attempts"
-- "hr_candidates"
-- "hr_activity_logs"
+Activity Log
+
+PROBATION_REVIEW
+
+Notes
+
+This automation helps HR know which candidates need review after probation.
+
+---
+
+Automation 7: HR Probation Decision
+
+Trigger
+
+HR reviews candidate probation.
+
+HR Decision Options
+
+Probation Passed
+Probation Rejected
+Probation Extended
+
+---
+
+Case 1: Probation Passed
+
+System Actions
+
+- Update probation attempt status to "PROBATION_PASSED".
+- Update candidate status to "PROBATION_PASSED".
+- Store reviewed_by and reviewed_at.
+- Store HR remarks.
+- Create activity log entry.
+- Automatically trigger MID generation.
+- Automatically trigger offer letter generation.
+- Automatically trigger offer letter sending.
+
+Status Update
+
+PROBATION_REVIEW
+↓
+PROBATION_PASSED
+
+Activity Log
+
+PROBATION_PASSED
 
 Important Rule
 
-Probation approval does not automatically mean offer is sent.
+Probation passed directly starts the offer letter process.
 
-After probation approval, HR still approves the offer process.
-
----
-
-Automation 5: Probation Rejection
-
-Trigger
-
-HR rejects probation.
-
-Action
-
-The system should:
-
-- Update probation attempt status to "REJECTED"
-- Update candidate status to "REJECTED"
-- Store HR remarks
-- Create activity log entry
-
-Tables Affected
-
-- "hr_probation_attempts"
-- "hr_candidates"
-- "hr_activity_logs"
-
-Important Rule
-
-Rejected candidates can be reconsidered later.
-
-If reconsidered, create a new probation attempt instead of overwriting the old rejected attempt.
+There is no separate Post-Probation offer approval stage in V1.
 
 ---
 
-Automation 6: Probation Extension
+Case 2: Probation Rejected
 
-Trigger
+System Actions
 
-HR extends probation.
+- Update probation attempt status to "PROBATION_REJECTED".
+- Update candidate status to "PROBATION_REJECTED".
+- Store reviewed_by and reviewed_at.
+- Store HR remarks.
+- Create activity log entry.
 
-Action
+Status Update
 
-The system should:
+PROBATION_REVIEW
+↓
+PROBATION_REJECTED
 
-- Update probation status to "EXTENDED"
-- Update probation end date
-- Store extension reason
-- Create activity log entry
+Activity Log
 
-Tables Affected
-
-- "hr_probation_attempts"
-- "hr_activity_logs"
-
-Important Rule
-
-Extension reason should be required.
+PROBATION_REJECTED
 
 ---
 
-Automation 7: Reconsideration Attempt
+Case 3: Probation Extended
+
+System Actions
+
+- Update probation attempt status to "PROBATION_EXTENDED".
+- Update candidate status to "PROBATION_EXTENDED".
+- Store extension reason.
+- Store new probation end date.
+- Create activity log entry.
+
+Status Update
+
+PROBATION_REVIEW
+↓
+PROBATION_EXTENDED
+
+Activity Log
+
+PROBATION_EXTENDED
+
+---
+
+Automation 8: Reconsideration Flow
 
 Trigger
 
 HR decides to reconsider a rejected candidate.
 
-Action
+System Actions
 
-The system should:
+- Create a new probation attempt.
+- Increase attempt number.
+- Set candidate status to "RECONSIDERATION".
+- Set new probation attempt status to "RECONSIDERATION".
+- Create activity log entry.
 
-- Create a new probation attempt
-- Increase attempt number
-- Keep old rejected attempt unchanged
-- Update candidate status to "RECONSIDERATION" or "PROBATION"
-- Create activity log entry
+Status Update
 
-Tables Affected
+PROBATION_REJECTED
+↓
+RECONSIDERATION
+↓
+IN_PROBATION
 
-- "hr_candidates"
-- "hr_probation_attempts"
-- "hr_activity_logs"
+Activity Log
 
-Important Rule
+RECONSIDERATION_CREATED
 
-History should not be deleted.
+Notes
 
----
-
-Automation 8: Offer Approval
-
-Trigger
-
-HR approves offer generation after probation approval.
-
-Action
-
-The system should:
-
-- Create or update offer letter record
-- Set offer status to "APPROVED"
-- Store approved_by and approved_at
-- Prepare MID generation step
-- Create activity log entry
-
-Tables Affected
-
-- "hr_offer_letters"
-- "hr_activity_logs"
-
-Important Rule
-
-MID should be generated only after HR offer approval.
+This allows HR to give a candidate another probation attempt after rejection.
 
 ---
 
-Automation 9: MID Generation
+Automation 9: Automatic MID Generation
 
 Trigger
 
-Offer is approved by HR.
+Probation is marked as passed.
 
-Action
+System Actions
 
-Generate MID using final approved format:
+- Generate MID using the approved MID format.
+- Create or update MID registry record.
+- Update candidate status to "MID_GENERATED".
+- Update offer status to "MID_GENERATED".
+- Create activity log entry.
+
+MID Format
 
 ROLE_CODE / NAME_CODE / SERIAL
 
@@ -284,108 +403,92 @@ AU/AS/001
 AU/AS/002
 HR/KA/001
 
-Tables Affected
+Status Update
 
-- "hr_mid_registry"
-- "hr_offer_letters"
-- "hr_activity_logs"
+PROBATION_PASSED
+↓
+MID_GENERATED
 
-MID Logic
+Activity Log
 
-- "role_code" comes from candidate role.
-- "name_code" comes from candidate name.
-- If candidate has first and last name, use initials.
-- If candidate has a single name, use first two letters.
-- Serial increases only for the same "role_code + name_code" combination.
+MID_GENERATED
 
 Important Rule
 
-MID should not be regenerated once already assigned unless an authorized correction process is defined later.
+MID should be generated automatically after probation is passed.
+
+MID should not require a separate offer approval step.
 
 ---
 
-Automation 10: Offer Letter PDF Generation
+Automation 10: Automatic Offer Letter Generation
 
 Trigger
 
-MID is generated and offer record is ready.
+MID has been generated.
 
-Action
+System Actions
 
-Generate offer letter PDF using candidate and offer details.
+- Generate offer letter from template.
+- Fill candidate details.
+- Fill MID.
+- Fill role details.
+- Fill start date and end date.
+- Fill duration.
+- Generate PDF or document link.
+- Update offer status to "OFFER_LETTER_GENERATED".
+- Update candidate status to "OFFER_LETTER_GENERATED".
+- Create activity log entry.
 
-Data Needed
+Status Update
 
-- Candidate name
-- Email
-- Phone
-- Address
-- Role
-- MID
-- Start date
-- End date
-- Duration
-- Weekly hours
-- Internship type
-- Acceptance/signing instructions
-
-Tables Affected
-
-- "hr_offer_letters"
-- "hr_notifications"
-- "hr_activity_logs"
-
-Storage
-
-For V1:
-
-Google Drive
-
-Supabase will store:
-
-pdf_url
-offer_status
-email_sent_at
-
-Current V1 Tool Option
-
-Best practical option:
-
-Supabase data
+MID_GENERATED
 ↓
-Google Apps Script / n8n
-↓
-Google Docs template
-↓
-PDF generated
-↓
-Google Drive link stored
+OFFER_LETTER_GENERATED
+
+Activity Log
+
+OFFER_LETTER_GENERATED
+
+Notes
+
+This is where the offer letter document is prepared.
 
 ---
 
-Automation 11: Offer Letter Email
+Automation 11: Automatic Offer Letter Sending
 
 Trigger
 
-Offer letter PDF is generated.
+Offer letter is generated successfully.
 
-Action
+System Actions
 
-Send offer email to candidate with PDF/link/instructions.
+- Send offer letter to candidate by email.
+- Update offer status to "OFFER_LETTER_SENT".
+- Update candidate status to "OFFER_LETTER_SENT".
+- Store offerLetterSentAt.
+- Create notification record.
+- Create activity log entry.
+- Trigger active intern creation.
 
-Tables Affected
+Status Update
 
-- "hr_offer_letters"
-- "hr_notifications"
-- "hr_activity_logs"
+OFFER_LETTER_GENERATED
+↓
+OFFER_LETTER_SENT
+
+Activity Log
+
+OFFER_LETTER_SENT
 
 Notification Type
 
-"OFFER_LETTER_EMAIL"
+OFFER_LETTER_EMAIL
 
-Important Rule
+Notes
 
-Candidate becomes active after offer email is sent.
+Candidate becomes eligible to be moved to Active Intern after the offer letter is sent.
 
 ---
 
@@ -393,27 +496,31 @@ Automation 12: Active Intern Creation
 
 Trigger
 
-Offer letter email is sent.
+Offer letter is sent successfully.
 
-Action
+System Actions
 
-The system should:
+- Create active intern record.
+- Update candidate status to "ACTIVE".
+- Store active start date.
+- Store department/team/project details.
+- Create activity log entry.
 
-- Create active intern record
-- Set candidate status to "ACTIVE"
-- Set active intern status to "ACTIVE"
-- Store active_start_date
-- Create activity log entry
+Status Update
 
-Tables Affected
+OFFER_LETTER_SENT
+↓
+ACTIVE
 
-- "hr_candidates"
-- "hr_active_interns"
-- "hr_activity_logs"
+Activity Log
+
+INTERN_ACTIVATED
 
 Important Rule
 
-Signed offer verification does not block active status.
+Candidate becomes active after offer letter is sent.
+
+Signed offer submission should not block active intern status in V1.
 
 ---
 
@@ -421,245 +528,331 @@ Automation 13: Signed Offer Submission
 
 Trigger
 
-Candidate submits signed offer.
+Candidate submits signed offer letter.
 
-Action
+System Actions
 
-The system should:
+- Create signed offer submission record.
+- Store submitted email.
+- Store submitted phone.
+- Store uploaded file link.
+- Store submittedAt.
+- Set signed offer status to "SUBMITTED".
+- Create activity log entry.
+- Trigger email/phone match check.
 
-- Create signed offer record
-- Store submitted email
-- Store submitted phone
-- Store file link
-- Store MID
-- Set signed offer status to "SUBMITTED"
-- Compare submitted email/phone with registered email/phone
-- Create activity log entry
+Status Update
 
-Tables Affected
+ACTIVE
+↓
+SIGNED_OFFER_SUBMITTED
 
-- "hr_signed_offers"
-- "hr_activity_logs"
+Activity Log
 
-Current Storage
+SIGNED_OFFER_SUBMITTED
 
-For V1, signed offer file can be stored in:
+Notes
 
-Google Drive
-
-Supabase stores:
-
-file_url
-status
-submitted_at
-match status
+Signed offer is collected after the candidate is already active.
 
 ---
 
-Automation 14: Email/Phone Mismatch Warning
+Automation 14: Email and Phone Match Check
 
 Trigger
 
-Signed offer submitted with email or phone different from registered candidate details.
+Signed offer is submitted.
 
-Action
+System Actions
 
-The system should:
+- Compare submitted email with registered email.
+- Compare submitted phone with registered phone.
+- Mark emailMatchStatus as "MATCHED" or "MISMATCH".
+- Mark phoneMatchStatus as "MATCHED" or "MISMATCH".
+- If mismatch is found, move signed offer to mismatch review.
+- Create activity log entry.
 
-- Set email_match_status or phone_match_status to "MISMATCH"
-- Show warning in HR verification screen
-- Create activity log event
+Match Status Values
 
-Tables Affected
+MATCHED
+MISMATCH
+MISMATCH_REVIEW
 
-- "hr_signed_offers"
-- "hr_activity_logs"
+Activity Log if Mismatch Found
 
-Important Rule
+SIGNED_OFFER_MISMATCH_REVIEW
 
-Mismatch should not block active intern status.
+Notes
 
-HR should manually verify or reject the signed offer.
+Mismatch should show warning to HR.
+
+Mismatch should not remove the candidate from active intern status.
 
 ---
 
-Automation 15: Signed Offer Verification
+Automation 15: HR Signed Offer Verification
 
 Trigger
 
-HR verifies signed offer.
+HR reviews submitted signed offer.
 
-Action
+HR Decision Options
 
-The system should:
-
-- Update signed offer status to "VERIFIED"
-- Store verified_by
-- Store verified_at
-- Create activity log entry
-
-Tables Affected
-
-- "hr_signed_offers"
-- "hr_activity_logs"
-
-Important Rule
-
-Signed offer verification will matter later for certificate/LOR eligibility.
+Verified
+Rejected
+Mismatch Review
 
 ---
 
-Automation 16: Signed Offer Rejection
+Case 1: Signed Offer Verified
 
-Trigger
+System Actions
 
-HR rejects signed offer.
+- Update signed offer status to "VERIFIED".
+- Store verified_by and verified_at.
+- Create activity log entry.
 
-Action
+Activity Log
 
-The system should:
+SIGNED_OFFER_VERIFIED
 
-- Update signed offer status to "REJECTED"
-- Mark resubmission_required as true
-- Store rejection reason
-- Create activity log entry
-- Optionally notify candidate to resubmit
+---
 
-Tables Affected
+Case 2: Signed Offer Rejected
 
-- "hr_signed_offers"
-- "hr_notifications"
-- "hr_activity_logs"
+System Actions
+
+- Update signed offer status to "REJECTED".
+- Store rejection reason.
+- Mark resubmissionRequired as true.
+- Notify candidate for resubmission.
+- Create activity log entry.
+
+Activity Log
+
+SIGNED_OFFER_REJECTED
 
 Notification Type
 
-"SIGNED_OFFER_REJECTED"
+SIGNED_OFFER_REJECTED
 
 ---
 
-Automation 17: Activity Log Creation
+Case 3: Mismatch Review
 
-Trigger
+System Actions
 
-Any major workflow action.
+- Keep signed offer status under review.
+- Show mismatch warning to HR.
+- Allow HR to verify manually or reject.
+- Create activity log entry.
 
-Action
+Activity Log
 
-Create activity log entry.
-
-Events to Track
-
-- Candidate form submitted
-- Probation started
-- Probation extended
-- Probation approved
-- Probation rejected
-- Reconsideration created
-- Offer approved
-- MID generated
-- Offer PDF generated
-- Offer email sent
-- Intern activated
-- Signed offer submitted
-- Signed offer email/phone mismatch
-- Signed offer verified
-- Signed offer rejected
-
-Tables Affected
-
-- "hr_activity_logs"
-
-Important Rule
-
-Activity logs should help HR review the full lifecycle history.
+SIGNED_OFFER_MISMATCH_REVIEW
 
 ---
 
-Automation 18: Notification Tracking
+Automation 16: Notification Logging
 
 Trigger
 
-Whenever email/system notification needs to be sent.
+Any email or notification is sent or scheduled.
 
-Action
+System Actions
 
-Create or update notification record.
+- Create notification record.
+- Store candidateId.
+- Store notification type.
+- Store recipient email.
+- Store subject.
+- Store message.
+- Store status.
+- Store sentAt if sent.
+
+Notification Types
+
+PROBATION_START_EMAIL
+OFFER_LETTER_EMAIL
+SIGNED_OFFER_RECEIVED
+SIGNED_OFFER_REJECTED
 
 Notification Status Values
 
-- PENDING
-- SENT
-- FAILED
-
-Tables Affected
-
-- "hr_notifications"
-
-Important Rule
-
-Even if actual email automation is added later, notification records should be planned from V1.
+PENDING
+SENT
+FAILED
 
 ---
 
-Recommended V1 Automation Strategy
+Automation 17: Activity Logging
 
-For the first prototype:
+Trigger
 
-Phase 1
+Any important lifecycle event happens.
 
-Use dummy data and manual status updates in React screens.
+System Actions
 
-Phase 2
+- Create activity log entry.
+- Store candidateId.
+- Store actionType.
+- Store performedBy.
+- Store oldStatus.
+- Store newStatus.
+- Store remarks.
+- Store createdAt.
 
-Connect Supabase tables.
+Important Activity Events
 
-Phase 3
-
-Add automation for:
-
-- MID generation
-- Activity log creation
-- Status changes
-
-Phase 4
-
-Add external automation for:
-
-- PDF generation
-- Google Drive storage
-- Email sending
-
----
-
-Suggested Free/Practical Automation Stack
-
-For V1, the most practical free/low-cost stack is:
-
-React frontend
-↓
-Supabase database
-↓
-Google Apps Script or n8n
-↓
-Google Docs template
-↓
-Google Drive PDF
-↓
-Gmail email
-↓
-Supabase status update
-
-This keeps the system automation-friendly and avoids building a heavy backend in V1.
+CANDIDATE_FORM_SUBMITTED
+HR_REVIEW_PENDING
+HR_APPROVED_FOR_PROBATION
+PROBATION_INITIATED
+WELCOME_MAIL_SENT
+PROBATION_REVIEW
+PROBATION_PASSED
+PROBATION_REJECTED
+PROBATION_EXTENDED
+RECONSIDERATION_CREATED
+MID_GENERATED
+OFFER_LETTER_GENERATED
+OFFER_LETTER_SENT
+INTERN_ACTIVATED
+SIGNED_OFFER_SUBMITTED
+SIGNED_OFFER_MISMATCH_REVIEW
+SIGNED_OFFER_VERIFIED
+SIGNED_OFFER_REJECTED
 
 ---
 
-Notes for V1
+Automation Summary Table
 
-- Do not implement every automation on Day 1.
-- First complete the workflow with dummy data.
-- Then connect Supabase.
-- Then add PDF/email automation.
-- Signed offer mismatch should be warning-based, not blocking.
-- Signed offer does not affect active intern status.
-- Candidate login and team lead login can be added later.
-- Supabase RLS can be implemented after roles and permissions are finalized.
+Stage| Trigger| Main Output
+Candidate form submission| Candidate submits form| Candidate moves to HR review
+HR review| HR approves candidate| Candidate approved for probation
+Probation initiation| HR approval for probation| Probation attempt starts
+Welcome mail| Probation initiated| Candidate enters probation
+Probation review| Probation period ends| Candidate ready for HR decision
+Probation passed| HR passes candidate| MID and offer letter process starts
+MID generation| Probation passed| MID created
+Offer letter generation| MID generated| Offer letter created
+Offer letter sending| Offer letter generated| Offer sent to candidate
+Active intern creation| Offer letter sent| Candidate becomes active
+Signed offer submission| Candidate submits signed offer| HR verification starts
+Match check| Signed offer submitted| Email/phone match warning if needed
+Signed offer verification| HR reviews signed offer| Verified / rejected / mismatch review
+Activity logging| Any lifecycle event| Audit trail created
+Notification logging| Any email/notification| Communication history created
+
+---
+
+Key Business Rules
+
+Rule 1: No Separate Offer Approval
+
+There is no separate offer approval stage in V1.
+
+Do not use this flow:
+
+Probation Passed
+↓
+Offer Approved
+
+Use this flow:
+
+Probation Passed
+↓
+MID Generated
+↓
+Offer Letter Generated
+↓
+Offer Letter Sent
+
+---
+
+Rule 2: HR Decision After Probation
+
+After probation review, HR should only choose:
+
+Probation Passed
+Probation Rejected
+Probation Extended
+
+---
+
+Rule 3: MID Generation
+
+MID should be generated only after probation is passed.
+
+MID should not be generated at form submission stage.
+
+---
+
+Rule 4: Active Intern Status
+
+Candidate becomes active after offer letter is sent.
+
+Signed offer submission should not block active intern status in V1.
+
+---
+
+Rule 5: Signed Offer Verification
+
+Signed offer verification is important for record completion and future certificate/LOR eligibility.
+
+But signed offer verification should not remove or block active intern status.
+
+---
+
+Rule 6: Mismatch Handling
+
+Email or phone mismatch should create a warning for HR.
+
+Mismatch should go to HR review.
+
+Mismatch should not automatically reject the signed offer.
+
+---
+
+Future Automation Scope
+
+The following can be added after V1 is stable:
+
+- Real email integration
+- Offer letter PDF generation
+- Supabase database triggers
+- Supabase Storage or Google Drive integration
+- Candidate login
+- Candidate dashboard
+- Certificate/LOR eligibility checks
+- Leave and performance automation
+- Team lead dashboard
+- Role-based notifications
+
+---
+
+V1 Focus
+
+Version 1 should first prove this flow:
+
+Candidate form
+↓
+HR review
+↓
+Probation
+↓
+Probation passed
+↓
+MID generated
+↓
+Offer letter generated
+↓
+Offer letter sent
+↓
+Active intern
+↓
+Signed offer submitted
+↓
+Signed offer verified/rejected
+
+Once this flow works correctly with dummy data, the same structure can later connect to Supabase.

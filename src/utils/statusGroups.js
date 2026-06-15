@@ -1,32 +1,42 @@
 export const candidateStatusGroups = {
-  NEW: "New",
-  PROBATION: "In Probation",
-  REJECTED: "Rejected",
+  FORM_SUBMITTED: "Form Submitted",
+  HR_REVIEW_PENDING: "HR Review Pending",
+  HR_APPROVED_FOR_PROBATION: "HR Approved for Probation",
+  PROBATION_INITIATED: "Probation Initiated",
+  WELCOME_MAIL_SENT: "Welcome Mail Sent",
+  IN_PROBATION: "In Probation",
+  PROBATION_REVIEW: "Probation Review",
+  PROBATION_PASSED: "Probation Passed",
+  PROBATION_REJECTED: "Probation Rejected",
+  PROBATION_EXTENDED: "Probation Extended",
   RECONSIDERATION: "Reconsideration",
-  OFFER_APPROVED: "Offer Approved",
-  OFFER_SENT: "Offer Sent",
+  MID_GENERATED: "MID Generated",
+  OFFER_LETTER_GENERATED: "Offer Letter Generated",
+  OFFER_LETTER_SENT: "Offer Letter Sent",
   ACTIVE: "Active Intern",
   COMPLETED: "Completed",
   TERMINATED: "Terminated",
 };
 
 export const probationStatusGroups = {
-  SUBMITTED: "Submitted",
-  PROBATION_STARTED: "Probation Started",
-  UNDER_REVIEW: "Under Review",
-  APPROVED: "Approved",
-  REJECTED: "Rejected",
-  EXTENDED: "Extended",
+  FORM_SUBMITTED: "Form Submitted",
+  HR_REVIEW_PENDING: "HR Review Pending",
+  HR_APPROVED_FOR_PROBATION: "HR Approved for Probation",
+  PROBATION_INITIATED: "Probation Initiated",
+  WELCOME_MAIL_SENT: "Welcome Mail Sent",
+  IN_PROBATION: "In Probation",
+  PROBATION_REVIEW: "Probation Review",
+  PROBATION_PASSED: "Probation Passed",
+  PROBATION_REJECTED: "Probation Rejected",
+  PROBATION_EXTENDED: "Probation Extended",
   RECONSIDERATION: "Reconsideration",
 };
 
 export const offerStatusGroups = {
   NOT_STARTED: "Not Started",
-  PENDING_APPROVAL: "Pending Approval",
-  APPROVED: "Approved",
   MID_GENERATED: "MID Generated",
-  PDF_GENERATED: "PDF Generated",
-  EMAIL_SENT: "Email Sent",
+  OFFER_LETTER_GENERATED: "Offer Letter Generated",
+  OFFER_LETTER_SENT: "Offer Letter Sent",
   CANCELLED: "Cancelled",
 };
 
@@ -42,6 +52,7 @@ export const matchStatusGroups = {
   NOT_CHECKED: "Not Checked",
   MATCHED: "Matched",
   MISMATCH: "Mismatch",
+  MISMATCH_REVIEW: "Mismatch Review",
 };
 
 export function getStatusLabel(status, statusGroup = {}) {
@@ -49,11 +60,22 @@ export function getStatusLabel(status, statusGroup = {}) {
 }
 
 export function isProbationActive(status) {
-  return ["SUBMITTED", "PROBATION_STARTED", "UNDER_REVIEW", "EXTENDED", "RECONSIDERATION"].includes(status);
+  return [
+    "PROBATION_INITIATED",
+    "WELCOME_MAIL_SENT",
+    "IN_PROBATION",
+    "PROBATION_REVIEW",
+    "PROBATION_EXTENDED",
+    "RECONSIDERATION",
+  ].includes(status);
 }
 
-export function isOfferInProgress(status) {
-  return ["PENDING_APPROVAL", "APPROVED", "MID_GENERATED", "PDF_GENERATED"].includes(status);
+export function isOfferLetterInProgress(status) {
+  return ["MID_GENERATED", "OFFER_LETTER_GENERATED"].includes(status);
+}
+
+export function isOfferLetterSent(status) {
+  return status === "OFFER_LETTER_SENT";
 }
 
 export function needsSignedOfferReview(status) {

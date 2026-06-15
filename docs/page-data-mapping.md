@@ -65,10 +65,10 @@ Suggested dashboard cards:
 Card| Source
 Total Candidates| dummyCandidates
 In Probation| dummyCandidates / dummyProbationAttempts
-Approved Probation| dummyProbationAttempts
-Rejected Probation| dummyProbationAttempts
-Offer Approved| dummyOffers
-Offer Sent| dummyOffers
+Probation Passed| dummyProbationAttempts
+Probation Rejected| dummyProbationAttempts
+Offer Letter Generated| dummyOffers
+Offer Letter Sent| dummyOffers
 Active Interns| dummyActiveInterns
 Signed Offer Submitted| dummySignedOffers
 Signed Offer Mismatch| dummySignedOffers
@@ -111,17 +111,17 @@ Default Values
 
 Field| Default
 createdSource| candidate_form
-currentStatus| PROBATION
-probationStatus| PROBATION_STARTED
+currentStatus| HR_REVIEW_PENDING
+probationStatus| Not created until HR approves for probation
 
 Later Action
 
 On form submission, the system should eventually:
 
 1. Create candidate record.
-2. Create probation attempt.
+2. Set candidate status to HR_REVIEW_PENDING.
 3. Create activity log entry.
-4. Trigger probation start notification.
+4. Wait for HR approval before probation is initiated.
 
 For now, this can be shown as a mock success message.
 
@@ -170,7 +170,7 @@ HR Remarks| dummyProbationAttempts
 Future Actions
 
 Action| Meaning
-Approve| Candidate passes probation
+Pass Probation| Candidate passes probation and offer letter process starts automatically
 Reject| Candidate fails probation
 Extend| Probation duration is extended
 Reconsider| New probation attempt is created after rejection
@@ -179,7 +179,7 @@ For V1 dummy flow, these buttons can be placeholders first.
 
 ---
 
-4. Offer Approval
+4. Offer Letter Process
 
 Page File
 
@@ -201,14 +201,14 @@ lifecycleRules.js
 
 What This Page Should Show
 
-This page should show candidates whose probation is approved and whose offer process is ready or in progress.
+This page should show candidates whose probation has passed and whose MID/offer letter process is ready or in progress.
 
 Suggested records to display:
 
-- Probation status "APPROVED"
-- Offer status "APPROVED"
+- Probation status "PROBATION_PASSED"
 - Offer status "MID_GENERATED"
-- Offer status "PDF_GENERATED"
+- Offer status "OFFER_LETTER_GENERATED"
+- Offer status "OFFER_LETTER_SENT"
 
 Main Columns
 
@@ -217,23 +217,23 @@ Candidate Name| dummyCandidates
 Role| dummyCandidates / dummyOffers
 Role Code| dummyCandidates / dummyOffers
 Probation Status| dummyProbationAttempts
-Offer Status| dummyOffers
+Offer Letter Status| dummyOffers
 MID| dummyOffers / dummyMidRegistry
 Start Date| dummyOffers
 End Date| dummyOffers
 PDF Link| dummyOffers
+Sent Date| dummyOffers
 
 Future Actions
 
 Action| Meaning
-Generate MID| Generate MID after HR offer approval
-Generate PDF| Generate offer letter PDF
-Send Offer Email| Send offer letter to candidate
+Generate MID| Generate MID after probation is passed
+Generate Offer Letter| Generate offer letter after MID generation
+Send Offer Letter| Send offer letter to candidate
 
 Important rule:
 
-Candidate becomes active only after offer email is sent.
-
+Candidate becomes active only after offer letter is sent.
 ---
 
 5. Active Interns
@@ -409,14 +409,13 @@ Important Events To Show
 
 - Candidate form submitted
 - Probation started
-- Probation approved
 - Probation rejected
 - Probation extended
 - Reconsideration created
-- Offer approved
+- Probation passed
 - MID generated
-- Offer email sent
-- Intern activated
+- Offer letter generated
+- Offer letter sent
 - Signed offer submitted
 - Signed offer mismatch
 - Signed offer verified
@@ -455,7 +454,7 @@ Pages should be connected in this order:
 
 1. HR Dashboard
 2. Probation Review
-3. Offer Approval
+3. Offer Letter Process
 4. Active Interns
 5. Signed Offer Verification
 6. Activity Log
@@ -481,7 +480,7 @@ Dashboard counts
 ↓
 Probation review list
 ↓
-Offer approval list
+Offer letter process list
 ↓
 Active interns list
 ↓

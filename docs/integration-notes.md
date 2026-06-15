@@ -360,7 +360,7 @@ Events to track:
 
 - Candidate form submitted
 - Probation started
-- Probation approved
+- Probation passed
 - Probation rejected
 - Probation extended
 - Reconsideration created
