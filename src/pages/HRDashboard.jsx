@@ -38,23 +38,23 @@ export default function HRDashboard() {
       />
 
       <DashboardCard
-        title="Approved Probation"
-        value={counts.approvedProbation}
+        title="Probation Passed"
+        value={counts.probationPassed}
       />
 
       <DashboardCard
-        title="Rejected Probation"
-        value={counts.rejectedProbation}
+        title="Probation Rejected"
+        value={counts.probationRejected}
       />
 
       <DashboardCard
-        title="Offer Approved"
-        value={counts.offerApproved}
+        title="Offer Letter Generated"
+        value={counts.offerLetterGenerated}
       />
 
       <DashboardCard
-        title="Offer Sent"
-        value={counts.offerSent}
+        title="Offer Letter Sent"
+        value={counts.offerLetterSent}
       />
 
       <DashboardCard
@@ -94,7 +94,7 @@ export default function HRDashboard() {
       <br /><br />
 
       <Link to="/offer-approval">
-        <button>Offer Approval</button>
+        <button>Offer Letter Process</button>
       </Link>
 
       <br /><br />

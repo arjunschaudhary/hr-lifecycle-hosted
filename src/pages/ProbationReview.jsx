@@ -4,9 +4,9 @@ import { dummyCandidates, dummyProbationAttempts } from "../data";
 
 export default function ProbationReview() {
   const reviewStatuses = [
-    "PROBATION_STARTED",
+    "IN_PROBATION",
     "UNDER_REVIEW",
-    "EXTENDED",
+    "PROBATION_EXTENDED",
     "RECONSIDERATION",
   ];
 

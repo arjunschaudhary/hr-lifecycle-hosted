@@ -17,7 +17,7 @@ export const dummyProbationAttempts = [
     attemptNo: 1,
     probationStartDate: "2026-06-01",
     probationEndDate: "2026-06-08",
-    status: "pROBATION_REJECTED",
+    status: "PROBATION_REJECTED",
     reviewedBy: "USER-001",
     reviewedAt: "2026-06-08",
     hrRemarks: "Performance not satisfactory during first attempt",
