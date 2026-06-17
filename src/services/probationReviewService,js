@@ -1,0 +1,15 @@
+import { supabase } from "./supabaseClient";
+
+export async function fetchProbationReviewCandidates() {
+  const { data, error } = await supabase
+    .from("probation_review_view")
+    .select("*")
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error("Error fetching probation review candidates:", error);
+    return null;
+  }
+
+  return data;
+}
