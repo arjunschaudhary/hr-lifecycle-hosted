@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { dummyCandidates, dummyOffers } from "../data";
+import CandidateDetailModal from "../components/CandidateDetailModal";
 import { fetchOfferLetterProcessCandidates } from "../services/offerLetterProcessService";
 
 function buildFallbackOfferRecords() {
@@ -12,6 +13,7 @@ function buildFallbackOfferRecords() {
 
     return {
       id: offer.id,
+      candidateId: offer.candidateId,
       fullName: candidate?.fullName,
       email: candidate?.email,
       phone: candidate?.phone,
@@ -32,6 +34,7 @@ function buildFallbackOfferRecords() {
 function mapSupabaseOfferRecord(row) {
   return {
     id: row.candidate_id,
+    candidateId: row.candidate_id,
     fullName: row.full_name,
     email: row.email,
     phone: row.phone,
@@ -53,6 +56,7 @@ export default function OfferApproval() {
   const [offerRecords, setOfferRecords] = useState(fallbackRecords);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
+  const [selectedCandidateId, setSelectedCandidateId] = useState(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -120,7 +124,14 @@ export default function OfferApproval() {
         <tbody>
           {offerRecords.map((record) => (
             <tr key={record.id}>
-              <td>{record.fullName}</td>
+              <td>
+                <button
+                  type="button"
+                  onClick={() => setSelectedCandidateId(record.candidateId)}
+                >
+                  {record.fullName}
+                </button>
+              </td>
               <td>{record.email}</td>
               <td>{record.phone}</td>
               <td>{record.mid}</td>
@@ -143,6 +154,11 @@ export default function OfferApproval() {
       <Link to="/">
         <button>Back to Dashboard</button>
       </Link>
+
+      <CandidateDetailModal
+        candidateId={selectedCandidateId}
+        onClose={() => setSelectedCandidateId(null)}
+      />
     </div>
   );
 }

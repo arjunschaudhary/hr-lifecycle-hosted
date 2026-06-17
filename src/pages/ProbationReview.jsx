@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { dummyCandidates, dummyProbationAttempts } from "../data";
+import CandidateDetailModal from "../components/CandidateDetailModal";
 import { fetchProbationReviewCandidates } from "../services/probationReviewService";
 
 const reviewStatuses = [
@@ -28,6 +29,7 @@ function buildFallbackProbationRecords() {
 
       return {
         id: attempt.id,
+        candidateId: attempt.candidateId,
         fullName: candidate?.fullName,
         email: candidate?.email,
         phone: candidate?.phone,
@@ -48,6 +50,7 @@ function buildFallbackProbationRecords() {
 function mapSupabaseProbationRecord(row) {
   return {
     id: row.candidate_id,
+    candidateId: row.candidate_id,
     fullName: row.full_name,
     email: row.email,
     phone: row.phone,
@@ -69,6 +72,7 @@ export default function ProbationReview() {
   const [probationRecords, setProbationRecords] = useState(fallbackRecords);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
+  const [selectedCandidateId, setSelectedCandidateId] = useState(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -136,7 +140,14 @@ export default function ProbationReview() {
         <tbody>
           {probationRecords.map((record) => (
             <tr key={record.id}>
-              <td>{record.fullName}</td>
+              <td>
+                <button
+                  type="button"
+                  onClick={() => setSelectedCandidateId(record.candidateId)}
+                >
+                  {record.fullName}
+                </button>
+              </td>
               <td>{record.email}</td>
               <td>{record.phone}</td>
               <td>{record.appliedRole}</td>
@@ -159,6 +170,11 @@ export default function ProbationReview() {
       <Link to="/">
         <button>Back to Dashboard</button>
       </Link>
+
+      <CandidateDetailModal
+        candidateId={selectedCandidateId}
+        onClose={() => setSelectedCandidateId(null)}
+      />
     </div>
   );
 }

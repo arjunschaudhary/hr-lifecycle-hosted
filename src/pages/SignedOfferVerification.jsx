@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { dummyCandidates, dummySignedOffers } from "../data";
+import CandidateDetailModal from "../components/CandidateDetailModal";
 import { fetchSignedOfferVerifications } from "../services/signedOfferVerificationService";
 
 function getOverallMatchStatus(emailMatchStatus, phoneMatchStatus) {
@@ -24,6 +25,7 @@ function buildFallbackSignedOfferRecords() {
 
     return {
       id: offer.id,
+      candidateId: offer.candidateId,
       fullName: candidate?.fullName,
       email: candidate?.email,
       phone: candidate?.phone,
@@ -46,6 +48,7 @@ function buildFallbackSignedOfferRecords() {
 function mapSupabaseSignedOfferRecord(row) {
   return {
     id: row.candidate_id,
+    candidateId: row.candidate_id,
     fullName: row.full_name,
     email: row.email,
     phone: row.phone,
@@ -66,6 +69,7 @@ export default function SignedOfferVerification() {
   const [signedOfferRecords, setSignedOfferRecords] = useState(fallbackRecords);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
+  const [selectedCandidateId, setSelectedCandidateId] = useState(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -132,7 +136,14 @@ export default function SignedOfferVerification() {
         <tbody>
           {signedOfferRecords.map((record) => (
             <tr key={record.id}>
-              <td>{record.fullName}</td>
+              <td>
+                <button
+                  type="button"
+                  onClick={() => setSelectedCandidateId(record.candidateId)}
+                >
+                  {record.fullName}
+                </button>
+              </td>
               <td>{record.email}</td>
               <td>{record.phone}</td>
               <td>{record.appliedRole}</td>
@@ -154,6 +165,11 @@ export default function SignedOfferVerification() {
       <Link to="/">
         <button>Back to Dashboard</button>
       </Link>
+
+      <CandidateDetailModal
+        candidateId={selectedCandidateId}
+        onClose={() => setSelectedCandidateId(null)}
+      />
     </div>
   );
 }

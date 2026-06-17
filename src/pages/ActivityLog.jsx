@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { dummyCandidates, dummyActivityLogs } from "../data";
+import CandidateDetailModal from "../components/CandidateDetailModal";
 import { fetchActivityLogs } from "../services/activityLogService";
 
 function buildFallbackActivityLogs() {
@@ -12,6 +13,7 @@ function buildFallbackActivityLogs() {
 
     return {
       id: log.id,
+      candidateId: log.candidateId,
       fullName: candidate?.fullName,
       email: candidate?.email,
       activityType: log.actionType,
@@ -29,6 +31,7 @@ function buildFallbackActivityLogs() {
 function mapSupabaseActivityLog(row) {
   return {
     id: row.activity_log_id,
+    candidateId: row.candidate_id,
     fullName: row.full_name,
     email: row.email,
     activityType: row.activity_type,
@@ -47,6 +50,7 @@ export default function ActivityLog() {
   const [activityLogs, setActivityLogs] = useState(fallbackLogs);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
+  const [selectedCandidateId, setSelectedCandidateId] = useState(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -112,7 +116,14 @@ export default function ActivityLog() {
           {activityLogs.map((log) => (
             <tr key={log.id}>
               <td>{log.performedAt}</td>
-              <td>{log.fullName}</td>
+              <td>
+                <button
+                  type="button"
+                  onClick={() => setSelectedCandidateId(log.candidateId)}
+                >
+                  {log.fullName}
+                </button>
+              </td>
               <td>{log.email}</td>
               <td>{log.activityType}</td>
               <td>{log.fromStatus || "-"}</td>
@@ -131,6 +142,11 @@ export default function ActivityLog() {
       <Link to="/">
         <button>Back to Dashboard</button>
       </Link>
+
+      <CandidateDetailModal
+        candidateId={selectedCandidateId}
+        onClose={() => setSelectedCandidateId(null)}
+      />
     </div>
   );
 }

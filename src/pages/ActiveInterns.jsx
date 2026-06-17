@@ -2,11 +2,13 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { dummyActiveInterns } from "../data";
+import CandidateDetailModal from "../components/CandidateDetailModal";
 import { fetchActiveInterns } from "../services/activeInternsService";
 
 function buildFallbackActiveInternRecords() {
   return dummyActiveInterns.map((intern) => ({
     id: intern.id,
+    candidateId: intern.candidateId,
     fullName: intern.fullName,
     email: "",
     phone: "",
@@ -25,6 +27,7 @@ function buildFallbackActiveInternRecords() {
 function mapSupabaseActiveInternRecord(row) {
   return {
     id: row.candidate_id,
+    candidateId: row.candidate_id,
     fullName: row.full_name,
     email: row.email,
     phone: row.phone,
@@ -45,6 +48,7 @@ export default function ActiveInterns() {
   const [activeInterns, setActiveInterns] = useState(fallbackRecords);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
+  const [selectedCandidateId, setSelectedCandidateId] = useState(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -111,7 +115,14 @@ export default function ActiveInterns() {
         <tbody>
           {activeInterns.map((intern) => (
             <tr key={intern.id}>
-              <td>{intern.fullName}</td>
+              <td>
+                <button
+                  type="button"
+                  onClick={() => setSelectedCandidateId(intern.candidateId)}
+                >
+                  {intern.fullName}
+                </button>
+              </td>
               <td>{intern.email}</td>
               <td>{intern.phone}</td>
               <td>{intern.mid}</td>
@@ -133,6 +144,11 @@ export default function ActiveInterns() {
       <Link to="/">
         <button>Back to Dashboard</button>
       </Link>
+
+      <CandidateDetailModal
+        candidateId={selectedCandidateId}
+        onClose={() => setSelectedCandidateId(null)}
+      />
     </div>
   );
 }
