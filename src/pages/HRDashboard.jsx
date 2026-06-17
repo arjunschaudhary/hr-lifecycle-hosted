@@ -1,3 +1,4 @@
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
 import DashboardCard from "../components/DashboardCard";
@@ -11,9 +12,10 @@ import {
 } from "../data";
 
 import { getDashboardCounts } from "../utils/dashboardCounts";
+import { fetchDashboardCounts } from "../services/hrDashboardService";
 
-export default function HRDashboard() {
-  const counts = getDashboardCounts({
+function buildFallbackDashboardCounts() {
+  const dummyCounts = getDashboardCounts({
     candidates: dummyCandidates,
     probationAttempts: dummyProbationAttempts,
     offers: dummyOffers,
@@ -21,61 +23,100 @@ export default function HRDashboard() {
     signedOffers: dummySignedOffers,
   });
 
+  return {
+    totalCandidates: dummyCounts.totalCandidates,
+    hrReviewPending: dummyCandidates.filter(
+      (candidate) => candidate.currentStatus === "HR_REVIEW_PENDING"
+    ).length,
+    inProbation: dummyCounts.inProbation,
+    probationReview: dummyProbationAttempts.filter(
+      (attempt) => attempt.status === "PROBATION_REVIEW"
+    ).length,
+    probationPassed: dummyCounts.probationPassed,
+    probationRejected: dummyCounts.probationRejected,
+    probationExtended: dummyCounts.probationExtended,
+    offerLetterProcess: dummyOffers.filter((offer) =>
+      ["MID_GENERATED", "OFFER_LETTER_GENERATED"].includes(offer.offerStatus)
+    ).length,
+    activeInterns: dummyCounts.activeInterns,
+    signedOfferSubmitted: dummyCounts.signedOfferSubmitted,
+    signedOfferVerified: dummySignedOffers.filter((signedOffer) =>
+      ["SIGNED_OFFER_VERIFIED", "VERIFIED"].includes(signedOffer.status)
+    ).length,
+    mismatchReview: dummyCounts.signedOfferMismatch,
+  };
+}
+
+export default function HRDashboard() {
+  const fallbackCounts = useMemo(() => buildFallbackDashboardCounts(), []);
+  const [counts, setCounts] = useState(fallbackCounts);
+  const [isLoading, setIsLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState("");
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadDashboardCounts() {
+      try {
+        const supabaseCounts = await fetchDashboardCounts();
+
+        if (!isMounted) return;
+
+        if (supabaseCounts) {
+          setCounts({ ...fallbackCounts, ...supabaseCounts });
+          setErrorMessage("");
+        } else {
+          setCounts(fallbackCounts);
+          setErrorMessage("No Supabase dashboard data found. Showing dummy data.");
+        }
+      } catch (error) {
+        if (!isMounted) return;
+
+        console.error("Unable to load dashboard counts:", error);
+        setCounts(fallbackCounts);
+        setErrorMessage("Unable to load Supabase dashboard data. Showing dummy data.");
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    loadDashboardCounts();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [fallbackCounts]);
+
+  const dashboardCards = [
+    ["Total Candidates", counts.totalCandidates],
+    ["HR Review Pending", counts.hrReviewPending],
+    ["In Probation", counts.inProbation],
+    ["Probation Review", counts.probationReview],
+    ["Probation Passed", counts.probationPassed],
+    ["Probation Rejected", counts.probationRejected],
+    ["Probation Extended", counts.probationExtended],
+    ["Offer Letter Process", counts.offerLetterProcess],
+    ["Active Interns", counts.activeInterns],
+    ["Signed Offer Submitted", counts.signedOfferSubmitted],
+    ["Signed Offer Verified", counts.signedOfferVerified],
+    ["Mismatch Review", counts.mismatchReview],
+  ];
+
   return (
     <div style={{ padding: "20px" }}>
       <h1>HR Dashboard</h1>
 
       <h2>Summary</h2>
 
-      <DashboardCard
-        title="Total Candidates"
-        value={counts.totalCandidates}
-      />
+      {isLoading && <p>Loading dashboard counts...</p>}
 
-      <DashboardCard
-        title="In Probation"
-        value={counts.inProbation}
-      />
+      {errorMessage && <p>{errorMessage}</p>}
 
-      <DashboardCard
-        title="Probation Passed"
-        value={counts.probationPassed}
-      />
-
-      <DashboardCard
-        title="Probation Rejected"
-        value={counts.probationRejected}
-      />
-
-      <DashboardCard
-        title="Offer Letter Generated"
-        value={counts.offerLetterGenerated}
-      />
-
-      <DashboardCard
-        title="Offer Letter Sent"
-        value={counts.offerLetterSent}
-      />
-
-      <DashboardCard
-        title="Active Interns"
-        value={counts.activeInterns}
-      />
-
-      <DashboardCard
-        title="Signed Offer Submitted"
-        value={counts.signedOfferSubmitted}
-      />
-
-      <DashboardCard
-        title="Signed Offer Mismatch"
-        value={counts.signedOfferMismatch}
-      />
-
-      <DashboardCard
-        title="Signed Offer Rejected"
-        value={counts.signedOfferRejected}
-      />
+      {dashboardCards.map(([title, value]) => (
+        <DashboardCard key={title} title={title} value={value} />
+      ))}
 
       <hr />
 
