@@ -406,3 +406,50 @@ export async function markOfferLetterSent({
 
   return true;
 }
+
+export async function markCandidateActiveAfterOfferSent({
+  candidateId,
+  performedBy = "HR",
+}) {
+  if (!supabase) {
+    throw new Error("Supabase environment variables are not configured.");
+  }
+
+  const now = new Date().toISOString();
+
+  const { data: updatedLifecycle, error: updateError } = await supabase
+    .from("hr_lifecycle")
+    .update({
+      lifecycle_status: "ACTIVE",
+      updated_at: now,
+    })
+    .eq("candidate_id", candidateId)
+    .eq("lifecycle_status", "OFFER_LETTER_SENT")
+    .select("candidate_id")
+    .maybeSingle();
+
+  if (updateError) {
+    throw updateError;
+  }
+
+  if (!updatedLifecycle) {
+    throw new Error("Candidate lifecycle status did not match OFFER_LETTER_SENT.");
+  }
+
+  const { error: logError } = await supabase.from("hr_activity_logs").insert({
+    candidate_id: candidateId,
+    activity_type: "ACTIVE",
+    from_status: "OFFER_LETTER_SENT",
+    to_status: "ACTIVE",
+    remarks: "Candidate marked as active intern by HR",
+    activity_status: "SUCCESS",
+    performed_by: performedBy,
+    performed_at: now,
+  });
+
+  if (logError) {
+    throw logError;
+  }
+
+  return true;
+}

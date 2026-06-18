@@ -1,4 +1,5 @@
 import { supabase } from "./supabaseClient";
+import { fetchActiveInterns } from "./activeInternsService";
 
 export async function fetchOfferLetterProcessCandidates() {
   if (!supabase) {
@@ -14,5 +15,14 @@ export async function fetchOfferLetterProcessCandidates() {
     throw error;
   }
 
-  return data ?? [];
+  const sentRows = await fetchActiveInterns();
+  const offerLetterSentRows = sentRows
+    .filter((row) => row.lifecycle_status === "OFFER_LETTER_SENT")
+    .map((row) => ({
+      ...row,
+      offer_status: row.offer_status || "OFFER_LETTER_SENT",
+      sent_at: row.sent_at ?? row.offer_letter_sent_at,
+    }));
+
+  return [...(data ?? []), ...offerLetterSentRows];
 }

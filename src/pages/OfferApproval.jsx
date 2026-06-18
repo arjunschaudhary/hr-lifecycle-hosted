@@ -5,6 +5,7 @@ import { dummyCandidates, dummyOffers } from "../data";
 import CandidateDetailModal from "../components/CandidateDetailModal";
 import {
   generateOfferLetterRecordAfterMid,
+  markCandidateActiveAfterOfferSent,
   markOfferLetterSent,
 } from "../services/lifecycleActionService";
 import { fetchOfferLetterProcessCandidates } from "../services/offerLetterProcessService";
@@ -163,6 +164,27 @@ export default function OfferApproval() {
     }
   }
 
+  async function handleMarkActiveIntern(record) {
+    setActionCandidateId(record.candidateId);
+    setActionMessage("");
+    setErrorMessage("");
+
+    try {
+      await markCandidateActiveAfterOfferSent({
+        candidateId: record.candidateId,
+        performedBy: "HR",
+      });
+
+      setActionMessage("Candidate marked as active intern.");
+      await refreshOfferRecords();
+    } catch (error) {
+      console.error("Unable to mark candidate as active intern:", error);
+      setErrorMessage(error.message || "Unable to mark candidate as active intern.");
+    } finally {
+      setActionCandidateId(null);
+    }
+  }
+
   return (
     <div style={{ padding: "20px" }}>
       <h1>Offer Letter Process</h1>
@@ -238,6 +260,18 @@ export default function OfferApproval() {
                     {actionCandidateId === record.candidateId
                       ? "Marking..."
                       : "Mark Offer Letter Sent"}
+                  </button>
+                )}
+
+                {record.lifecycleStatus === "OFFER_LETTER_SENT" && (
+                  <button
+                    type="button"
+                    disabled={actionCandidateId === record.candidateId}
+                    onClick={() => handleMarkActiveIntern(record)}
+                  >
+                    {actionCandidateId === record.candidateId
+                      ? "Marking..."
+                      : "Mark Active Intern"}
                   </button>
                 )}
               </td>
