@@ -2,7 +2,6 @@ export const candidateStatusGroups = {
   FORM_SUBMITTED: "Form Submitted",
   HR_REVIEW_PENDING: "HR Review Pending",
   HR_APPROVED_FOR_PROBATION: "HR Approved for Probation",
-  PROBATION_INITIATED: "Probation Initiated",
   WELCOME_MAIL_SENT: "Welcome Mail Sent",
   IN_PROBATION: "In Probation",
   PROBATION_REVIEW: "Probation Review",
@@ -22,7 +21,6 @@ export const probationStatusGroups = {
   FORM_SUBMITTED: "Form Submitted",
   HR_REVIEW_PENDING: "HR Review Pending",
   HR_APPROVED_FOR_PROBATION: "HR Approved for Probation",
-  PROBATION_INITIATED: "Probation Initiated",
   WELCOME_MAIL_SENT: "Welcome Mail Sent",
   IN_PROBATION: "In Probation",
   PROBATION_REVIEW: "Probation Review",
@@ -61,7 +59,6 @@ export function getStatusLabel(status, statusGroup = {}) {
 
 export function isProbationActive(status) {
   return [
-    "PROBATION_INITIATED",
     "WELCOME_MAIL_SENT",
     "IN_PROBATION",
     "PROBATION_REVIEW",

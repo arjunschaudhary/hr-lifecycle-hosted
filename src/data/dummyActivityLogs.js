@@ -12,11 +12,11 @@ export const dummyActivityLogs = [
   {
     id: "LOG-002",
     candidateId: "CAND-001",
-    actionType: "PROBATION_INITIATED",
+    actionType: "WELCOME_MAIL_SENT",
     performedBy: "SYSTEM",
     oldStatus: "HR_APPROVED_FOR_PROBATION",
-    newStatus: "IN_PROBATION",
-    remarks: "Probation initiated and welcome mail sent.",
+    newStatus: "WELCOME_MAIL_SENT",
+    remarks: "Welcome mail marked as sent.",
     createdAt: "2026-06-13 10:05",
   },
   {

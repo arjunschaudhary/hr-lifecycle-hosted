@@ -111,17 +111,23 @@ export async function submitSignedOfferUpload(formData) {
     }
   }
 
-  const { error: lifecycleUpdateError } = await supabase
+  const { data: updatedLifecycle, error: lifecycleUpdateError } = await supabase
     .from("hr_lifecycle")
     .update({
       lifecycle_status: nextLifecycleStatus,
       updated_at: now,
     })
     .eq("candidate_id", lifecycle.candidate_id)
-    .in("lifecycle_status", allowedUploadSourceStatuses);
+    .in("lifecycle_status", allowedUploadSourceStatuses)
+    .select("candidate_id")
+    .maybeSingle();
 
   if (lifecycleUpdateError) {
     throw lifecycleUpdateError;
+  }
+
+  if (!updatedLifecycle) {
+    throw new Error("Candidate lifecycle status did not match an allowed signed offer upload source status.");
   }
 
   const { error: logError } = await supabase.from("hr_activity_logs").insert({

@@ -12,7 +12,6 @@ import { fetchProbationReviewCandidates } from "../services/probationReviewServi
 const reviewStatuses = [
   "HR_REVIEW_PENDING",
   "HR_APPROVED_FOR_PROBATION",
-  "PROBATION_INITIATED",
   "WELCOME_MAIL_SENT",
   "IN_PROBATION",
   "PROBATION_REVIEW",
