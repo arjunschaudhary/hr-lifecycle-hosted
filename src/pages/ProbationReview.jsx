@@ -3,7 +3,10 @@ import { Link } from "react-router-dom";
 
 import { dummyCandidates, dummyProbationAttempts } from "../data";
 import CandidateDetailModal from "../components/CandidateDetailModal";
-import { updateCandidateLifecycleStatus } from "../services/lifecycleActionService";
+import {
+  generateCandidateMidAfterProbation,
+  updateCandidateLifecycleStatus,
+} from "../services/lifecycleActionService";
 import { fetchProbationReviewCandidates } from "../services/probationReviewService";
 
 const reviewStatuses = [
@@ -160,6 +163,30 @@ export default function ProbationReview() {
     } catch (error) {
       console.error("Unable to update candidate lifecycle status:", error);
       setErrorMessage("Unable to update candidate lifecycle status.");
+    } finally {
+      setActionCandidateId(null);
+    }
+  }
+
+  async function handleGenerateMid(record) {
+    setActionCandidateId(record.candidateId);
+    setActionMessage("");
+    setErrorMessage("");
+
+    try {
+      const { mid } = await generateCandidateMidAfterProbation({
+        candidateId: record.candidateId,
+        fullName: record.fullName,
+        appliedRole: record.appliedRole,
+        existingMid: record.mid,
+        performedBy: "HR",
+      });
+
+      setActionMessage(`MID generated: ${mid}`);
+      await refreshProbationRecords();
+    } catch (error) {
+      console.error("Unable to generate MID:", error);
+      setErrorMessage(error.message || "Unable to generate MID.");
     } finally {
       setActionCandidateId(null);
     }
@@ -362,6 +389,18 @@ export default function ProbationReview() {
                         : "Extend Probation"}
                     </button>
                   </>
+                )}
+
+                {record.probationStatus === "PROBATION_PASSED" && (
+                  <button
+                    type="button"
+                    disabled={actionCandidateId === record.candidateId}
+                    onClick={() => handleGenerateMid(record)}
+                  >
+                    {actionCandidateId === record.candidateId
+                      ? "Generating..."
+                      : "Generate MID"}
+                  </button>
                 )}
               </td>
             </tr>
