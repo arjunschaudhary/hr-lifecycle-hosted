@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 
 import { dummyActiveInterns } from "../data";
 import CandidateDetailModal from "../components/CandidateDetailModal";
+import { markSignedOfferSubmitted } from "../services/lifecycleActionService";
 import { fetchActiveInterns } from "../services/activeInternsService";
 
 function buildFallbackActiveInternRecords() {
@@ -48,7 +49,29 @@ export default function ActiveInterns() {
   const [activeInterns, setActiveInterns] = useState(fallbackRecords);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
+  const [actionCandidateId, setActionCandidateId] = useState(null);
+  const [actionMessage, setActionMessage] = useState("");
   const [selectedCandidateId, setSelectedCandidateId] = useState(null);
+
+  async function refreshActiveInterns() {
+    try {
+      const records = await fetchActiveInterns();
+
+      if (records?.length) {
+        setActiveInterns(records.map(mapSupabaseActiveInternRecord));
+        setErrorMessage("");
+      } else {
+        setActiveInterns(fallbackRecords);
+        setErrorMessage("No Supabase active interns data found. Showing dummy data.");
+      }
+    } catch (error) {
+      console.error("Unable to load active interns:", error);
+      setActiveInterns(fallbackRecords);
+      setErrorMessage("Unable to load Supabase active interns data. Showing dummy data.");
+    } finally {
+      setIsLoading(false);
+    }
+  }
 
   useEffect(() => {
     let isMounted = true;
@@ -86,6 +109,27 @@ export default function ActiveInterns() {
     };
   }, [fallbackRecords]);
 
+  async function handleMarkSignedOfferSubmitted(intern) {
+    setActionCandidateId(intern.candidateId);
+    setActionMessage("");
+    setErrorMessage("");
+
+    try {
+      await markSignedOfferSubmitted({
+        candidateId: intern.candidateId,
+        performedBy: "HR",
+      });
+
+      setActionMessage("Signed offer marked as submitted.");
+      await refreshActiveInterns();
+    } catch (error) {
+      console.error("Unable to mark signed offer as submitted:", error);
+      setErrorMessage(error.message || "Unable to mark signed offer as submitted.");
+    } finally {
+      setActionCandidateId(null);
+    }
+  }
+
   return (
     <div style={{ padding: "20px" }}>
       <h1>Active Interns</h1>
@@ -93,6 +137,8 @@ export default function ActiveInterns() {
       {isLoading && <p>Loading active interns...</p>}
 
       {errorMessage && <p>{errorMessage}</p>}
+
+      {actionMessage && <p>{actionMessage}</p>}
 
       <table border="1" cellPadding="10">
         <thead>
@@ -109,6 +155,7 @@ export default function ActiveInterns() {
             <th>Offer Status</th>
             <th>Sent At</th>
             <th>Signed Offer Status</th>
+            <th>Action</th>
           </tr>
         </thead>
 
@@ -134,6 +181,19 @@ export default function ActiveInterns() {
               <td>{intern.offerStatus}</td>
               <td>{intern.sentAt}</td>
               <td>{intern.signedOfferStatus}</td>
+              <td>
+                {intern.lifecycleStatus === "ACTIVE" && (
+                  <button
+                    type="button"
+                    disabled={actionCandidateId === intern.candidateId}
+                    onClick={() => handleMarkSignedOfferSubmitted(intern)}
+                  >
+                    {actionCandidateId === intern.candidateId
+                      ? "Marking..."
+                      : "Mark Signed Offer Submitted"}
+                  </button>
+                )}
+              </td>
             </tr>
           ))}
         </tbody>

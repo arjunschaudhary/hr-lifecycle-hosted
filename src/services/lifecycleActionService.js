@@ -453,3 +453,92 @@ export async function markCandidateActiveAfterOfferSent({
 
   return true;
 }
+
+export async function markSignedOfferSubmitted({
+  candidateId,
+  performedBy = "HR",
+}) {
+  if (!supabase) {
+    throw new Error("Supabase environment variables are not configured.");
+  }
+
+  const now = new Date().toISOString();
+
+  const { data: updatedLifecycle, error: updateError } = await supabase
+    .from("hr_lifecycle")
+    .update({
+      lifecycle_status: "SIGNED_OFFER_SUBMITTED",
+      updated_at: now,
+    })
+    .eq("candidate_id", candidateId)
+    .eq("lifecycle_status", "ACTIVE")
+    .select("candidate_id")
+    .maybeSingle();
+
+  if (updateError) {
+    throw updateError;
+  }
+
+  if (!updatedLifecycle) {
+    throw new Error("Candidate lifecycle status did not match ACTIVE.");
+  }
+
+  const { data: existingVerification, error: existingVerificationError } =
+    await supabase
+      .from("signed_offer_verifications")
+      .select("verification_id")
+      .eq("candidate_id", candidateId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+  if (existingVerificationError) {
+    throw existingVerificationError;
+  }
+
+  if (existingVerification) {
+    const { error: verificationUpdateError } = await supabase
+      .from("signed_offer_verifications")
+      .update({
+        signed_offer_status: "SIGNED_OFFER_SUBMITTED",
+        signed_offer_submitted_at: now,
+        updated_at: now,
+      })
+      .eq("verification_id", existingVerification.verification_id);
+
+    if (verificationUpdateError) {
+      throw verificationUpdateError;
+    }
+  } else {
+    const { error: verificationInsertError } = await supabase
+      .from("signed_offer_verifications")
+      .insert({
+        candidate_id: candidateId,
+        signed_offer_status: "SIGNED_OFFER_SUBMITTED",
+        signed_offer_submitted_at: now,
+        created_at: now,
+        updated_at: now,
+      });
+
+    if (verificationInsertError) {
+      throw verificationInsertError;
+    }
+  }
+
+  const { error: logError } = await supabase.from("hr_activity_logs").insert({
+    candidate_id: candidateId,
+    activity_type: "SIGNED_OFFER_SUBMITTED",
+    from_status: "ACTIVE",
+    to_status: "SIGNED_OFFER_SUBMITTED",
+    remarks: "Signed offer marked as submitted by HR",
+    activity_status: "SUCCESS",
+    performed_by: performedBy,
+    performed_at: now,
+  });
+
+  if (logError) {
+    throw logError;
+  }
+
+  return true;
+}
