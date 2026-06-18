@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 
 import { dummyCandidates, dummyProbationAttempts } from "../data";
 import CandidateDetailModal from "../components/CandidateDetailModal";
+import { updateCandidateLifecycleStatus } from "../services/lifecycleActionService";
 import { fetchProbationReviewCandidates } from "../services/probationReviewService";
 
 const reviewStatuses = [
@@ -72,12 +73,34 @@ export default function ProbationReview() {
   const [probationRecords, setProbationRecords] = useState(fallbackRecords);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
+  const [actionCandidateId, setActionCandidateId] = useState(null);
+  const [actionMessage, setActionMessage] = useState("");
   const [selectedCandidateId, setSelectedCandidateId] = useState(null);
+
+  async function refreshProbationRecords() {
+    try {
+      const records = await fetchProbationReviewCandidates();
+
+      if (records?.length) {
+        setProbationRecords(records.map(mapSupabaseProbationRecord));
+        setErrorMessage("");
+      } else {
+        setProbationRecords(fallbackRecords);
+        setErrorMessage("No Supabase probation review data found. Showing dummy data.");
+      }
+    } catch (error) {
+      console.error("Unable to load probation review candidates:", error);
+      setProbationRecords(fallbackRecords);
+      setErrorMessage("Unable to load Supabase probation review data. Showing dummy data.");
+    } finally {
+      setIsLoading(false);
+    }
+  }
 
   useEffect(() => {
     let isMounted = true;
 
-    async function loadProbationRecords() {
+    async function loadInitialProbationRecords() {
       try {
         const records = await fetchProbationReviewCandidates();
 
@@ -103,12 +126,44 @@ export default function ProbationReview() {
       }
     }
 
-    loadProbationRecords();
+    loadInitialProbationRecords();
 
     return () => {
       isMounted = false;
     };
   }, [fallbackRecords]);
+
+  async function handleLifecycleAction({
+    candidateId,
+    fromStatus,
+    toStatus,
+    activityType,
+    remarks,
+    successMessage,
+  }) {
+    setActionCandidateId(candidateId);
+    setActionMessage("");
+    setErrorMessage("");
+
+    try {
+      await updateCandidateLifecycleStatus({
+        candidateId,
+        fromStatus,
+        toStatus,
+        activityType,
+        remarks,
+        performedBy: "HR",
+      });
+
+      setActionMessage(successMessage);
+      await refreshProbationRecords();
+    } catch (error) {
+      console.error("Unable to update candidate lifecycle status:", error);
+      setErrorMessage("Unable to update candidate lifecycle status.");
+    } finally {
+      setActionCandidateId(null);
+    }
+  }
 
   return (
     <div style={{ padding: "20px" }}>
@@ -117,6 +172,8 @@ export default function ProbationReview() {
       {isLoading && <p>Loading probation review candidates...</p>}
 
       {errorMessage && <p>{errorMessage}</p>}
+
+      {actionMessage && <p>{actionMessage}</p>}
 
       <table border="1" cellPadding="10">
         <thead>
@@ -134,6 +191,7 @@ export default function ProbationReview() {
             <th>HR Decision</th>
             <th>MID</th>
             <th>HR Remarks</th>
+            <th>Action</th>
           </tr>
         </thead>
 
@@ -160,6 +218,49 @@ export default function ProbationReview() {
               <td>{record.hrDecision}</td>
               <td>{record.mid}</td>
               <td>{record.probationReviewNotes}</td>
+              <td>
+                {record.probationStatus === "HR_REVIEW_PENDING" && (
+                  <button
+                    type="button"
+                    disabled={actionCandidateId === record.candidateId}
+                    onClick={() =>
+                      handleLifecycleAction({
+                        candidateId: record.candidateId,
+                        fromStatus: "HR_REVIEW_PENDING",
+                        toStatus: "HR_APPROVED_FOR_PROBATION",
+                        activityType: "HR_APPROVED_FOR_PROBATION",
+                        remarks: "Candidate approved for probation by HR",
+                        successMessage: "Candidate approved for probation.",
+                      })
+                    }
+                  >
+                    {actionCandidateId === record.candidateId
+                      ? "Approving..."
+                      : "Approve for Probation"}
+                  </button>
+                )}
+
+                {record.probationStatus === "HR_APPROVED_FOR_PROBATION" && (
+                  <button
+                    type="button"
+                    disabled={actionCandidateId === record.candidateId}
+                    onClick={() =>
+                      handleLifecycleAction({
+                        candidateId: record.candidateId,
+                        fromStatus: "HR_APPROVED_FOR_PROBATION",
+                        toStatus: "WELCOME_MAIL_SENT",
+                        activityType: "WELCOME_MAIL_SENT",
+                        remarks: "Welcome mail marked as sent by HR",
+                        successMessage: "Welcome mail marked as sent.",
+                      })
+                    }
+                  >
+                    {actionCandidateId === record.candidateId
+                      ? "Marking..."
+                      : "Mark Welcome Mail Sent"}
+                  </button>
+                )}
+              </td>
             </tr>
           ))}
         </tbody>
