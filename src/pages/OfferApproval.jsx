@@ -3,7 +3,10 @@ import { Link } from "react-router-dom";
 
 import { dummyCandidates, dummyOffers } from "../data";
 import CandidateDetailModal from "../components/CandidateDetailModal";
-import { generateOfferLetterRecordAfterMid } from "../services/lifecycleActionService";
+import {
+  generateOfferLetterRecordAfterMid,
+  markOfferLetterSent,
+} from "../services/lifecycleActionService";
 import { fetchOfferLetterProcessCandidates } from "../services/offerLetterProcessService";
 
 function buildFallbackOfferRecords() {
@@ -139,6 +142,27 @@ export default function OfferApproval() {
     }
   }
 
+  async function handleMarkOfferLetterSent(record) {
+    setActionCandidateId(record.candidateId);
+    setActionMessage("");
+    setErrorMessage("");
+
+    try {
+      await markOfferLetterSent({
+        candidateId: record.candidateId,
+        performedBy: "HR",
+      });
+
+      setActionMessage("Offer letter marked as sent.");
+      await refreshOfferRecords();
+    } catch (error) {
+      console.error("Unable to mark offer letter as sent:", error);
+      setErrorMessage(error.message || "Unable to mark offer letter as sent.");
+    } finally {
+      setActionCandidateId(null);
+    }
+  }
+
   return (
     <div style={{ padding: "20px" }}>
       <h1>Offer Letter Process</h1>
@@ -202,6 +226,18 @@ export default function OfferApproval() {
                     {actionCandidateId === record.candidateId
                       ? "Generating..."
                       : "Generate Offer Letter Record"}
+                  </button>
+                )}
+
+                {record.lifecycleStatus === "OFFER_LETTER_GENERATED" && (
+                  <button
+                    type="button"
+                    disabled={actionCandidateId === record.candidateId}
+                    onClick={() => handleMarkOfferLetterSent(record)}
+                  >
+                    {actionCandidateId === record.candidateId
+                      ? "Marking..."
+                      : "Mark Offer Letter Sent"}
                   </button>
                 )}
               </td>

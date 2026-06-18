@@ -318,3 +318,91 @@ export async function generateOfferLetterRecordAfterMid({
 
   return { offerLetterNumber };
 }
+
+export async function markOfferLetterSent({
+  candidateId,
+  performedBy = "HR",
+}) {
+  if (!supabase) {
+    throw new Error("Supabase environment variables are not configured.");
+  }
+
+  const now = new Date().toISOString();
+
+  const { data: updatedLifecycle, error: updateError } = await supabase
+    .from("hr_lifecycle")
+    .update({
+      lifecycle_status: "OFFER_LETTER_SENT",
+      updated_at: now,
+    })
+    .eq("candidate_id", candidateId)
+    .eq("lifecycle_status", "OFFER_LETTER_GENERATED")
+    .select("candidate_id")
+    .maybeSingle();
+
+  if (updateError) {
+    throw updateError;
+  }
+
+  if (!updatedLifecycle) {
+    throw new Error("Candidate lifecycle status did not match OFFER_LETTER_GENERATED.");
+  }
+
+  const { data: existingOffer, error: existingOfferError } = await supabase
+    .from("hr_offer_letters")
+    .select("offer_letter_id")
+    .eq("candidate_id", candidateId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (existingOfferError) {
+    throw existingOfferError;
+  }
+
+  if (existingOffer) {
+    const { error: offerUpdateError } = await supabase
+      .from("hr_offer_letters")
+      .update({
+        offer_status: "OFFER_LETTER_SENT",
+        sent_at: now,
+        updated_at: now,
+      })
+      .eq("offer_letter_id", existingOffer.offer_letter_id);
+
+    if (offerUpdateError) {
+      throw offerUpdateError;
+    }
+  } else {
+    const { error: offerInsertError } = await supabase
+      .from("hr_offer_letters")
+      .insert({
+        candidate_id: candidateId,
+        offer_status: "OFFER_LETTER_SENT",
+        sent_at: now,
+        created_at: now,
+        updated_at: now,
+      });
+
+    if (offerInsertError) {
+      throw offerInsertError;
+    }
+  }
+
+  const { error: logError } = await supabase.from("hr_activity_logs").insert({
+    candidate_id: candidateId,
+    activity_type: "OFFER_LETTER_SENT",
+    from_status: "OFFER_LETTER_GENERATED",
+    to_status: "OFFER_LETTER_SENT",
+    remarks: "Offer letter marked as sent by HR",
+    activity_status: "SUCCESS",
+    performed_by: performedBy,
+    performed_at: now,
+  });
+
+  if (logError) {
+    throw logError;
+  }
+
+  return true;
+}
