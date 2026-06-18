@@ -281,6 +281,27 @@ export default function ProbationReview() {
                       : "Mark In Probation"}
                   </button>
                 )}
+
+                {record.probationStatus === "IN_PROBATION" && (
+                  <button
+                    type="button"
+                    disabled={actionCandidateId === record.candidateId}
+                    onClick={() =>
+                      handleLifecycleAction({
+                        candidateId: record.candidateId,
+                        fromStatus: "IN_PROBATION",
+                        toStatus: "PROBATION_REVIEW",
+                        activityType: "PROBATION_REVIEW",
+                        remarks: "Candidate marked ready for probation review by HR",
+                        successMessage: "Candidate marked ready for probation review.",
+                      })
+                    }
+                  >
+                    {actionCandidateId === record.candidateId
+                      ? "Marking..."
+                      : "Mark Ready for Review"}
+                  </button>
+                )}
               </td>
             </tr>
           ))}
