@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 
 import { dummyCandidates, dummyOffers } from "../data";
 import CandidateDetailModal from "../components/CandidateDetailModal";
+import { generateOfferLetterRecordAfterMid } from "../services/lifecycleActionService";
 import { fetchOfferLetterProcessCandidates } from "../services/offerLetterProcessService";
 
 function buildFallbackOfferRecords() {
@@ -56,7 +57,29 @@ export default function OfferApproval() {
   const [offerRecords, setOfferRecords] = useState(fallbackRecords);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
+  const [actionCandidateId, setActionCandidateId] = useState(null);
+  const [actionMessage, setActionMessage] = useState("");
   const [selectedCandidateId, setSelectedCandidateId] = useState(null);
+
+  async function refreshOfferRecords() {
+    try {
+      const records = await fetchOfferLetterProcessCandidates();
+
+      if (records?.length) {
+        setOfferRecords(records.map(mapSupabaseOfferRecord));
+        setErrorMessage("");
+      } else {
+        setOfferRecords(fallbackRecords);
+        setErrorMessage("No Supabase offer letter process data found. Showing dummy data.");
+      }
+    } catch (error) {
+      console.error("Unable to load offer letter process candidates:", error);
+      setOfferRecords(fallbackRecords);
+      setErrorMessage("Unable to load Supabase offer letter process data. Showing dummy data.");
+    } finally {
+      setIsLoading(false);
+    }
+  }
 
   useEffect(() => {
     let isMounted = true;
@@ -94,6 +117,28 @@ export default function OfferApproval() {
     };
   }, [fallbackRecords]);
 
+  async function handleGenerateOfferLetterRecord(record) {
+    setActionCandidateId(record.candidateId);
+    setActionMessage("");
+    setErrorMessage("");
+
+    try {
+      const { offerLetterNumber } = await generateOfferLetterRecordAfterMid({
+        candidateId: record.candidateId,
+        existingMid: record.mid,
+        performedBy: "HR",
+      });
+
+      setActionMessage(`Offer letter record generated: ${offerLetterNumber}`);
+      await refreshOfferRecords();
+    } catch (error) {
+      console.error("Unable to generate offer letter record:", error);
+      setErrorMessage(error.message || "Unable to generate offer letter record.");
+    } finally {
+      setActionCandidateId(null);
+    }
+  }
+
   return (
     <div style={{ padding: "20px" }}>
       <h1>Offer Letter Process</h1>
@@ -101,6 +146,8 @@ export default function OfferApproval() {
       {isLoading && <p>Loading offer letter process candidates...</p>}
 
       {errorMessage && <p>{errorMessage}</p>}
+
+      {actionMessage && <p>{actionMessage}</p>}
 
       <table border="1" cellPadding="10">
         <thead>
@@ -118,6 +165,7 @@ export default function OfferApproval() {
             <th>Sent At</th>
             <th>Start Date</th>
             <th>End Date</th>
+            <th>Action</th>
           </tr>
         </thead>
 
@@ -144,6 +192,19 @@ export default function OfferApproval() {
               <td>{record.sentAt}</td>
               <td>{record.startDate}</td>
               <td>{record.endDate}</td>
+              <td>
+                {record.lifecycleStatus === "MID_GENERATED" && (
+                  <button
+                    type="button"
+                    disabled={actionCandidateId === record.candidateId}
+                    onClick={() => handleGenerateOfferLetterRecord(record)}
+                  >
+                    {actionCandidateId === record.candidateId
+                      ? "Generating..."
+                      : "Generate Offer Letter Record"}
+                  </button>
+                )}
+              </td>
             </tr>
           ))}
         </tbody>

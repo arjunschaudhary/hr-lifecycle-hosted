@@ -206,3 +206,115 @@ export async function generateCandidateMidAfterProbation({
 
   return { mid };
 }
+
+export async function generateOfferLetterRecordAfterMid({
+  candidateId,
+  existingMid,
+  performedBy = "HR",
+}) {
+  if (!supabase) {
+    throw new Error("Supabase environment variables are not configured.");
+  }
+
+  const now = new Date().toISOString();
+
+  const { data: lifecycle, error: lifecycleError } = await supabase
+    .from("hr_lifecycle")
+    .select("mid,lifecycle_status")
+    .eq("candidate_id", candidateId)
+    .maybeSingle();
+
+  if (lifecycleError) {
+    throw lifecycleError;
+  }
+
+  if (!lifecycle || lifecycle.lifecycle_status !== "MID_GENERATED") {
+    throw new Error("Candidate is not in MID_GENERATED status.");
+  }
+
+  const mid = lifecycle.mid || existingMid;
+
+  if (!mid) {
+    throw new Error("MID is required before generating offer letter record.");
+  }
+
+  const { data: updatedLifecycle, error: updateError } = await supabase
+    .from("hr_lifecycle")
+    .update({
+      lifecycle_status: "OFFER_LETTER_GENERATED",
+      updated_at: now,
+    })
+    .eq("candidate_id", candidateId)
+    .eq("lifecycle_status", "MID_GENERATED")
+    .select("candidate_id")
+    .maybeSingle();
+
+  if (updateError) {
+    throw updateError;
+  }
+
+  if (!updatedLifecycle) {
+    throw new Error("Candidate lifecycle status did not match MID_GENERATED.");
+  }
+
+  const offerLetterNumber = `OL-${mid}`;
+  const { data: existingOffer, error: existingOfferError } = await supabase
+    .from("hr_offer_letters")
+    .select("offer_letter_id,offer_letter_number")
+    .eq("candidate_id", candidateId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (existingOfferError) {
+    throw existingOfferError;
+  }
+
+  if (existingOffer) {
+    const { error: offerUpdateError } = await supabase
+      .from("hr_offer_letters")
+      .update({
+        offer_status: "OFFER_LETTER_GENERATED",
+        offer_letter_number: existingOffer.offer_letter_number || offerLetterNumber,
+        generated_at: now,
+        updated_at: now,
+      })
+      .eq("offer_letter_id", existingOffer.offer_letter_id);
+
+    if (offerUpdateError) {
+      throw offerUpdateError;
+    }
+  } else {
+    const { error: offerInsertError } = await supabase
+      .from("hr_offer_letters")
+      .insert({
+        candidate_id: candidateId,
+        offer_status: "OFFER_LETTER_GENERATED",
+        offer_letter_number: offerLetterNumber,
+        generated_at: now,
+        created_at: now,
+        updated_at: now,
+      });
+
+    if (offerInsertError) {
+      throw offerInsertError;
+    }
+  }
+
+  const { error: logError } = await supabase.from("hr_activity_logs").insert({
+    candidate_id: candidateId,
+    activity_type: "OFFER_LETTER_GENERATED",
+    from_status: "MID_GENERATED",
+    to_status: "OFFER_LETTER_GENERATED",
+    remarks: "Offer letter record generated after MID generation",
+    activity_status: "SUCCESS",
+    performed_by: performedBy,
+    performed_at: now,
+  });
+
+  if (logError) {
+    throw logError;
+  }
+
+  return { offerLetterNumber };
+}
