@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { dummyCandidates, dummySignedOffers } from "../data";
 import CandidateDetailModal from "../components/CandidateDetailModal";
+import { decideSignedOfferVerification } from "../services/lifecycleActionService";
 import { fetchSignedOfferVerifications } from "../services/signedOfferVerificationService";
 
 function getOverallMatchStatus(emailMatchStatus, phoneMatchStatus) {
@@ -30,6 +31,7 @@ function buildFallbackSignedOfferRecords() {
       email: candidate?.email,
       phone: candidate?.phone,
       appliedRole: candidate?.roleAppliedFor,
+      lifecycleStatus: offer.status,
       mid: offer.mid,
       signedOfferStatus: offer.status,
       signedOfferSubmittedAt: offer.submittedAt,
@@ -53,6 +55,7 @@ function mapSupabaseSignedOfferRecord(row) {
     email: row.email,
     phone: row.phone,
     appliedRole: row.applied_role,
+    lifecycleStatus: row.lifecycle_status,
     mid: row.mid,
     signedOfferStatus: row.signed_offer_status,
     signedOfferSubmittedAt: row.signed_offer_submitted_at,
@@ -69,24 +72,63 @@ export default function SignedOfferVerification() {
   const [signedOfferRecords, setSignedOfferRecords] = useState(fallbackRecords);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
+  const [actionCandidateId, setActionCandidateId] = useState(null);
+  const [actionMessage, setActionMessage] = useState("");
   const [selectedCandidateId, setSelectedCandidateId] = useState(null);
+
+  const refreshSignedOfferRecords = useCallback(async () => {
+    const records = await fetchSignedOfferVerifications();
+
+    if (records?.length) {
+      setSignedOfferRecords(records.map(mapSupabaseSignedOfferRecord));
+      setErrorMessage("");
+    } else {
+      setSignedOfferRecords(fallbackRecords);
+      setErrorMessage("No Supabase signed offer verification data found. Showing dummy data.");
+    }
+  }, [fallbackRecords]);
+
+  async function handleSignedOfferDecision({
+    record,
+    toStatus,
+    activityType,
+    remarks,
+    verificationNotes,
+    markAsMatched,
+    successMessage,
+  }) {
+    setActionCandidateId(record.candidateId);
+    setActionMessage("");
+
+    try {
+      await decideSignedOfferVerification({
+        candidateId: record.candidateId,
+        toStatus,
+        activityType,
+        remarks,
+        verificationNotes,
+        markAsMatched,
+        performedBy: "HR",
+      });
+
+      await refreshSignedOfferRecords();
+      setActionMessage(successMessage);
+    } catch (error) {
+      console.error("Unable to update signed offer verification:", error);
+      setActionMessage(error.message || "Unable to update signed offer verification.");
+    } finally {
+      setActionCandidateId(null);
+    }
+  }
 
   useEffect(() => {
     let isMounted = true;
 
     async function loadSignedOfferRecords() {
       try {
-        const records = await fetchSignedOfferVerifications();
-
         if (!isMounted) return;
 
-        if (records?.length) {
-          setSignedOfferRecords(records.map(mapSupabaseSignedOfferRecord));
-          setErrorMessage("");
-        } else {
-          setSignedOfferRecords(fallbackRecords);
-          setErrorMessage("No Supabase signed offer verification data found. Showing dummy data.");
-        }
+        await refreshSignedOfferRecords();
       } catch (error) {
         if (!isMounted) return;
 
@@ -105,7 +147,7 @@ export default function SignedOfferVerification() {
     return () => {
       isMounted = false;
     };
-  }, [fallbackRecords]);
+  }, [fallbackRecords, refreshSignedOfferRecords]);
 
   return (
     <div style={{ padding: "20px" }}>
@@ -114,6 +156,8 @@ export default function SignedOfferVerification() {
       {isLoading && <p>Loading signed offer verifications...</p>}
 
       {errorMessage && <p>{errorMessage}</p>}
+
+      {actionMessage && <p>{actionMessage}</p>}
 
       <table border="1" cellPadding="10">
         <thead>
@@ -130,6 +174,7 @@ export default function SignedOfferVerification() {
             <th>Verified At</th>
             <th>Verification Notes</th>
             <th>Status</th>
+            <th>Action</th>
           </tr>
         </thead>
 
@@ -155,6 +200,52 @@ export default function SignedOfferVerification() {
               <td>{record.verifiedAt}</td>
               <td>{record.verificationNotes}</td>
               <td>{record.signedOfferStatus}</td>
+              <td>
+                {record.lifecycleStatus === "SIGNED_OFFER_SUBMITTED" ? (
+                  <>
+                    <button
+                      type="button"
+                      disabled={actionCandidateId === record.candidateId}
+                      onClick={() =>
+                        handleSignedOfferDecision({
+                          record,
+                          toStatus: "SIGNED_OFFER_VERIFIED",
+                          activityType: "SIGNED_OFFER_VERIFIED",
+                          remarks: "Signed offer verified by HR",
+                          verificationNotes: "Signed offer verified by HR",
+                          markAsMatched: true,
+                          successMessage: "Signed offer verified.",
+                        })
+                      }
+                    >
+                      {actionCandidateId === record.candidateId
+                        ? "Saving..."
+                        : "Verify Signed Offer"}
+                    </button>{" "}
+                    <button
+                      type="button"
+                      disabled={actionCandidateId === record.candidateId}
+                      onClick={() =>
+                        handleSignedOfferDecision({
+                          record,
+                          toStatus: "MISMATCH_REVIEW",
+                          activityType: "MISMATCH_REVIEW",
+                          remarks: "Signed offer marked for mismatch review by HR",
+                          verificationNotes: "Signed offer requires mismatch review",
+                          markAsMatched: false,
+                          successMessage: "Signed offer marked for mismatch review.",
+                        })
+                      }
+                    >
+                      {actionCandidateId === record.candidateId
+                        ? "Saving..."
+                        : "Mark Mismatch Review"}
+                    </button>
+                  </>
+                ) : (
+                  "No action"
+                )}
+              </td>
             </tr>
           ))}
         </tbody>

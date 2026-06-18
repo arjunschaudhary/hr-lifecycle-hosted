@@ -542,3 +542,110 @@ export async function markSignedOfferSubmitted({
 
   return true;
 }
+
+export async function decideSignedOfferVerification({
+  candidateId,
+  toStatus,
+  activityType,
+  remarks,
+  verificationNotes,
+  markAsMatched = false,
+  performedBy = "HR",
+}) {
+  if (!supabase) {
+    throw new Error("Supabase environment variables are not configured.");
+  }
+
+  const now = new Date().toISOString();
+
+  const { data: updatedLifecycle, error: updateError } = await supabase
+    .from("hr_lifecycle")
+    .update({
+      lifecycle_status: toStatus,
+      updated_at: now,
+    })
+    .eq("candidate_id", candidateId)
+    .eq("lifecycle_status", "SIGNED_OFFER_SUBMITTED")
+    .select("candidate_id")
+    .maybeSingle();
+
+  if (updateError) {
+    throw updateError;
+  }
+
+  if (!updatedLifecycle) {
+    throw new Error("Candidate lifecycle status did not match SIGNED_OFFER_SUBMITTED.");
+  }
+
+  const { data: existingVerification, error: existingVerificationError } =
+    await supabase
+      .from("signed_offer_verifications")
+      .select("verification_id,email_match_status,phone_match_status")
+      .eq("candidate_id", candidateId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+  if (existingVerificationError) {
+    throw existingVerificationError;
+  }
+
+  const verificationValues = {
+    signed_offer_status: toStatus,
+    verification_notes: verificationNotes,
+    updated_at: now,
+  };
+
+  if (toStatus === "SIGNED_OFFER_VERIFIED") {
+    verificationValues.verified_at = now;
+  }
+
+  if (markAsMatched && !existingVerification?.email_match_status) {
+    verificationValues.email_match_status = "MATCHED";
+  }
+
+  if (markAsMatched && !existingVerification?.phone_match_status) {
+    verificationValues.phone_match_status = "MATCHED";
+  }
+
+  if (existingVerification) {
+    const { error: verificationUpdateError } = await supabase
+      .from("signed_offer_verifications")
+      .update(verificationValues)
+      .eq("verification_id", existingVerification.verification_id);
+
+    if (verificationUpdateError) {
+      throw verificationUpdateError;
+    }
+  } else {
+    const { error: verificationInsertError } = await supabase
+      .from("signed_offer_verifications")
+      .insert({
+        candidate_id: candidateId,
+        signed_offer_submitted_at: now,
+        created_at: now,
+        ...verificationValues,
+      });
+
+    if (verificationInsertError) {
+      throw verificationInsertError;
+    }
+  }
+
+  const { error: logError } = await supabase.from("hr_activity_logs").insert({
+    candidate_id: candidateId,
+    activity_type: activityType,
+    from_status: "SIGNED_OFFER_SUBMITTED",
+    to_status: toStatus,
+    remarks,
+    activity_status: "SUCCESS",
+    performed_by: performedBy,
+    performed_at: now,
+  });
+
+  if (logError) {
+    throw logError;
+  }
+
+  return true;
+}
