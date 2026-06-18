@@ -302,6 +302,67 @@ export default function ProbationReview() {
                       : "Mark Ready for Review"}
                   </button>
                 )}
+
+                {record.probationStatus === "PROBATION_REVIEW" && (
+                  <>
+                    <button
+                      type="button"
+                      disabled={actionCandidateId === record.candidateId}
+                      onClick={() =>
+                        handleLifecycleAction({
+                          candidateId: record.candidateId,
+                          fromStatus: "PROBATION_REVIEW",
+                          toStatus: "PROBATION_PASSED",
+                          activityType: "PROBATION_PASSED",
+                          remarks: "Candidate passed probation review by HR",
+                          successMessage: "Candidate marked as probation passed.",
+                        })
+                      }
+                    >
+                      {actionCandidateId === record.candidateId
+                        ? "Saving..."
+                        : "Pass Probation"}
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={actionCandidateId === record.candidateId}
+                      onClick={() =>
+                        handleLifecycleAction({
+                          candidateId: record.candidateId,
+                          fromStatus: "PROBATION_REVIEW",
+                          toStatus: "PROBATION_REJECTED",
+                          activityType: "PROBATION_REJECTED",
+                          remarks: "Candidate rejected after probation review by HR",
+                          successMessage: "Candidate marked as probation rejected.",
+                        })
+                      }
+                    >
+                      {actionCandidateId === record.candidateId
+                        ? "Saving..."
+                        : "Reject Probation"}
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={actionCandidateId === record.candidateId}
+                      onClick={() =>
+                        handleLifecycleAction({
+                          candidateId: record.candidateId,
+                          fromStatus: "PROBATION_REVIEW",
+                          toStatus: "PROBATION_EXTENDED",
+                          activityType: "PROBATION_EXTENDED",
+                          remarks: "Candidate probation extended by HR",
+                          successMessage: "Candidate probation extended.",
+                        })
+                      }
+                    >
+                      {actionCandidateId === record.candidateId
+                        ? "Saving..."
+                        : "Extend Probation"}
+                    </button>
+                  </>
+                )}
               </td>
             </tr>
           ))}
