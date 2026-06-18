@@ -260,6 +260,27 @@ export default function ProbationReview() {
                       : "Mark Welcome Mail Sent"}
                   </button>
                 )}
+
+                {record.probationStatus === "WELCOME_MAIL_SENT" && (
+                  <button
+                    type="button"
+                    disabled={actionCandidateId === record.candidateId}
+                    onClick={() =>
+                      handleLifecycleAction({
+                        candidateId: record.candidateId,
+                        fromStatus: "WELCOME_MAIL_SENT",
+                        toStatus: "IN_PROBATION",
+                        activityType: "IN_PROBATION",
+                        remarks: "Candidate marked as in probation by HR",
+                        successMessage: "Candidate marked as in probation.",
+                      })
+                    }
+                  >
+                    {actionCandidateId === record.candidateId
+                      ? "Marking..."
+                      : "Mark In Probation"}
+                  </button>
+                )}
               </td>
             </tr>
           ))}
