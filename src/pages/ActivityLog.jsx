@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-
+import { History } from "lucide-react";
 import { dummyCandidates, dummyActivityLogs } from "../data";
 import CandidateDetailModal from "../components/CandidateDetailModal";
 import { fetchActivityLogs } from "../services/activityLogService";
@@ -89,14 +89,53 @@ export default function ActivityLog() {
   }, [fallbackLogs]);
 
   return (
-    <div style={{ padding: "20px" }}>
-      <h1>Activity Log</h1>
+    <div className="app-page">
+      
+<Link
+  to="/"
+  className="back-link"
+>
+  ← Back to Dashboard
+</Link>
+
+
+
+<div className="page-header-modern">
+
+
+<div className="page-icon">
+
+<History size={28}/>
+
+</div>
+
+
+
+<div>
+
+<h1 className="page-title-modern">
+Activity Log
+</h1>
+
+
+<p className="page-subtitle">
+Track candidate lifecycle actions and HR workflow history.
+</p>
+
+
+</div>
+
+
+</div>
+
 
       {isLoading && <p>Loading activity logs...</p>}
 
       {errorMessage && <p>{errorMessage}</p>}
 
-      <table border="1" cellPadding="10">
+      <div className="table-container">
+
+      <table>
         <thead>
           <tr>
             <th>Date</th>
@@ -119,6 +158,7 @@ export default function ActivityLog() {
               <td>
                 <button
                   type="button"
+                  className="candidate-link"
                   onClick={() => setSelectedCandidateId(log.candidateId)}
                 >
                   {log.fullName}
@@ -126,22 +166,65 @@ export default function ActivityLog() {
               </td>
               <td>{log.email}</td>
               <td>{log.activityType}</td>
-              <td>{log.fromStatus || "-"}</td>
-              <td>{log.toStatus || "-"}</td>
+              <td>
+
+{log.fromStatus ? (
+
+<span className="badge badge-primary">
+
+{log.fromStatus.replaceAll("_"," ")}
+
+</span>
+
+) : "-"}
+
+</td>
+
+
+
+<td>
+
+{log.toStatus ? (
+
+<span className="badge badge-success">
+
+{log.toStatus.replaceAll("_"," ")}
+
+</span>
+
+) : "-"}
+
+</td>
               <td>{log.remarks}</td>
-              <td>{log.activityStatus}</td>
+              <td>
+
+<span
+className={
+`badge ${
+log.activityStatus === "SUCCESS"
+?
+"badge-success"
+:
+"badge-warning"
+}`
+}
+>
+
+{log.activityStatus}
+
+</span>
+
+</td>
               <td>{log.errorMessage || "-"}</td>
               <td>{log.performedBy}</td>
             </tr>
           ))}
         </tbody>
       </table>
-
+      </div>
       <br />
 
-      <Link to="/">
-        <button>Back to Dashboard</button>
-      </Link>
+      
 
       <CandidateDetailModal
         candidateId={selectedCandidateId}

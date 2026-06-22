@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-
+import { ClipboardCheck } from "lucide-react";
 import { dummyCandidates, dummyProbationAttempts } from "../data";
 import CandidateDetailModal from "../components/CandidateDetailModal";
 import {
@@ -68,6 +68,24 @@ function mapSupabaseProbationRecord(row) {
     hrDecision: row.hr_decision,
     mid: row.mid,
   };
+}
+
+function getStatusClass(status) {
+
+  switch (status) {
+
+    case "HR_REVIEW_PENDING":
+      return "badge-warning";
+
+    case "PROBATION_PASSED":
+      return "badge-success";
+
+    case "PROBATION_REJECTED":
+      return "badge-danger";
+
+    default:
+      return "badge-primary";
+  }
 }
 
 export default function ProbationReview() {
@@ -192,8 +210,31 @@ export default function ProbationReview() {
   }
 
   return (
-    <div style={{ padding: "20px" }}>
-      <h1>Probation Review</h1>
+    <div className="app-page">
+      
+      <Link
+  to="/"
+  className="back-link"
+>
+  ← Back to Dashboard
+</Link>
+      <div className="page-header-modern">
+
+  <div className="page-icon">
+    <ClipboardCheck size={28} />
+  </div>
+
+  <div>
+    <h1 className="page-title-modern">
+      Probation Review
+    </h1>
+
+    <p className="page-subtitle">
+      Review candidates and manage probation lifecycle transitions.
+    </p>
+  </div>
+
+</div>
 
       {isLoading && <p>Loading probation review candidates...</p>}
 
@@ -201,7 +242,9 @@ export default function ProbationReview() {
 
       {actionMessage && <p>{actionMessage}</p>}
 
-      <table border="1" cellPadding="10">
+      <div className="table-container">
+
+      <table>
         <thead>
           <tr>
             <th>Candidate Name</th>
@@ -226,9 +269,10 @@ export default function ProbationReview() {
             <tr key={record.id}>
               <td>
                 <button
-                  type="button"
-                  onClick={() => setSelectedCandidateId(record.candidateId)}
-                >
+  type="button"
+  className="candidate-link"
+  onClick={() => setSelectedCandidateId(record.candidateId)}
+>
                   {record.fullName}
                 </button>
               </td>
@@ -240,7 +284,16 @@ export default function ProbationReview() {
               <td>{record.source}</td>
               <td>{record.probationStartDate}</td>
               <td>{record.probationEndDate}</td>
-              <td>{record.probationStatus}</td>
+              <td>
+
+  <span
+    className={`badge ${getStatusClass(record.probationStatus)}`}
+  >
+    {record.probationStatus
+      .replaceAll("_"," ")}
+  </span>
+
+</td>
               <td>{record.hrDecision}</td>
               <td>{record.mid}</td>
               <td>{record.probationReviewNotes}</td>
@@ -248,6 +301,7 @@ export default function ProbationReview() {
                 {record.probationStatus === "HR_REVIEW_PENDING" && (
                   <button
                     type="button"
+                     className="btn btn-success"
                     disabled={actionCandidateId === record.candidateId}
                     onClick={() =>
                       handleLifecycleAction({
@@ -269,6 +323,7 @@ export default function ProbationReview() {
                 {record.probationStatus === "HR_APPROVED_FOR_PROBATION" && (
                   <button
                     type="button"
+                    className="btn btn-primary"
                     disabled={actionCandidateId === record.candidateId}
                     onClick={() =>
                       handleLifecycleAction({
@@ -290,6 +345,7 @@ export default function ProbationReview() {
                 {record.probationStatus === "WELCOME_MAIL_SENT" && (
                   <button
                     type="button"
+                    className="btn btn-primary"
                     disabled={actionCandidateId === record.candidateId}
                     onClick={() =>
                       handleLifecycleAction({
@@ -311,6 +367,7 @@ export default function ProbationReview() {
                 {record.probationStatus === "IN_PROBATION" && (
                   <button
                     type="button"
+                    className="btn btn-warning"
                     disabled={actionCandidateId === record.candidateId}
                     onClick={() =>
                       handleLifecycleAction({
@@ -333,6 +390,7 @@ export default function ProbationReview() {
                   <>
                     <button
                       type="button"
+                      className="btn btn-success"
                       disabled={actionCandidateId === record.candidateId}
                       onClick={() =>
                         handleLifecycleAction({
@@ -352,6 +410,7 @@ export default function ProbationReview() {
 
                     <button
                       type="button"
+                      className="btn btn-danger"
                       disabled={actionCandidateId === record.candidateId}
                       onClick={() =>
                         handleLifecycleAction({
@@ -371,6 +430,7 @@ export default function ProbationReview() {
 
                     <button
                       type="button"
+                       className="btn btn-warning"
                       disabled={actionCandidateId === record.candidateId}
                       onClick={() =>
                         handleLifecycleAction({
@@ -393,6 +453,7 @@ export default function ProbationReview() {
                 {record.probationStatus === "PROBATION_PASSED" && (
                   <button
                     type="button"
+                    className="btn btn-primary"
                     disabled={actionCandidateId === record.candidateId}
                     onClick={() => handleGenerateMid(record)}
                   >
@@ -406,12 +467,9 @@ export default function ProbationReview() {
           ))}
         </tbody>
       </table>
-
+      </div>
       <br />
 
-      <Link to="/">
-        <button>Back to Dashboard</button>
-      </Link>
 
       <CandidateDetailModal
         candidateId={selectedCandidateId}

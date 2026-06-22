@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { submitCandidateForm } from "../services/candidateFormService";
+import { UserPlus } from "lucide-react";
 
 const initialFormData = {
   full_name: "",
@@ -57,95 +58,244 @@ export default function CandidateProbationForm() {
   }
 
   return (
-    <div style={{ padding: "20px" }}>
-      <h1>Candidate Probation Form</h1>
+  <div className="form-page">
+
+    <div className="form-card">
+    <Link to="/" className="back-link">
+  ← Back to Dashboard
+</Link>
+
+<div className="form-header">
+
+  <div className="form-header-icon">
+    <UserPlus size={28} />
+  </div>
+
+  <div>
+    <h1>Candidate Probation Form</h1>
+
+    <p>
+      Submit candidate details for HR review and probation workflow
+    </p>
+  </div>
+
+</div>
+
 
       <form onSubmit={handleSubmit}>
-        <input
-          name="full_name"
-          placeholder="Full Name"
-          value={formData.full_name}
-          onChange={handleChange}
-          required
-        />
-        <br /><br />
 
-        <input
-          name="email"
-          placeholder="Email"
-          type="email"
-          value={formData.email}
-          onChange={handleChange}
-          required
-        />
-        <br /><br />
 
-        <input
-          name="phone"
-          placeholder="Phone"
-          value={formData.phone}
-          onChange={handleChange}
-        />
-        <br /><br />
+        <div className="form-grid">
 
-        <input
-          name="address"
-          placeholder="Address"
-          value={formData.address}
-          onChange={handleChange}
-        />
-        <br /><br />
 
-        <input
-          name="applied_role"
-          placeholder="Role Applied For"
-          value={formData.applied_role}
-          onChange={handleChange}
-        />
-        <br /><br />
+          <div className="form-group">
+          <h3 className="form-section-title">
+  Candidate Information
+</h3>
+            <label>
+  Full Name
+  <span className="required">*</span>
+</label>
 
-        <input
-          name="role_code"
-          placeholder="Role Code"
-          value={formData.role_code}
-          onChange={handleChange}
-        />
-        <br /><br />
+            <input
+              name="full_name"
+              placeholder="Enter full name"
+              value={formData.full_name}
+              onChange={handleChange}
+              required
+            />
+          </div>
 
-        <input
-          name="department"
-          placeholder="Department"
-          value={formData.department}
-          onChange={handleChange}
-        />
-        <br /><br />
 
-        <label>
-          <input
-            name="candidate_consent"
-            type="checkbox"
-            checked={formData.candidate_consent}
+
+          <div className="form-group">
+            <label>
+  Email
+  <span className="required">*</span>
+</label>
+
+            <input
+              name="email"
+              type="email"
+              placeholder="Enter email"
+              value={formData.email}
+              onChange={handleChange}
+              required
+            />
+          </div>
+
+
+
+
+          <div className="form-group">
+            <label>Phone</label>
+
+            <input
+              name="phone"
+              placeholder="Enter phone number"
+              value={formData.phone}
+              onChange={handleChange}
+            />
+          </div>
+
+
+
+
+          <div className="form-group">
+          <h3 className="form-section-title">
+  Position Details
+</h3>
+            <label>Department</label>
+
+            <input
+              name="department"
+              placeholder="Department"
+              value={formData.department}
+              onChange={handleChange}
+            />
+          </div>
+
+
+
+
+          <div className="form-group">
+            <label>Applied Role</label>
+
+            <input
+              name="applied_role"
+              placeholder="Role applied for"
+              value={formData.applied_role}
+              onChange={handleChange}
+            />
+          </div>
+
+
+
+
+          <div className="form-group">
+            <label>Role Code</label>
+
+            <input
+              name="role_code"
+              placeholder="Role code"
+              value={formData.role_code}
+              onChange={handleChange}
+            />
+          </div>
+
+
+        </div>
+
+
+
+        <div className="form-group">
+        <h3 className="form-section-title">
+  Additional Information
+</h3>
+
+          <label>Address</label>
+
+          <textarea
+
+            name="address"
+
+            placeholder="Enter address"
+
+            value={formData.address}
+
             onChange={handleChange}
+
           />
-          Candidate Consent
-        </label>
 
-        <br /><br />
+        </div>
 
-        <button type="submit" disabled={isSubmitting}>
-          {isSubmitting ? "Submitting..." : "Submit"}
+
+
+
+
+        <div className="checkbox-row consent-box">
+
+          <input
+
+            type="checkbox"
+
+            name="candidate_consent"
+
+            checked={formData.candidate_consent}
+
+            onChange={handleChange}
+
+          />
+
+
+          <span>
+            Candidate has provided consent
+          </span>
+
+        </div>
+
+
+
+
+
+        <button
+  className="btn btn-success submit-btn"
+
+          type="submit"
+
+          disabled={isSubmitting}
+
+        >
+
+          {
+            isSubmitting
+            ? "Submitting..."
+            : "Submit Candidate"
+          }
+
+
         </button>
+
+
+
       </form>
 
-      {successMessage && <p>{successMessage}</p>}
 
-      {errorMessage && <p>{errorMessage}</p>}
 
-      <br />
 
-      <Link to="/">
-        <button>Back to Dashboard</button>
-      </Link>
+
+      {successMessage && (
+
+        <div className="success-message">
+
+          {successMessage}
+
+        </div>
+
+      )}
+
+
+
+
+
+      {errorMessage && (
+
+        <div className="error-message">
+
+          {errorMessage}
+
+        </div>
+
+      )}
+
+
+
+
+
+
+
     </div>
-  );
+
+  </div>
+);
 }

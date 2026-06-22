@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-
+import { BadgeCheck } from "lucide-react";
 import { dummyCandidates, dummySignedOffers } from "../data";
 import CandidateDetailModal from "../components/CandidateDetailModal";
 import { decideSignedOfferVerification } from "../services/lifecycleActionService";
@@ -150,8 +150,44 @@ export default function SignedOfferVerification() {
   }, [fallbackRecords, refreshSignedOfferRecords]);
 
   return (
-    <div style={{ padding: "20px" }}>
-      <h1>Signed Offer Verification</h1>
+    <div className="app-page">
+      
+<Link
+  to="/"
+  className="back-link"
+>
+  ← Back to Dashboard
+</Link>
+
+
+<div className="page-header-modern">
+
+
+<div className="page-icon">
+
+<BadgeCheck size={28}/>
+
+</div>
+
+
+
+<div>
+
+<h1 className="page-title-modern">
+Signed Offer Verification
+</h1>
+
+
+<p className="page-subtitle">
+Verify signed offers and review candidate information matches.
+</p>
+
+
+</div>
+
+
+</div>
+
 
       {isLoading && <p>Loading signed offer verifications...</p>}
 
@@ -159,7 +195,9 @@ export default function SignedOfferVerification() {
 
       {actionMessage && <p>{actionMessage}</p>}
 
-      <table border="1" cellPadding="10">
+      <div className="table-container">
+
+      <table>
         <thead>
           <tr>
             <th>Candidate Name</th>
@@ -184,6 +222,7 @@ export default function SignedOfferVerification() {
               <td>
                 <button
                   type="button"
+                  className="candidate-link"
                   onClick={() => setSelectedCandidateId(record.candidateId)}
                 >
                   {record.fullName}
@@ -194,17 +233,56 @@ export default function SignedOfferVerification() {
               <td>{record.appliedRole}</td>
               <td>{record.mid}</td>
               <td>{record.signedOfferSubmittedAt}</td>
-              <td>{record.emailMatchStatus}</td>
-              <td>{record.phoneMatchStatus}</td>
-              <td>{record.overallMatchStatus}</td>
+              <td>
+<span className="badge badge-success">
+{record.emailMatchStatus}
+</span>
+</td>
+
+
+<td>
+<span className="badge badge-success">
+{record.phoneMatchStatus}
+</span>
+</td>
+
+
+<td>
+
+<span
+className={
+`badge ${
+record.overallMatchStatus === "MISMATCH"
+?
+"badge-warning"
+:
+"badge-success"
+}`
+}
+>
+
+{record.overallMatchStatus}
+
+</span>
+
+</td>
               <td>{record.verifiedAt}</td>
               <td>{record.verificationNotes}</td>
-              <td>{record.signedOfferStatus}</td>
+              <td>
+
+<span className="badge badge-primary">
+
+{record.signedOfferStatus?.replaceAll("_"," ")}
+
+</span>
+
+</td>
               <td>
                 {record.lifecycleStatus === "SIGNED_OFFER_SUBMITTED" ? (
                   <>
                     <button
                       type="button"
+                      className="btn btn-success"
                       disabled={actionCandidateId === record.candidateId}
                       onClick={() =>
                         handleSignedOfferDecision({
@@ -224,6 +302,7 @@ export default function SignedOfferVerification() {
                     </button>{" "}
                     <button
                       type="button"
+                      className="btn btn-primary"
                       disabled={actionCandidateId === record.candidateId}
                       onClick={() =>
                         handleSignedOfferDecision({
@@ -250,12 +329,11 @@ export default function SignedOfferVerification() {
           ))}
         </tbody>
       </table>
+      </div>
 
       <br />
 
-      <Link to="/">
-        <button>Back to Dashboard</button>
-      </Link>
+     
 
       <CandidateDetailModal
         candidateId={selectedCandidateId}

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-
+import { FileSignature } from "lucide-react";
 import { dummyCandidates, dummyOffers } from "../data";
 import CandidateDetailModal from "../components/CandidateDetailModal";
 import {
@@ -54,6 +54,20 @@ function mapSupabaseOfferRecord(row) {
     startDate: "",
     endDate: "",
   };
+}
+function getStatusClass(status) {
+
+  switch (status) {
+
+    case "MID_GENERATED":
+      return "badge-warning";
+
+    case "OFFER_LETTER_SENT":
+      return "badge-success";
+
+    default:
+      return "badge-primary";
+  }
 }
 
 export default function OfferApproval() {
@@ -186,8 +200,30 @@ export default function OfferApproval() {
   }
 
   return (
-    <div style={{ padding: "20px" }}>
-      <h1>Offer Letter Process</h1>
+    <div className="app-page">
+      <Link
+  to="/"
+  className="back-link"
+>
+  ← Back to Dashboard
+</Link>
+      <div className="page-header-modern">
+
+  <div className="page-icon">
+    <FileSignature size={28} />
+  </div>
+
+  <div>
+    <h1 className="page-title-modern">
+      Offer Letter Process
+    </h1>
+
+    <p className="page-subtitle">
+      Generate offer records, send offer letters, and activate interns.
+    </p>
+  </div>
+
+</div>
 
       {isLoading && <p>Loading offer letter process candidates...</p>}
 
@@ -195,7 +231,9 @@ export default function OfferApproval() {
 
       {actionMessage && <p>{actionMessage}</p>}
 
-      <table border="1" cellPadding="10">
+      <div className="table-container">
+
+      <table>
         <thead>
           <tr>
             <th>Candidate Name</th>
@@ -220,9 +258,10 @@ export default function OfferApproval() {
             <tr key={record.id}>
               <td>
                 <button
-                  type="button"
-                  onClick={() => setSelectedCandidateId(record.candidateId)}
-                >
+  type="button"
+  className="candidate-link"
+  onClick={() => setSelectedCandidateId(record.candidateId)}
+>
                   {record.fullName}
                 </button>
               </td>
@@ -231,8 +270,18 @@ export default function OfferApproval() {
               <td>{record.mid}</td>
               <td>{record.appliedRole}</td>
               <td>{record.department}</td>
-              <td>{record.lifecycleStatus}</td>
-              <td>{record.offerStatus}</td>
+              <td>
+  <span
+    className={`badge ${getStatusClass(record.lifecycleStatus)}`}
+  >
+    {record.lifecycleStatus?.replaceAll("_", " ")}
+  </span>
+</td>
+              <td>
+  <span className="badge badge-primary">
+    {record.offerStatus?.replaceAll("_", " ")}
+  </span>
+</td>
               <td>{record.offerLetterNumber}</td>
               <td>{record.generatedAt}</td>
               <td>{record.sentAt}</td>
@@ -242,6 +291,7 @@ export default function OfferApproval() {
                 {record.lifecycleStatus === "MID_GENERATED" && (
                   <button
                     type="button"
+                    className="btn btn-primary"
                     disabled={actionCandidateId === record.candidateId}
                     onClick={() => handleGenerateOfferLetterRecord(record)}
                   >
@@ -254,6 +304,7 @@ export default function OfferApproval() {
                 {record.lifecycleStatus === "OFFER_LETTER_GENERATED" && (
                   <button
                     type="button"
+                    className="btn btn-success"
                     disabled={actionCandidateId === record.candidateId}
                     onClick={() => handleMarkOfferLetterSent(record)}
                   >
@@ -266,6 +317,7 @@ export default function OfferApproval() {
                 {record.lifecycleStatus === "OFFER_LETTER_SENT" && (
                   <button
                     type="button"
+                    className="btn btn-success"
                     disabled={actionCandidateId === record.candidateId}
                     onClick={() => handleMarkActiveIntern(record)}
                   >
@@ -279,13 +331,10 @@ export default function OfferApproval() {
           ))}
         </tbody>
       </table>
-
+      </div>
       <br />
 
-      <Link to="/">
-        <button>Back to Dashboard</button>
-      </Link>
-
+      
       <CandidateDetailModal
         candidateId={selectedCandidateId}
         onClose={() => setSelectedCandidateId(null)}

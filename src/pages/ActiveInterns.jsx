@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-
+import { BriefcaseBusiness } from "lucide-react";
 import { dummyActiveInterns } from "../data";
 import CandidateDetailModal from "../components/CandidateDetailModal";
 import { markSignedOfferSubmitted } from "../services/lifecycleActionService";
@@ -42,6 +42,20 @@ function mapSupabaseActiveInternRecord(row) {
     sentAt: row.sent_at ?? row.offer_letter_sent_at,
     signedOfferStatus: row.signed_offer_status,
   };
+}
+function getStatusClass(status) {
+
+  switch (status) {
+
+    case "ACTIVE":
+      return "badge-success";
+
+    case "SIGNED_OFFER_SUBMITTED":
+      return "badge-primary";
+
+    default:
+      return "badge-warning";
+  }
 }
 
 export default function ActiveInterns() {
@@ -131,8 +145,31 @@ export default function ActiveInterns() {
   }
 
   return (
-    <div style={{ padding: "20px" }}>
-      <h1>Active Interns</h1>
+    <div className="app-page">
+      <Link
+  to="/"
+  className="back-link"
+>
+  ← Back to Dashboard
+</Link>
+
+<div className="page-header-modern">
+
+  <div className="page-icon">
+    <BriefcaseBusiness size={28} />
+  </div>
+
+  <div>
+    <h1 className="page-title-modern">
+      Active Interns
+    </h1>
+
+    <p className="page-subtitle">
+      Manage active interns and track signed offer submissions.
+    </p>
+  </div>
+
+</div>
 
       {isLoading && <p>Loading active interns...</p>}
 
@@ -140,7 +177,9 @@ export default function ActiveInterns() {
 
       {actionMessage && <p>{actionMessage}</p>}
 
-      <table border="1" cellPadding="10">
+      <div className="table-container">
+
+      <table>
         <thead>
           <tr>
             <th>Name</th>
@@ -165,6 +204,7 @@ export default function ActiveInterns() {
               <td>
                 <button
                   type="button"
+                  className="candidate-link"
                   onClick={() => setSelectedCandidateId(intern.candidateId)}
                 >
                   {intern.fullName}
@@ -172,12 +212,20 @@ export default function ActiveInterns() {
               </td>
               <td>{intern.email}</td>
               <td>{intern.phone}</td>
-              <td>{intern.mid}</td>
+              <td>
+  <strong>{intern.mid}</strong>
+</td>
               <td>{intern.appliedRole}</td>
               <td>{intern.department}</td>
               <td>{intern.team}</td>
               <td>{intern.project}</td>
-              <td>{intern.lifecycleStatus}</td>
+              <td>
+  <span
+    className={`badge ${getStatusClass(intern.lifecycleStatus)}`}
+  >
+    {intern.lifecycleStatus.replaceAll("_", " ")}
+  </span>
+</td>
               <td>{intern.offerStatus}</td>
               <td>{intern.sentAt}</td>
               <td>{intern.signedOfferStatus}</td>
@@ -185,6 +233,7 @@ export default function ActiveInterns() {
                 {intern.lifecycleStatus === "ACTIVE" && (
                   <button
                     type="button"
+                    className="btn btn-primary"
                     disabled={actionCandidateId === intern.candidateId}
                     onClick={() => handleMarkSignedOfferSubmitted(intern)}
                   >
@@ -198,12 +247,10 @@ export default function ActiveInterns() {
           ))}
         </tbody>
       </table>
-
+      </div>
       <br />
 
-      <Link to="/">
-        <button>Back to Dashboard</button>
-      </Link>
+    
 
       <CandidateDetailModal
         candidateId={selectedCandidateId}

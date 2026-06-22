@@ -106,34 +106,87 @@ export default function CandidateDetailModal({ candidateId, onClose }) {
   }, [candidateId]);
 
   if (!candidateId) return null;
-
+   
   return (
-    <div style={modalBackdropStyle}>
-      <div style={modalPanelStyle}>
-        <div style={modalHeaderStyle}>
-          <h2>Candidate Detail</h2>
-          <button type="button" onClick={onClose}>
-            Close
-          </button>
+  <div className="modal-overlay">
+
+    <div className="candidate-modal">
+
+      <div className="candidate-modal-header">
+
+        <div className="candidate-profile">
+
+          <div className="candidate-avatar">
+            👤
+          </div>
+
+          <div>
+            <h2>
+              {candidateDetail?.full_name || "Candidate Details"}
+            </h2>
+
+            <p>
+              Candidate Lifecycle Information
+            </p>
+          </div>
+
         </div>
 
-        {isLoading && <p>Loading candidate detail...</p>}
 
-        {errorMessage && <p>{errorMessage}</p>}
+        <button
+          className="modal-close-btn"
+          onClick={onClose}
+        >
+          ×
+        </button>
 
-        {candidateDetail && (
-          <table border="1" cellPadding="8" style={{ width: "100%" }}>
-            <tbody>
-              {detailFields.map(([label, key]) => (
-                <tr key={key}>
-                  <th style={{ textAlign: "left" }}>{label}</th>
-                  <td>{candidateDetail[key] || "-"}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
+
       </div>
+
+
+
+      {isLoading && (
+        <div className="info-banner">
+          Loading candidate details...
+        </div>
+      )}
+
+
+
+      {candidateDetail && (
+
+        <div className="candidate-details-grid">
+
+          {detailFields.map(([label,key]) => (
+
+            <div
+              className="candidate-detail-card"
+              key={key}
+            >
+
+              <span>
+                {label}
+              </span>
+
+
+              <strong>
+                {candidateDetail[key] || "-"}
+              </strong>
+
+
+            </div>
+
+          ))}
+
+
+        </div>
+
+      )}
+
+
     </div>
-  );
+
+  </div>
+);
+    
 }

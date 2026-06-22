@@ -1,5 +1,24 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import {
+  Menu,
+  UserPlus,
+  ClipboardCheck,
+  FileSignature,
+  BriefcaseBusiness,
+  Upload,
+  BadgeCheck,
+  History,
+  Users,
+  Clock3,
+  Search,
+  FileText,
+  PenSquare,
+  AlertTriangle,
+  CheckCircle2,
+  XCircle,
+  RefreshCw,
+} from "lucide-react";
 
 import {
   dummyCandidates,
@@ -12,74 +31,9 @@ import {
 import { getDashboardCounts } from "../utils/dashboardCounts";
 import { fetchDashboardCounts } from "../services/hrDashboardService";
 
-const pageStyle = {
-  padding: "24px",
-  maxWidth: "1200px",
-  margin: "0 auto",
-};
-
-const sectionHeaderStyle = {
-  marginTop: "28px",
-  marginBottom: "12px",
-};
-
-const cardGridStyle = {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
-  gap: "14px",
-};
-
-const decisionGridStyle = {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-  gap: "12px",
-  maxWidth: "720px",
-};
-
-const cardStyle = {
-  border: "1px solid #d7dde8",
-  borderRadius: "8px",
-  padding: "16px",
-  background: "#ffffff",
-  boxShadow: "0 1px 3px rgba(15, 23, 42, 0.08)",
-};
-
-const cardTitleStyle = {
-  margin: "0 0 10px",
-  color: "#475569",
-  fontSize: "14px",
-  fontWeight: 600,
-};
-
-const cardValueStyle = {
-  margin: 0,
-  color: "#0f172a",
-  fontSize: "28px",
-  fontWeight: 700,
-};
-
-const moduleGridStyle = {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))",
-  gap: "12px",
-};
-
-const moduleButtonStyle = {
-  width: "100%",
-  minHeight: "44px",
-  cursor: "pointer",
-};
-
-function MetricCard({ title, value }) {
-  return (
-    <div style={cardStyle}>
-      <h3 style={cardTitleStyle}>{title}</h3>
-      <p style={cardValueStyle}>{value}</p>
-    </div>
-  );
-}
 
 function buildFallbackDashboardCounts() {
+
   const dummyCounts = getDashboardCounts({
     candidates: dummyCandidates,
     probationAttempts: dummyProbationAttempts,
@@ -88,147 +42,507 @@ function buildFallbackDashboardCounts() {
     signedOffers: dummySignedOffers,
   });
 
+
   return {
+
     totalCandidates: dummyCounts.totalCandidates,
-    hrReviewPending: dummyCandidates.filter(
-      (candidate) => candidate.currentStatus === "HR_REVIEW_PENDING"
-    ).length,
-    inProbation: dummyCounts.inProbation,
-    probationReview: dummyProbationAttempts.filter(
-      (attempt) => attempt.status === "PROBATION_REVIEW"
-    ).length,
-    probationPassed: dummyCounts.probationPassed,
-    probationRejected: dummyCounts.probationRejected,
-    probationExtended: dummyCounts.probationExtended,
-    offerLetterProcess: dummyOffers.filter((offer) =>
-      ["MID_GENERATED", "OFFER_LETTER_GENERATED"].includes(offer.offerStatus)
-    ).length,
-    activeInterns: dummyCounts.activeInterns,
-    signedOfferSubmitted: dummyCounts.signedOfferSubmitted,
-    signedOfferVerified: dummySignedOffers.filter((signedOffer) =>
-      ["SIGNED_OFFER_VERIFIED", "VERIFIED"].includes(signedOffer.status)
-    ).length,
-    mismatchReview: dummyCounts.signedOfferMismatch,
+
+    hrReviewPending:
+      dummyCandidates.filter(
+        c => c.currentStatus === "HR_REVIEW_PENDING"
+      ).length,
+
+
+    inProbation:
+      dummyCounts.inProbation,
+
+
+    probationReview:
+      dummyProbationAttempts.filter(
+        a => a.status === "PROBATION_REVIEW"
+      ).length,
+
+
+    probationPassed:
+      dummyCounts.probationPassed,
+
+
+    probationRejected:
+      dummyCounts.probationRejected,
+
+
+    probationExtended:
+      dummyCounts.probationExtended,
+
+
+    offerLetterProcess:
+      dummyOffers.filter(
+        offer =>
+        [
+          "MID_GENERATED",
+          "OFFER_LETTER_GENERATED"
+        ].includes(offer.offerStatus)
+      ).length,
+
+
+    activeInterns:
+      dummyCounts.activeInterns,
+
+
+    signedOfferSubmitted:
+      dummyCounts.signedOfferSubmitted,
+
+
+    signedOfferVerified:
+      dummySignedOffers.filter(
+        offer =>
+        [
+          "SIGNED_OFFER_VERIFIED",
+          "VERIFIED"
+        ].includes(offer.status)
+      ).length,
+
+
+    mismatchReview:
+      dummyCounts.signedOfferMismatch
   };
 }
 
-export default function HRDashboard() {
-  const fallbackCounts = useMemo(() => buildFallbackDashboardCounts(), []);
-  const [counts, setCounts] = useState(fallbackCounts);
-  const [isLoading, setIsLoading] = useState(true);
-  const [errorMessage, setErrorMessage] = useState("");
 
-  useEffect(() => {
-    let isMounted = true;
 
-    async function loadDashboardCounts() {
-      try {
-        const supabaseCounts = await fetchDashboardCounts();
 
-        if (!isMounted) return;
+function MetricCard({title,value,icon}){
 
-        if (supabaseCounts) {
-          setCounts({ ...fallbackCounts, ...supabaseCounts });
-          setErrorMessage("");
-        } else {
-          setCounts(fallbackCounts);
-          setErrorMessage("No Supabase dashboard data found. Showing dummy data.");
-        }
-      } catch (error) {
-        if (!isMounted) return;
+return (
 
-        console.error("Unable to load dashboard counts:", error);
-        setCounts(fallbackCounts);
-        setErrorMessage("Unable to load Supabase dashboard data. Showing dummy data.");
-      } finally {
-        if (isMounted) {
-          setIsLoading(false);
-        }
-      }
-    }
+<div className="metric-card">
 
-    loadDashboardCounts();
 
-    return () => {
-      isMounted = false;
-    };
-  }, [fallbackCounts]);
+<div className="metric-card__icon">
+{icon}
+</div>
 
-  const mainDashboardCards = [
-    ["Total Candidates", counts.totalCandidates],
-    ["HR Review Pending", counts.hrReviewPending],
-    ["In Probation", counts.inProbation],
-    ["Probation Review", counts.probationReview],
-    ["Offer Letter Process", counts.offerLetterProcess],
-    ["Active Interns", counts.activeInterns],
-    ["Signed Offer Pending Verification", counts.signedOfferSubmitted],
-    ["Signed Offer Verified", counts.signedOfferVerified],
-    ["Mismatch Review", counts.mismatchReview],
-  ];
 
-  const probationDecisionCards = [
-    ["Probation Passed", counts.probationPassed],
-    ["Probation Rejected", counts.probationRejected],
-    ["Probation Extended", counts.probationExtended],
-  ];
+<div>
 
-  return (
-    <div style={pageStyle}>
-      <h1>HR Dashboard</h1>
+<p className="metric-title">
+{title}
+</p>
 
-      <h2 style={sectionHeaderStyle}>Summary</h2>
 
-      {isLoading && <p>Loading dashboard counts...</p>}
+<h2 className="metric-value">
+{value}
+</h2>
 
-      {errorMessage && <p>{errorMessage}</p>}
 
-      <div style={cardGridStyle}>
-        {mainDashboardCards.map(([title, value]) => (
-          <MetricCard key={title} title={title} value={value} />
-        ))}
-      </div>
+</div>
 
-      <h2 style={sectionHeaderStyle}>Probation Decisions</h2>
 
-      <div style={decisionGridStyle}>
-        {probationDecisionCards.map(([title, value]) => (
-          <MetricCard key={title} title={title} value={value} />
-        ))}
-      </div>
+</div>
 
-      <hr />
+);
 
-      <h2 style={sectionHeaderStyle}>Modules</h2>
+}
 
-      <div style={moduleGridStyle}>
-        <Link to="/candidate-form">
-          <button style={moduleButtonStyle}>Candidate Probation Form</button>
-        </Link>
 
-        <Link to="/probation-review">
-          <button style={moduleButtonStyle}>Probation Review</button>
-        </Link>
 
-        <Link to="/offer-approval">
-          <button style={moduleButtonStyle}>Offer Letter Process</button>
-        </Link>
 
-        <Link to="/active-interns">
-          <button style={moduleButtonStyle}>Active Interns</button>
-        </Link>
 
-        <Link to="/signed-offer-upload">
-          <button style={moduleButtonStyle}>Signed Offer Upload</button>
-        </Link>
 
-        <Link to="/signed-offer-verification">
-          <button style={moduleButtonStyle}>Signed Offer Verification</button>
-        </Link>
+export default function HRDashboard(){
 
-        <Link to="/activity-log">
-          <button style={moduleButtonStyle}>Activity Log</button>
-        </Link>
-      </div>
-    </div>
-  );
+
+const fallbackCounts =
+useMemo(
+()=>buildFallbackDashboardCounts(),
+[]
+);
+
+
+
+const [counts,setCounts]=
+useState(fallbackCounts);
+
+
+const [isLoading,setIsLoading]=
+useState(true);
+
+
+const [errorMessage,setErrorMessage]=
+useState("");
+
+
+const [showModules,setShowModules] =
+useState(true);
+
+
+useEffect(()=>{
+
+
+let mounted=true;
+
+
+
+async function load(){
+
+
+try{
+
+
+const result =
+await fetchDashboardCounts();
+
+
+
+if(!mounted) return;
+
+
+
+if(result){
+
+setCounts({
+...fallbackCounts,
+...result
+});
+
+
+setErrorMessage("");
+
+}
+
+
+else{
+
+
+setCounts(fallbackCounts);
+
+setErrorMessage(
+"No dashboard data found. Showing demo data."
+);
+
+}
+
+
+}
+
+catch(err){
+
+
+console.error(err);
+
+
+setCounts(fallbackCounts);
+
+setErrorMessage(
+"Unable to load dashboard data."
+);
+
+
+}
+
+finally{
+
+
+if(mounted)
+setIsLoading(false);
+
+
+}
+
+
+}
+
+
+
+load();
+
+
+
+return()=>mounted=false;
+
+
+},[fallbackCounts]);
+
+const cards = [
+  [
+    "Total Candidates",
+    counts.totalCandidates,
+    <Users size={22} />
+  ],
+
+  [
+    "HR Review Pending",
+    counts.hrReviewPending,
+    <ClipboardCheck size={22} />
+  ],
+
+  [
+    "In Probation",
+    counts.inProbation,
+    <Clock3 size={22} />
+  ],
+
+  [
+    "Probation Review",
+    counts.probationReview,
+    <Search size={22} />
+  ],
+
+  [
+    "Offer Process",
+    counts.offerLetterProcess,
+    <FileText size={22} />
+  ],
+
+  [
+    "Active Interns",
+    counts.activeInterns,
+    <BriefcaseBusiness size={22} />
+  ],
+
+  [
+    "Signed Offer Pending",
+    counts.signedOfferSubmitted,
+    <PenSquare size={22} />
+  ],
+
+  [
+    "Verified Offers",
+    counts.signedOfferVerified,
+    <BadgeCheck size={22} />
+  ],
+
+  [
+    "Mismatch Review",
+    counts.mismatchReview,
+    <AlertTriangle size={22} />
+  ]
+];
+
+const decisions = [
+  [
+    "Passed",
+    counts.probationPassed,
+    <CheckCircle2 size={22} />
+  ],
+
+  [
+    "Rejected",
+    counts.probationRejected,
+    <XCircle size={22} />
+  ],
+
+  [
+    "Extended",
+    counts.probationExtended,
+    <RefreshCw size={22} />
+  ]
+];
+
+const modules = [
+  {
+    path: "/candidate-form",
+    label: "Candidate Form",
+    icon: <UserPlus size={18} />,
+  },
+  {
+    path: "/probation-review",
+    label: "Probation Review",
+    icon: <ClipboardCheck size={18} />,
+  },
+  {
+    path: "/offer-approval",
+    label: "Offer Process",
+    icon: <FileSignature size={18} />,
+  },
+  {
+    path: "/active-interns",
+    label: "Active Interns",
+    icon: <BriefcaseBusiness size={18} />,
+  },
+  {
+    path: "/signed-offer-upload",
+    label: "Signed Offer Upload",
+    icon: <Upload size={18} />,
+  },
+  {
+    path: "/signed-offer-verification",
+    label: "Offer Verification",
+    icon: <BadgeCheck size={18} />,
+  },
+  {
+    path: "/activity-log",
+    label: "Activity Logs",
+    icon: <History size={18} />,
+  },
+];
+
+return (
+
+<div className="dashboard-layout">
+  <aside
+  className={`sidebar ${
+    showModules ? "" : "sidebar-collapsed"
+  }`}
+>
+
+  <div className="sidebar-header">
+    {showModules && <h2>Modules</h2>}
+  </div>
+
+  <div className="sidebar-menu">
+
+    {modules.map((module) => (
+      <Link
+        key={module.path}
+        to={module.path}
+        className="sidebar-link"
+      >
+        <button
+          className="sidebar-btn"
+          title={module.label}
+        >
+
+          <span className="sidebar-icon">
+            {module.icon}
+          </span>
+
+          {showModules && (
+            <span className="sidebar-label">
+              {module.label}
+            </span>
+          )}
+
+        </button>
+      </Link>
+    ))}
+
+  </div>
+
+</aside>
+  
+
+
+
+  <main className="dashboard-content">
+<div className="dashboard-header">
+
+  <button
+    className="sidebar-toggle"
+    onClick={() => setShowModules(!showModules)}
+  >
+    <Menu size={22} />
+  </button>
+
+  <h1 className="dashboard-title">
+    HR Dashboard
+  </h1>
+
+    <p className="dashboard-subtitle">
+      Internship Lifecycle Management
+    </p>
+
+</div>
+
+{isLoading &&
+<div className="alert-card">
+Loading dashboard...
+</div>
+}
+
+
+{errorMessage &&
+<div className="alert-card">
+{errorMessage}
+</div>
+}
+
+
+<h2 className="section-title">
+  Lifecycle Overview
+</h2>
+
+
+<div className="metric-grid">
+
+
+{
+
+cards.map(
+(item)=>(
+
+<MetricCard
+
+key={item[0]}
+
+title={item[0]}
+
+value={item[1]}
+
+icon={item[2]}
+
+/>
+
+)
+
+)
+
+}
+
+
+</div>
+
+
+
+
+
+<h2 className="section-title">
+  Probation Decisions
+</h2>
+
+
+
+<div className="metric-grid">
+
+
+{
+
+decisions.map(
+(item)=>(
+
+<MetricCard
+
+key={item[0]}
+
+title={item[0]}
+
+value={item[1]}
+
+icon={item[2]}
+
+/>
+
+)
+
+)
+
+}
+
+
+</div>
+
+
+
+
+
+
+
+
+
+</main>
+
+</div>
+
+);
+
 }
