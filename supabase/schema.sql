@@ -7,12 +7,17 @@ DROP VIEW IF EXISTS active_interns_view;
 DROP VIEW IF EXISTS offer_letter_process_view;
 DROP VIEW IF EXISTS probation_review_view;
 DROP VIEW IF EXISTS hr_dashboard_view;
+DROP VIEW IF EXISTS leave_requests_view;
+DROP VIEW IF EXISTS leave_balance_view;
 
 DROP TABLE IF EXISTS hr_activity_logs;
 DROP TABLE IF EXISTS signed_offer_verifications;
 DROP TABLE IF EXISTS hr_offer_letters;
 DROP TABLE IF EXISTS hr_lifecycle;
 DROP TABLE IF EXISTS master_candidates;
+DROP TABLE IF EXISTS internship_extensions;
+DROP TABLE IF EXISTS leave_requests;
+DROP TABLE IF EXISTS leave_balances;
 
 CREATE TABLE master_candidates (
     candidate_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -44,6 +49,10 @@ CREATE TABLE hr_lifecycle (
     lifecycle_status VARCHAR(60) NOT NULL,
     probation_start_date DATE,
     probation_end_date DATE,
+    original_end_date DATE,
+    internship_duration_months INTEGER CHECK (internship_duration_months IN (3,4,6,12)),
+    current_end_date DATE,
+    probation_extension_count INTEGER DEFAULT 0,
     probation_review_notes TEXT,
     hr_decision VARCHAR(60),
     mid VARCHAR(50),
@@ -90,6 +99,77 @@ CREATE TABLE hr_activity_logs (
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+CREATE TABLE leave_requests (
+    leave_request_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+    candidate_id UUID NOT NULL
+        REFERENCES master_candidates(candidate_id)
+        ON DELETE CASCADE,
+
+    mid VARCHAR(50) ,
+
+    leave_type VARCHAR(50) NOT NULL,
+
+    start_date DATE NOT NULL,
+
+    end_date DATE NOT NULL,
+
+    requested_leave_days INTEGER NOT NULL CHECK (requested_leave_days > 0),
+
+    reason TEXT,
+
+    supporting_document TEXT,
+
+    leave_status VARCHAR(20) NOT NULL DEFAULT 'PENDING'
+        CHECK (leave_status IN ('PENDING', 'APPROVED', 'REJECTED')),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    approved_at TIMESTAMPTZ,
+    rejected_at TIMESTAMPTZ
+);
+
+CREATE TABLE leave_balances (
+    candidate_id UUID PRIMARY KEY
+        REFERENCES master_candidates(candidate_id)
+        ON DELETE CASCADE,
+
+    mid VARCHAR(50) ,
+
+    allocated_leave_days INTEGER NOT NULL DEFAULT 15,
+
+    approved_leave_days INTEGER NOT NULL DEFAULT 0,
+
+    remaining_leave_days INTEGER NOT NULL DEFAULT 15,
+
+    extra_leave_days INTEGER NOT NULL DEFAULT 0,
+
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE internship_extensions (
+
+    extension_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+    candidate_id UUID NOT NULL
+        REFERENCES master_candidates(candidate_id)
+        ON DELETE CASCADE,
+
+    mid VARCHAR(50) NOT NULL,
+
+    extension_type VARCHAR(20)
+        CHECK (extension_type IN ('MONTHS','LEAVE')),
+
+    extension_value INTEGER,
+
+    reason TEXT,
+
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+
+    is_processed BOOLEAN DEFAULT FALSE
+);
+
 
 INSERT INTO master_candidates (
     candidate_id,
@@ -138,7 +218,7 @@ INSERT INTO hr_lifecycle (
 ) VALUES
 ('00000000-0000-0000-0000-000000000001', 'HR_REVIEW_PENDING', NULL, NULL, NULL, NULL, NULL),
 ('00000000-0000-0000-0000-000000000002', 'HR_APPROVED_FOR_PROBATION', NULL, NULL, 'HR approved candidate for probation.', NULL, NULL),
-('00000000-0000-0000-0000-000000000003', 'PROBATION_INITIATED', CURRENT_DATE - 2, CURRENT_DATE + 28, 'Probation record created.', NULL, NULL),
+('00000000-0000-0000-0000-000000000003', 'WELCOME_MAIL_SENT', CURRENT_DATE - 2, CURRENT_DATE + 28, 'Probation record created.', NULL, NULL),
 ('00000000-0000-0000-0000-000000000004', 'WELCOME_MAIL_SENT', CURRENT_DATE - 5, CURRENT_DATE + 25, 'Welcome mail sent by HR.', NULL, NULL),
 ('00000000-0000-0000-0000-000000000005', 'IN_PROBATION', CURRENT_DATE - 12, CURRENT_DATE + 18, 'Candidate is currently in probation.', NULL, NULL),
 ('00000000-0000-0000-0000-000000000006', 'PROBATION_REVIEW', CURRENT_DATE - 30, CURRENT_DATE, 'Probation review pending with HR.', NULL, NULL),
@@ -211,11 +291,113 @@ INSERT INTO hr_activity_logs (
 ('00000000-0000-0000-0000-000000000014', 'ACTIVE_INTERN_CREATED', 'OFFER_LETTER_SENT', 'ACTIVE', 'Candidate marked as active intern.', 'SUCCESS', NULL, '{"module": "active_interns"}'::jsonb, 'hr.admin@jcf.example'),
 ('00000000-0000-0000-0000-000000000014', 'SIGNED_OFFER_SUBMITTED', 'ACTIVE', 'SIGNED_OFFER_SUBMITTED', 'Signed offer submitted by active intern.', 'SUCCESS', NULL, '{"module": "signed_offer_verification"}'::jsonb, 'hr.admin@jcf.example');
 
+INSERT INTO leave_balances (
+    candidate_id,
+    mid,
+    allocated_leave_days,
+    approved_leave_days,
+    remaining_leave_days,
+    extra_leave_days
+)
+VALUES
+('00000000-0000-0000-0000-000000000009','JCF-MID-0009',15,2,13,0),
+('00000000-0000-0000-0000-000000000010','JCF-MID-0010',15,0,15,0),
+('00000000-0000-0000-0000-000000000011','JCF-MID-0011',15,4,11,0),
+('00000000-0000-0000-0000-000000000012','JCF-MID-0012',15,1,14,0),
+('00000000-0000-0000-0000-000000000014','JCF-MID-0014',15,3,12,2);
+
+INSERT INTO leave_requests (
+    candidate_id,
+    mid,
+    leave_type,
+    start_date,
+    end_date,
+    requested_leave_days,
+    reason,
+    supporting_document,
+    leave_status,
+    approved_at,
+    rejected_at
+)
+VALUES
+
+(
+'00000000-0000-0000-0000-000000000011',
+'JCF-MID-0011',
+'Casual Leave',
+CURRENT_DATE,
+CURRENT_DATE + 1,
+2,
+'Family function',
+NULL,
+'APPROVED',
+NOW() - INTERVAL '1 day',
+NULL
+),
+
+(
+'00000000-0000-0000-0000-000000000012',
+'JCF-MID-0012',
+'Sick Leave',
+CURRENT_DATE + 5,
+CURRENT_DATE + 6,
+2,
+'Fever',
+NULL,
+'PENDING',
+NULL,
+NULL
+),
+
+(
+'00000000-0000-0000-0000-000000000014',
+'JCF-MID-0014',
+'Emergency Leave',
+CURRENT_DATE + 2,
+CURRENT_DATE + 2,
+1,
+'Medical emergency',
+NULL,
+'REJECTED',
+NULL,
+NOW() - INTERVAL '2 hours'
+);
+
+
+INSERT INTO internship_extensions (
+    candidate_id,
+    mid,
+    extension_type,
+    extension_value,
+    reason,
+    is_processed
+)
+VALUES
+
+(
+'00000000-0000-0000-0000-000000000011',
+'JCF-MID-0011',
+'MONTHS',
+1,
+'Performance improvement period',
+TRUE
+),
+
+(
+'00000000-0000-0000-0000-000000000014',
+'JCF-MID-0014',
+'LEAVE',
+5,
+'Approved leave extension',
+FALSE
+);
+
+
 CREATE VIEW hr_dashboard_view AS
 SELECT
     COUNT(DISTINCT c.candidate_id) AS total_candidates,
     COUNT(DISTINCT c.candidate_id) FILTER (WHERE l.lifecycle_status = 'HR_REVIEW_PENDING') AS hr_review_pending_count,
-    COUNT(DISTINCT c.candidate_id) FILTER (WHERE l.lifecycle_status IN ('PROBATION_INITIATED', 'WELCOME_MAIL_SENT', 'IN_PROBATION')) AS in_probation_count,
+    COUNT(DISTINCT c.candidate_id) FILTER (WHERE l.lifecycle_status IN ('WELCOME_MAIL_SENT', 'IN_PROBATION')) AS in_probation_count,
     COUNT(DISTINCT c.candidate_id) FILTER (WHERE l.lifecycle_status = 'PROBATION_REVIEW') AS probation_review_count,
     COUNT(DISTINCT c.candidate_id) FILTER (WHERE l.lifecycle_status = 'PROBATION_PASSED') AS probation_passed_count,
     COUNT(DISTINCT c.candidate_id) FILTER (WHERE l.lifecycle_status = 'PROBATION_REJECTED') AS probation_rejected_count,
@@ -241,6 +423,10 @@ SELECT
     l.lifecycle_status AS probation_status,
     l.probation_start_date,
     l.probation_end_date,
+    l.internship_duration_months,
+    l.original_end_date,
+    l.current_end_date,
+    l.probation_extension_count,
     l.probation_review_notes,
     l.hr_decision,
     l.mid,
@@ -251,7 +437,6 @@ JOIN hr_lifecycle l ON l.candidate_id = c.candidate_id
 WHERE l.lifecycle_status IN (
     'HR_REVIEW_PENDING',
     'HR_APPROVED_FOR_PROBATION',
-    'PROBATION_INITIATED',
     'WELCOME_MAIL_SENT',
     'IN_PROBATION',
     'PROBATION_REVIEW',
@@ -347,30 +532,60 @@ SELECT
     c.referral_name,
     c.availability_status,
     c.notes,
+
     l.lifecycle_status,
     l.probation_start_date,
     l.probation_end_date,
+
+    l.original_end_date,
+    l.current_end_date,
+    l.internship_duration_months,
+    l.probation_extension_count,
+
     l.probation_review_notes,
     l.hr_decision,
     l.mid,
+
     o.offer_status,
     o.offer_letter_number,
     o.generated_at,
     o.sent_at,
+
     s.signed_offer_status,
     s.signed_offer_submitted_at,
     s.verified_at,
     s.email_match_status,
     s.phone_match_status,
+    s.verification_notes,
+
+    lb.allocated_leave_days,
+    lb.approved_leave_days,
+    lb.remaining_leave_days,
+    lb.extra_leave_days,
+
     CASE
-        WHEN s.email_match_status = 'MATCH' AND s.phone_match_status = 'MATCH' THEN 'MATCH'
-        WHEN s.email_match_status IS NULL OR s.phone_match_status IS NULL THEN 'PENDING'
+        WHEN s.email_match_status='MATCH'
+         AND s.phone_match_status='MATCH'
+            THEN 'MATCH'
+        WHEN s.email_match_status IS NULL
+          OR s.phone_match_status IS NULL
+            THEN 'PENDING'
         ELSE 'MISMATCH'
     END AS overall_match_status
+
 FROM master_candidates c
-LEFT JOIN hr_lifecycle l ON l.candidate_id = c.candidate_id
-LEFT JOIN hr_offer_letters o ON o.candidate_id = c.candidate_id
-LEFT JOIN signed_offer_verifications s ON s.candidate_id = c.candidate_id;
+LEFT JOIN hr_lifecycle l
+ON c.candidate_id = l.candidate_id
+
+LEFT JOIN hr_offer_letters o
+ON c.candidate_id = o.candidate_id
+
+LEFT JOIN signed_offer_verifications s
+ON c.candidate_id = s.candidate_id
+
+LEFT JOIN leave_balances lb
+ON c.candidate_id = lb.candidate_id;
+
 
 CREATE VIEW activity_log_view AS
 SELECT
@@ -389,3 +604,43 @@ SELECT
     a.performed_at
 FROM hr_activity_logs a
 JOIN master_candidates c ON c.candidate_id = a.candidate_id;
+
+
+CREATE VIEW leave_requests_view AS
+SELECT
+    lr.leave_request_id,
+    lr.candidate_id,
+    lr.mid,
+    mc.full_name,
+    mc.email,
+    mc.applied_role,
+    hl.lifecycle_status,
+    lr.leave_type,
+    lr.start_date,
+    lr.end_date,
+    lr.requested_leave_days,
+    lr.reason,
+    lr.supporting_document,
+    lr.leave_status,
+    lr.approved_at,
+    lr.rejected_at
+FROM leave_requests lr
+JOIN master_candidates mc
+    ON lr.candidate_id = mc.candidate_id
+JOIN hr_lifecycle hl
+    ON lr.candidate_id = hl.candidate_id;
+
+
+CREATE VIEW leave_balance_view AS
+SELECT
+    lb.candidate_id,
+    lb.mid,
+    mc.full_name,
+    mc.applied_role,
+    lb.allocated_leave_days,
+    lb.approved_leave_days,
+    lb.remaining_leave_days,
+    lb.extra_leave_days
+FROM leave_balances lb
+JOIN master_candidates mc
+ON lb.candidate_id = mc.candidate_id;

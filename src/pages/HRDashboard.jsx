@@ -375,6 +375,14 @@ const modules = [
     label: "Activity Logs",
     icon: <History size={18} />,
   },
+  {
+    label: "Leave Dashboard",
+    path: "/leave-dashboard",
+  },
+  {
+    label: "Leave Application",
+    path: "/leave-application",
+  },
 ];
 
 return (

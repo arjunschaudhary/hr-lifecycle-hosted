@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { submitCandidateForm } from "../services/candidateFormService";
 import { UserPlus } from "lucide-react";
+import { ROLE_OPTIONS } from "../constants/roleOptions";
 
 const initialFormData = {
   full_name: "",
@@ -28,6 +29,18 @@ export default function CandidateProbationForm() {
       [name]: type === "checkbox" ? checked : value,
     }));
   }
+
+  function handleRoleChange(event) {
+  const selectedRole = ROLE_OPTIONS.find(
+    (role) => role.name === event.target.value
+  );
+
+  setFormData((currentFormData) => ({
+    ...currentFormData,
+    applied_role: selectedRole?.name || "",
+    role_code: selectedRole?.code || "",
+  }));
+}
 
   async function handleSubmit(event) {
     event.preventDefault();
@@ -157,17 +170,28 @@ export default function CandidateProbationForm() {
 
 
 
+        <div className="form-group">
+  <label>
+    Applied Role
+    <span className="required">*</span>
+  </label>
 
-          <div className="form-group">
-            <label>Applied Role</label>
+  <select
+    name="applied_role"
+    value={formData.applied_role}
+    onChange={handleRoleChange}
+    required
+  >
+    <option value="">Select Applied Role</option>
 
-            <input
-              name="applied_role"
-              placeholder="Role applied for"
-              value={formData.applied_role}
-              onChange={handleChange}
-            />
-          </div>
+    {ROLE_OPTIONS.map((role) => (
+      <option key={role.code} value={role.name}>
+        {role.name}
+      </option>
+    ))}
+  </select>
+</div>
+          
 
 
 
@@ -179,7 +203,7 @@ export default function CandidateProbationForm() {
               name="role_code"
               placeholder="Role code"
               value={formData.role_code}
-              onChange={handleChange}
+              readOnly
             />
           </div>
 

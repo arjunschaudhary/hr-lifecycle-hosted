@@ -4,11 +4,13 @@ import { ClipboardCheck } from "lucide-react";
 import { dummyCandidates, dummyProbationAttempts } from "../data";
 import CandidateDetailModal from "../components/CandidateDetailModal";
 import {
+  extendCandidateProbation,
   generateCandidateMidAfterProbation,
   updateCandidateLifecycleStatus,
+  approveCandidateForProbation,
 } from "../services/lifecycleActionService";
 import { fetchProbationReviewCandidates } from "../services/probationReviewService";
-
+import ApproveProbationModal from "../components/ApproveProbationModal";
 const reviewStatuses = [
   "HR_REVIEW_PENDING",
   "HR_APPROVED_FOR_PROBATION",
@@ -42,6 +44,7 @@ function buildFallbackProbationRecords() {
         attemptNo: attempt.attemptNo,
         probationStartDate: attempt.probationStartDate,
         probationEndDate: attempt.probationEndDate,
+        probationExtensionCount: attempt.probationExtensionCount || 0,
         probationStatus: attempt.status,
         probationReviewNotes: attempt.hrRemarks,
         hrDecision: reviewStatuses.includes(attempt.status) ? attempt.status : null,
@@ -63,6 +66,7 @@ function mapSupabaseProbationRecord(row) {
     attemptNo: "",
     probationStartDate: row.probation_start_date,
     probationEndDate: row.probation_end_date,
+    probationExtensionCount: row.probation_extension_count || 0,
     probationStatus: row.probation_status,
     probationReviewNotes: row.probation_review_notes,
     hrDecision: row.hr_decision,
@@ -96,7 +100,8 @@ export default function ProbationReview() {
   const [actionCandidateId, setActionCandidateId] = useState(null);
   const [actionMessage, setActionMessage] = useState("");
   const [selectedCandidateId, setSelectedCandidateId] = useState(null);
-
+  const [showApproveModal, setShowApproveModal] = useState(false);
+  const [approveCandidate, setApproveCandidate] = useState(null);
   async function refreshProbationRecords() {
     try {
       const records = await fetchProbationReviewCandidates();
@@ -153,6 +158,50 @@ export default function ProbationReview() {
     };
   }, [fallbackRecords]);
 
+  
+    function openApproveModal(record) {
+      setApproveCandidate(record);
+      setShowApproveModal(true);
+    }
+
+    function closeApproveModal() {
+      setShowApproveModal(false);
+      setApproveCandidate(null);
+    }
+
+    async function confirmApprove({
+      candidateId,
+      joiningDate,
+      durationMonths,
+    }) {
+      setActionCandidateId(candidateId);
+      setActionMessage("");
+      setErrorMessage("");
+
+      try {
+        await approveCandidateForProbation({
+          candidateId,
+          joiningDate,
+          durationMonths,
+          performedBy: "HR",
+        });
+
+        closeApproveModal();
+
+        setActionMessage("Candidate approved for probation.");
+
+        await refreshProbationRecords();
+      } catch (error) {
+        console.error("Unable to approve probation:", error);
+
+        setErrorMessage(
+          error.message || "Unable to approve probation."
+        );
+      } finally {
+        setActionCandidateId(null);
+      }
+    }
+
   async function handleLifecycleAction({
     candidateId,
     fromStatus,
@@ -204,6 +253,27 @@ export default function ProbationReview() {
     } catch (error) {
       console.error("Unable to generate MID:", error);
       setErrorMessage(error.message || "Unable to generate MID.");
+    } finally {
+      setActionCandidateId(null);
+    }
+  }
+
+  async function handleExtendProbation(record) {
+    setActionCandidateId(record.candidateId);
+    setActionMessage("");
+    setErrorMessage("");
+
+    try {
+      await extendCandidateProbation({
+        candidateId: record.candidateId,
+        performedBy: "HR",
+      });
+
+      setActionMessage("Candidate probation extended.");
+      await refreshProbationRecords();
+    } catch (error) {
+      console.error("Unable to extend probation:", error);
+      setErrorMessage(error.message || "Unable to extend probation.");
     } finally {
       setActionCandidateId(null);
     }
@@ -303,16 +373,7 @@ export default function ProbationReview() {
                     type="button"
                      className="btn btn-success"
                     disabled={actionCandidateId === record.candidateId}
-                    onClick={() =>
-                      handleLifecycleAction({
-                        candidateId: record.candidateId,
-                        fromStatus: "HR_REVIEW_PENDING",
-                        toStatus: "HR_APPROVED_FOR_PROBATION",
-                        activityType: "HR_APPROVED_FOR_PROBATION",
-                        remarks: "Candidate approved for probation by HR",
-                        successMessage: "Candidate approved for probation.",
-                      })
-                    }
+                    onClick={() => openApproveModal(record)}
                   >
                     {actionCandidateId === record.candidateId
                       ? "Approving..."
@@ -428,25 +489,18 @@ export default function ProbationReview() {
                         : "Reject Probation"}
                     </button>
 
-                    <button
-                      type="button"
-                       className="btn btn-warning"
-                      disabled={actionCandidateId === record.candidateId}
-                      onClick={() =>
-                        handleLifecycleAction({
-                          candidateId: record.candidateId,
-                          fromStatus: "PROBATION_REVIEW",
-                          toStatus: "PROBATION_EXTENDED",
-                          activityType: "PROBATION_EXTENDED",
-                          remarks: "Candidate probation extended by HR",
-                          successMessage: "Candidate probation extended.",
-                        })
-                      }
-                    >
-                      {actionCandidateId === record.candidateId
-                        ? "Saving..."
-                        : "Extend Probation"}
-                    </button>
+                    {record.probationExtensionCount === 0 && (
+                      <button
+                        type="button"
+                         className="btn btn-warning"
+                        disabled={actionCandidateId === record.candidateId}
+                        onClick={() => handleExtendProbation(record)}
+                      >
+                        {actionCandidateId === record.candidateId
+                          ? "Saving..."
+                          : "Extend Probation"}
+                      </button>
+                    )}
                   </>
                 )}
 
@@ -469,7 +523,13 @@ export default function ProbationReview() {
       </table>
       </div>
       <br />
-
+      
+      <ApproveProbationModal
+        isOpen={showApproveModal}
+        candidate={approveCandidate}
+        onClose={closeApproveModal}
+        onConfirm={confirmApprove}
+      />
 
       <CandidateDetailModal
         candidateId={selectedCandidateId}

@@ -1,29 +1,42 @@
 import { supabase } from "./supabaseClient";
+import { ROLE_OPTIONS } from "../constants/roleOptions";
 
-const roleCodeMap = {
-  "business analyst intern": "BAI",
-  "content intern": "CI",
-  "data intern": "DAI",
-  "design intern": "DSGI",
-  "finance intern": "FI",
-  "hr intern": "HRI",
-  "marketing intern": "MI",
-  "operation intern": "OPI",
-  "operations intern": "OPI",
-  "product intern": "PI",
-  "qa intern": "QAI",
-  "research intern": "RI",
-  "software intern": "SWI",
-  "support intern": "SUPI",
-};
+function parseDateOnly(dateValue) {
+  const [year, month, day] = String(dateValue || "")
+    .split("-")
+    .map(Number);
 
+  if (!year || !month || !day) {
+    throw new Error("A valid probation start date is required.");
+  }
+
+  return new Date(Date.UTC(year, month - 1, day));
+}
+
+function addCalendarDays(dateValue, daysToAdd) {
+  const date = parseDateOnly(dateValue);
+  const millisecondsPerDay = 24 * 60 * 60 * 1000;
+
+  return new Date(date.getTime() + daysToAdd * millisecondsPerDay)
+    .toISOString()
+    .split("T")[0];
+}
+
+function getInternshipDurationDays(durationMonths) {
+  if (Number(durationMonths) === 4) return 120;
+  if (Number(durationMonths) === 3) return 90;
+
+  throw new Error("Internship duration must be 3 or 4 months.");
+}
 function getRoleCode(appliedRole) {
   const normalizedRole = String(appliedRole || "")
     .trim()
     .replace(/\s+/g, " ")
     .toLowerCase();
 
-  return roleCodeMap[normalizedRole];
+  return ROLE_OPTIONS.find(
+    (role) => role.name.toLowerCase() === normalizedRole
+  )?.code;
 }
 
 function getNameCode(fullName) {
@@ -33,22 +46,29 @@ function getNameCode(fullName) {
     .split(/\s+/)
     .filter(Boolean);
 
-  if (words.length === 0) {
-    return "";
-  }
+  if (words.length === 0) return "";
 
   if (words.length === 1) {
     return words[0].slice(0, 2).toUpperCase();
   }
 
-  return words.map((word) => word[0]).join("").toUpperCase();
+  return (
+    words[0][0] +
+    words[words.length - 1][0]
+  ).toUpperCase();
 }
 
-function getNextSerial(existingMids, roleCode) {
+function getYearCode() {
+  return new Date().getFullYear().toString().slice(-2);
+}
+
+function getNextSerial(existingMids, roleCode, nameCode, yearCode) {
   const nextNumber =
     existingMids.reduce((maxSerial, mid) => {
       const match = String(mid).match(
-        new RegExp(`^JCF-${roleCode}-[A-Z]+-(\\d{3})$`)
+        new RegExp(
+          `^JCF-${roleCode}-${nameCode}-${yearCode}(\\d{3})$`
+        )
       );
 
       return match ? Math.max(maxSerial, Number(match[1])) : maxSerial;
@@ -64,6 +84,7 @@ export async function updateCandidateLifecycleStatus({
   activityType,
   remarks = "",
   performedBy = "HR",
+  updateFields = {},
 }) {
   if (!supabase) {
     throw new Error("Supabase environment variables are not configured.");
@@ -71,12 +92,15 @@ export async function updateCandidateLifecycleStatus({
 
   const now = new Date().toISOString();
 
-  const { data: updatedLifecycle, error: updateError } = await supabase
-    .from("hr_lifecycle")
-    .update({
-      lifecycle_status: toStatus,
-      updated_at: now,
-    })
+  const lifecycleUpdate = {
+    lifecycle_status: toStatus,
+    updated_at: now,
+    ...updateFields,
+  };
+
+    const { data: updatedLifecycle, error: updateError } = await supabase
+      .from("hr_lifecycle")
+      .update(lifecycleUpdate)
     .eq("candidate_id", candidateId)
     .eq("lifecycle_status", fromStatus)
     .select("candidate_id")
@@ -104,6 +128,167 @@ export async function updateCandidateLifecycleStatus({
 
   if (logError) {
     console.error("Error inserting activity log:", logError);
+    throw logError;
+  }
+
+  return true;
+}
+export async function approveCandidateForProbation({
+  candidateId,
+  joiningDate,
+  durationMonths,
+  performedBy = "HR",
+}) {
+  if (!supabase) {
+    throw new Error("Supabase environment variables are not configured.");
+  }
+
+  const now = new Date().toISOString();
+  const durationDays = getInternshipDurationDays(durationMonths);
+  const probationEndDate = addCalendarDays(joiningDate, 7);
+
+  const endDate = addCalendarDays(
+    joiningDate,
+    durationDays - 1
+  );
+
+  const { data: updatedLifecycle, error: updateError } =
+    await supabase
+      .from("hr_lifecycle")
+      .update({
+        lifecycle_status: "HR_APPROVED_FOR_PROBATION",
+
+        probation_start_date: joiningDate,
+
+        probation_end_date: probationEndDate,
+
+        internship_duration_months: Number(durationMonths),
+
+        original_end_date: endDate,
+
+        current_end_date: endDate,
+
+        probation_extension_count: 0,
+
+        updated_at: now,
+      })
+      .eq("candidate_id", candidateId)
+      .eq("lifecycle_status", "HR_REVIEW_PENDING")
+      .select("candidate_id")
+      .maybeSingle();
+
+  if (updateError) {
+    throw updateError;
+  }
+
+  if (!updatedLifecycle) {
+    throw new Error(
+      "Candidate lifecycle status did not match HR_REVIEW_PENDING."
+    );
+  }
+
+  const { error: logError } = await supabase
+    .from("hr_activity_logs")
+    .insert({
+      candidate_id: candidateId,
+
+      activity_type: "HR_APPROVED_FOR_PROBATION",
+
+      from_status: "HR_REVIEW_PENDING",
+
+      to_status: "HR_APPROVED_FOR_PROBATION",
+
+      remarks: `Candidate approved for probation (${durationMonths} month internship)`,
+
+      activity_status: "SUCCESS",
+
+      performed_by: performedBy,
+
+      performed_at: now,
+    });
+
+  if (logError) {
+    throw logError;
+  }
+
+  return true;
+}
+
+export async function extendCandidateProbation({
+  candidateId,
+  performedBy = "HR",
+}) {
+  if (!supabase) {
+    throw new Error("Supabase environment variables are not configured.");
+  }
+
+  const now = new Date().toISOString();
+
+  const { data: lifecycle, error: lifecycleError } = await supabase
+    .from("hr_lifecycle")
+    .select(
+      "probation_end_date,lifecycle_status,probation_extension_count"
+    )
+    .eq("candidate_id", candidateId)
+    .maybeSingle();
+
+  if (lifecycleError) {
+    throw lifecycleError;
+  }
+
+  if (!lifecycle || lifecycle.lifecycle_status !== "PROBATION_REVIEW") {
+    throw new Error("Candidate is not in PROBATION_REVIEW status.");
+  }
+
+  if (Number(lifecycle.probation_extension_count) !== 0) {
+    throw new Error("Probation may only be extended once.");
+  }
+
+  if (!lifecycle.probation_end_date) {
+    throw new Error("Probation end date is required to extend probation.");
+  }
+
+  const probationEndDate = addCalendarDays(
+    lifecycle.probation_end_date,
+    7
+  );
+
+  const { data: updatedLifecycle, error: updateError } = await supabase
+    .from("hr_lifecycle")
+    .update({
+      lifecycle_status: "PROBATION_EXTENDED",
+      probation_end_date: probationEndDate,
+      probation_extension_count: 1,
+      updated_at: now,
+    })
+    .eq("candidate_id", candidateId)
+    .eq("lifecycle_status", "PROBATION_REVIEW")
+    .eq("probation_extension_count", 0)
+    .select("candidate_id")
+    .maybeSingle();
+
+  if (updateError) {
+    throw updateError;
+  }
+
+  if (!updatedLifecycle) {
+    throw new Error("Candidate probation extension was not allowed.");
+  }
+
+  const { error: logError } = await supabase
+    .from("hr_activity_logs")
+    .insert({
+      candidate_id: candidateId,
+      activity_type: "PROBATION_EXTENDED",
+      from_status: "PROBATION_REVIEW",
+      to_status: "PROBATION_EXTENDED",
+      remarks: "Candidate probation extended by HR",
+      activity_status: "SUCCESS",
+      performed_by: performedBy,
+      performed_at: now,
+    });
+
+  if (logError) {
     throw logError;
   }
 
@@ -151,11 +336,15 @@ export async function generateCandidateMidAfterProbation({
     if (!nameCode) {
       throw new Error("Candidate name is required for MID generation.");
     }
+    const yearCode = getYearCode();
 
     const { data: existingLifecycleRows, error: midsError } = await supabase
-      .from("hr_lifecycle")
-      .select("mid")
-      .ilike("mid", `JCF-${roleCode}-%`);
+  .from("hr_lifecycle")
+  .select("mid")
+  .ilike(
+    "mid",
+    `JCF-${roleCode}-${nameCode}-${yearCode}%`
+  );
 
     if (midsError) {
       throw midsError;
@@ -164,9 +353,14 @@ export async function generateCandidateMidAfterProbation({
     const existingMids = (existingLifecycleRows || [])
       .map((row) => row.mid)
       .filter(Boolean);
-    const serial = getNextSerial(existingMids, roleCode);
+    const serial = getNextSerial(
+  existingMids,
+  roleCode,
+  nameCode,
+  yearCode
+);
 
-    mid = `JCF-${roleCode}-${nameCode}-${serial}`;
+    mid = `JCF-${roleCode}-${nameCode}-${yearCode}${serial}`;
   }
 
   const { data: updatedLifecycle, error: updateError } = await supabase

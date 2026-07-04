@@ -17,11 +17,19 @@ const detailFields = [
   ["Source", "source"],
   ["Availability Status", "availability_status"],
   ["Lifecycle Status", "lifecycle_status"],
-  ["Probation Start Date", "probation_start_date"],
+  ["Internship / Probation Start Date", "probation_start_date"],
   ["Probation End Date", "probation_end_date"],
+  ["Internship Duration Months", "internship_duration_months"],
+  ["Original Internship End Date", "original_end_date"],
+  ["Current Internship End Date", "current_end_date"],
+  ["Probation Extension Count", "probation_extension_count"],
   ["Probation Review Notes", "probation_review_notes"],
   ["HR Decision", "hr_decision"],
   ["MID", "mid"],
+  ["Allocated Leave", "allocated_leave_days"],
+  ["Approved Leave", "approved_leave_days"],
+  ["Remaining Leave", "remaining_leave_days"],
+  ["Extra Leave", "extra_leave_days"],
   ["Offer Status", "offer_status"],
   ["Offer Letter Number", "offer_letter_number"],
   ["Generated At", "generated_at"],
@@ -32,33 +40,6 @@ const detailFields = [
   ["Phone Match Status", "phone_match_status"],
   ["Verification Notes", "verification_notes"],
 ];
-
-const modalBackdropStyle = {
-  position: "fixed",
-  inset: 0,
-  background: "rgba(0, 0, 0, 0.35)",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  padding: "20px",
-  zIndex: 1000,
-};
-
-const modalPanelStyle = {
-  background: "#fff",
-  maxHeight: "85vh",
-  maxWidth: "900px",
-  overflow: "auto",
-  padding: "20px",
-  width: "100%",
-};
-
-const modalHeaderStyle = {
-  alignItems: "center",
-  display: "flex",
-  justifyContent: "space-between",
-  gap: "16px",
-};
 
 export default function CandidateDetailModal({ candidateId, onClose }) {
   const [candidateDetail, setCandidateDetail] = useState(null);
@@ -151,6 +132,11 @@ export default function CandidateDetailModal({ candidateId, onClose }) {
         </div>
       )}
 
+      {errorMessage && (
+        <div className="info-banner">
+          {errorMessage}
+        </div>
+      )}
 
 
       {candidateDetail && (
@@ -170,7 +156,11 @@ export default function CandidateDetailModal({ candidateId, onClose }) {
 
 
               <strong>
-                {candidateDetail[key] || "-"}
+                {candidateDetail[key] === null ||
+                candidateDetail[key] === undefined ||
+                candidateDetail[key] === ""
+                  ? "-"
+                  : candidateDetail[key]}
               </strong>
 
 

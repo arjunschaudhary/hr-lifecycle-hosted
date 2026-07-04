@@ -9,6 +9,9 @@ import ActiveInterns from "./pages/ActiveInterns";
 import SignedOfferUpload from "./pages/SignedOfferUpload";
 import SignedOfferVerification from "./pages/SignedOfferVerification";
 import ActivityLog from "./pages/ActivityLog";
+import LeaveDashboard from "./pages/LeaveDashboard";
+import LeaveApplication from "./pages/LeaveApplication";
+
 
 function App() {
   return (
@@ -25,6 +28,9 @@ function App() {
           element={<SignedOfferVerification />}
         />
         <Route path="/activity-log" element={<ActivityLog />} />
+        <Route path="/leave-dashboard" element={<LeaveDashboard />} />
+        <Route path="/leave-application" element={<LeaveApplication />} />
+        
       </Routes>
     </BrowserRouter>
   );
