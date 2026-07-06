@@ -504,6 +504,28 @@ export default function ProbationReview() {
                   </>
                 )}
 
+                {record.probationStatus === "PROBATION_EXTENDED" && (
+                  <button
+                    type="button"
+                    className="btn btn-warning"
+                    disabled={actionCandidateId === record.candidateId}
+                    onClick={() =>
+                      handleLifecycleAction({
+                        candidateId: record.candidateId,
+                        fromStatus: "PROBATION_EXTENDED",
+                        toStatus: "PROBATION_REVIEW",
+                        activityType: "PROBATION_READY_FOR_REVIEW",
+                        remarks: "Extended probation marked ready for review by HR",
+                        successMessage: "Extended probation marked ready for review.",
+                      })
+                    }
+                  >
+                    {actionCandidateId === record.candidateId
+                      ? "Marking..."
+                      : "Mark Ready for Review Again"}
+                  </button>
+                )}
+
                 {record.probationStatus === "PROBATION_PASSED" && (
                   <button
                     type="button"

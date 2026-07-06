@@ -545,6 +545,7 @@ SELECT
     l.probation_review_notes,
     l.hr_decision,
     l.mid,
+    l.updated_at AS lifecycle_updated_at,
 
     o.offer_status,
     o.offer_letter_number,

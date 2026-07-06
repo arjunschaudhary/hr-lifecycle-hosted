@@ -136,6 +136,27 @@ export async function submitLeaveApplication(formData) {
       "Candidate is not eligible to apply for leave."
     );
   }
+
+  const { data: overlappingLeave, error: overlapError } =
+    await supabase
+      .from("leave_requests")
+      .select("leave_request_id")
+      .eq("candidate_id", formData.candidate_id)
+      .in("leave_status", ["PENDING", "APPROVED"])
+      .lte("start_date", formData.end_date)
+      .gte("end_date", formData.start_date)
+      .limit(1)
+      .maybeSingle();
+
+  if (overlapError) {
+    throw overlapError;
+  }
+
+  if (overlappingLeave) {
+    throw new Error(
+      "This leave request overlaps with an existing leave request."
+    );
+  }
 // ------------------------------------
 // Ensure Leave Balance Exists
 // ------------------------------------
