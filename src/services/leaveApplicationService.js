@@ -11,6 +11,7 @@ const ELIGIBLE_STATUSES = [
   "OFFER_LETTER_GENERATED",
   "OFFER_LETTER_SENT",
   "ACTIVE",
+  "SIGNED_OFFER_VERIFIED"
 ];
 
 // ------------------------------
