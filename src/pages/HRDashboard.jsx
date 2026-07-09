@@ -18,6 +18,7 @@ import {
   CheckCircle2,
   XCircle,
   RefreshCw,
+  CalendarClock,
 } from "lucide-react";
 
 import {
@@ -382,6 +383,11 @@ const modules = [
   {
     label: "Leave Application",
     path: "/leave-application",
+  },
+  {
+    label: "Internship Extension",
+    path: "/internship-extension",
+    icon: <CalendarClock size={18} />,
   },
 ];
 

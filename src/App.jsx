@@ -11,6 +11,7 @@ import SignedOfferVerification from "./pages/SignedOfferVerification";
 import ActivityLog from "./pages/ActivityLog";
 import LeaveDashboard from "./pages/LeaveDashboard";
 import LeaveApplication from "./pages/LeaveApplication";
+import InternshipExtension from "./pages/InternshipExtension";
 
 
 function App() {
@@ -30,6 +31,7 @@ function App() {
         <Route path="/activity-log" element={<ActivityLog />} />
         <Route path="/leave-dashboard" element={<LeaveDashboard />} />
         <Route path="/leave-application" element={<LeaveApplication />} />
+        <Route path="/internship-extension" element={<InternshipExtension />} />
         
       </Routes>
     </BrowserRouter>

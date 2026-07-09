@@ -59,6 +59,7 @@ export async function submitCandidateForm(formData) {
       city: emptyToNull(formData.city),
       state: emptyToNull(formData.state),
       applied_role: emptyToNull(formData.applied_role),
+      role_code: emptyToNull(formData.role_code),
       department: emptyToNull(formData.department),
       qualification: emptyToNull(formData.qualification),
       college_name: emptyToNull(formData.college_name),

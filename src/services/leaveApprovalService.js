@@ -1,34 +1,15 @@
 import { supabase } from "./supabaseClient";
+import {
+  calculateAllocatedLeaveDays,
+  calculateCurrentEndDate,
+  calculateLeaveApprovalBalance,
+} from "../utils/leaveRules";
 
-function parseDateOnly(dateValue) {
-  const [year, month, day] = String(dateValue || "")
-    .split("-")
-    .map(Number);
-
-  if (!year || !month || !day) {
-    throw new Error("A valid internship end date is required.");
-  }
-
-  return new Date(Date.UTC(year, month - 1, day));
-}
-
-function formatDateOnly(dateValue) {
-  return dateValue.toISOString().split("T")[0];
-}
-
-function extendEndDateSkippingSundays(currentEndDate, leaveDays) {
-  const nextDate = parseDateOnly(currentEndDate);
-  let countedDays = 0;
-
-  while (countedDays < leaveDays) {
-    nextDate.setUTCDate(nextDate.getUTCDate() + 1);
-
-    if (nextDate.getUTCDay() !== 0) {
-      countedDays += 1;
-    }
-  }
-
-  return formatDateOnly(nextDate);
+function sumExtensionMonths(extensionRows = []) {
+  return extensionRows.reduce(
+    (total, extension) => total + Number(extension.extension_value || 0),
+    0
+  );
 }
 
 export async function getPendingLeaveRequests() {
@@ -46,7 +27,6 @@ export async function getPendingLeaveRequests() {
 export async function approveLeave(leaveRequestId) {
   const now = new Date().toISOString();
 
-  // Fetch leave request
   const { data: request, error: requestError } = await supabase
     .from("leave_requests")
     .select("*")
@@ -59,57 +39,57 @@ export async function approveLeave(leaveRequestId) {
     throw new Error("Only pending leave requests can be approved.");
   }
 
-  // Fetch balance
-  const { data: balance, error: balanceError } = await supabase
-    .from("leave_balances")
-    .select("*")
-    .eq("candidate_id", request.candidate_id)
-    .single();
-
-  if (balanceError) throw balanceError;
-
   const { data: lifecycle, error: lifecycleError } = await supabase
     .from("hr_lifecycle")
-    .select("current_end_date, mid")
+    .select("probation_start_date, internship_duration_months, mid")
     .eq("candidate_id", request.candidate_id)
     .single();
 
   if (lifecycleError) throw lifecycleError;
 
+  const { data: extensionRows, error: extensionError } = await supabase
+    .from("internship_extensions")
+    .select("extension_value")
+    .eq("candidate_id", request.candidate_id)
+    .eq("extension_type", "MONTHS")
+    .eq("is_processed", true);
+
+  if (extensionError) throw extensionError;
+
+  const { data: balance, error: balanceError } = await supabase
+    .from("leave_balances")
+    .select("*")
+    .eq("candidate_id", request.candidate_id)
+    .maybeSingle();
+
+  if (balanceError) throw balanceError;
+
+  const extensionMonths = sumExtensionMonths(extensionRows);
   const requestedLeaveDays = Number(request.requested_leave_days);
-  const allocatedLeaveDays = Number(balance.allocated_leave_days || 15);
-  const existingApprovedLeaveDays = Number(
-    balance.approved_leave_days || 0
+  const allocatedLeaveDays = calculateAllocatedLeaveDays(
+    lifecycle.internship_duration_months,
+    extensionMonths
   );
-  const existingExtraLeaveDays = Number(balance.extra_leave_days || 0);
-  const totalApprovedLeaveDays =
-    existingApprovedLeaveDays +
-    existingExtraLeaveDays +
-    requestedLeaveDays;
+  const nextBalance = calculateLeaveApprovalBalance({
+    allocatedLeaveDays,
+    approvedLeaveDays: balance?.approved_leave_days,
+    extraLeaveDays: balance?.extra_leave_days,
+    requestedLeaveDays,
+  });
+  const currentEndDate = calculateCurrentEndDate({
+    probationStartDate: lifecycle.probation_start_date,
+    durationMonths: lifecycle.internship_duration_months,
+    extensionMonths,
+    approvedLeaveDays: nextBalance.approved_leave_days,
+    extraLeaveDays: nextBalance.extra_leave_days,
+  });
+  const extensionMid = request.mid || lifecycle.mid;
 
-  const approvedLeaveDays = Math.min(
-    totalApprovedLeaveDays,
-    allocatedLeaveDays
-  );
-  const remainingLeaveDays = Math.max(
-    allocatedLeaveDays - approvedLeaveDays,
-    0
-  );
-  const extraLeaveDays = Math.max(
-    totalApprovedLeaveDays - allocatedLeaveDays,
-    0
-  );
-  const currentEndDate = extendEndDateSkippingSundays(
-    lifecycle.current_end_date,
-    requestedLeaveDays
-  );
-
-  // Update leave request
   const { data: updatedRequest, error: updateRequestError } = await supabase
     .from("leave_requests")
     .update({
       leave_status: "APPROVED",
-      approved_at: now
+      approved_at: now,
     })
     .eq("leave_request_id", leaveRequestId)
     .eq("leave_status", "PENDING")
@@ -122,33 +102,42 @@ export async function approveLeave(leaveRequestId) {
     throw new Error("Only pending leave requests can be approved.");
   }
 
-  // Update balance
-  const { error: updateBalanceError } = await supabase
-    .from("leave_balances")
-    .update({
-      approved_leave_days: approvedLeaveDays,
-      remaining_leave_days: remainingLeaveDays,
-      extra_leave_days: extraLeaveDays,
-      updated_at: now
-    })
-    .eq("candidate_id", request.candidate_id);
+  const balancePayload = {
+    candidate_id: request.candidate_id,
+    mid: extensionMid,
+    allocated_leave_days: allocatedLeaveDays,
+    approved_leave_days: nextBalance.approved_leave_days,
+    remaining_leave_days: nextBalance.remaining_leave_days,
+    extra_leave_days: nextBalance.extra_leave_days,
+    updated_at: now,
+  };
 
-  if (updateBalanceError) throw updateBalanceError;
+  const { error: upsertBalanceError } = await supabase
+    .from("leave_balances")
+    .upsert(
+      balance
+        ? balancePayload
+        : {
+            ...balancePayload,
+            created_at: now,
+          },
+      { onConflict: "candidate_id" }
+    );
+
+  if (upsertBalanceError) throw upsertBalanceError;
 
   const { error: lifecycleUpdateError } = await supabase
     .from("hr_lifecycle")
     .update({
       current_end_date: currentEndDate,
-      updated_at: now
+      updated_at: now,
     })
     .eq("candidate_id", request.candidate_id);
 
   if (lifecycleUpdateError) throw lifecycleUpdateError;
 
-  const extensionMid = request.mid || lifecycle.mid;
-
   if (extensionMid) {
-    const { error: extensionError } = await supabase
+    const { error: extensionInsertError } = await supabase
       .from("internship_extensions")
       .insert({
         candidate_id: request.candidate_id,
@@ -157,13 +146,12 @@ export async function approveLeave(leaveRequestId) {
         extension_value: requestedLeaveDays,
         reason: "Approved leave extension",
         created_at: now,
-        is_processed: true
+        is_processed: true,
       });
 
-    if (extensionError) throw extensionError;
+    if (extensionInsertError) throw extensionInsertError;
   }
 
-  // Activity Log
   const { error: logError } = await supabase
     .from("hr_activity_logs")
     .insert({
@@ -174,7 +162,7 @@ export async function approveLeave(leaveRequestId) {
       remarks: "Leave approved",
       activity_status: "SUCCESS",
       performed_by: "HR",
-      performed_at: now
+      performed_at: now,
     });
 
   if (logError) throw logError;
@@ -183,7 +171,6 @@ export async function approveLeave(leaveRequestId) {
 }
 
 export async function rejectLeave(leaveRequestId) {
-  // Fetch leave request
   const { data: request, error: requestError } = await supabase
     .from("leave_requests")
     .select("*")
@@ -192,18 +179,16 @@ export async function rejectLeave(leaveRequestId) {
 
   if (requestError) throw requestError;
 
-  // Update leave request
   const { error: updateError } = await supabase
     .from("leave_requests")
     .update({
       leave_status: "REJECTED",
-      rejected_at: new Date().toISOString()
+      rejected_at: new Date().toISOString(),
     })
     .eq("leave_request_id", leaveRequestId);
 
   if (updateError) throw updateError;
 
-  // Activity Log
   const { error: logError } = await supabase
     .from("hr_activity_logs")
     .insert({
@@ -214,7 +199,7 @@ export async function rejectLeave(leaveRequestId) {
       remarks: "Leave rejected",
       activity_status: "SUCCESS",
       performed_by: "HR",
-      performed_at: new Date().toISOString()
+      performed_at: new Date().toISOString(),
     });
 
   if (logError) throw logError;

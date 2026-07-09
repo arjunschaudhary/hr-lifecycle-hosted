@@ -14,6 +14,7 @@ export async function fetchProbationReviewCandidates() {
         "email",
         "phone",
         "applied_role",
+        "role_code",
         "source",
         "probation_status",
         "probation_start_date",

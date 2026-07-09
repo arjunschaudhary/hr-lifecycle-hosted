@@ -28,15 +28,22 @@ function getInternshipDurationDays(durationMonths) {
 
   throw new Error("Internship duration must be 3 or 4 months.");
 }
-function getRoleCode(appliedRole) {
-  const normalizedRole = String(appliedRole || "")
-    .trim()
-    .replace(/\s+/g, " ")
-    .toLowerCase();
+function getValidatedRoleCode(roleCode) {
+  const normalizedRoleCode = String(roleCode || "").trim().toUpperCase();
 
-  return ROLE_OPTIONS.find(
-    (role) => role.name.toLowerCase() === normalizedRole
-  )?.code;
+  if (!normalizedRoleCode) {
+    throw new Error("Role code is missing. MID generation cannot continue.");
+  }
+
+  const isKnownRoleCode = ROLE_OPTIONS.some(
+    (role) => role.code === normalizedRoleCode
+  );
+
+  if (!isKnownRoleCode) {
+    throw new Error("Role code is not valid. MID generation cannot continue.");
+  }
+
+  return normalizedRoleCode;
 }
 
 function getNameCode(fullName) {
@@ -298,7 +305,7 @@ export async function extendCandidateProbation({
 export async function generateCandidateMidAfterProbation({
   candidateId,
   fullName,
-  appliedRole,
+  roleCode,
   existingMid,
   performedBy = "HR",
 }) {
@@ -322,16 +329,24 @@ export async function generateCandidateMidAfterProbation({
     throw new Error("Candidate is not in PROBATION_PASSED status.");
   }
 
+  const { data: candidate, error: candidateError } = await supabase
+    .from("master_candidates")
+    .select("full_name,role_code")
+    .eq("candidate_id", candidateId)
+    .maybeSingle();
+
+  if (candidateError) {
+    throw candidateError;
+  }
+
   let mid = lifecycle.mid || existingMid;
 
   if (!mid) {
-    const roleCode = getRoleCode(appliedRole);
+    const validatedRoleCode = getValidatedRoleCode(
+      candidate?.role_code || roleCode
+    );
 
-    if (!roleCode) {
-      throw new Error("Role code not defined for this applied role.");
-    }
-
-    const nameCode = getNameCode(fullName);
+    const nameCode = getNameCode(candidate?.full_name || fullName);
 
     if (!nameCode) {
       throw new Error("Candidate name is required for MID generation.");
@@ -343,7 +358,7 @@ export async function generateCandidateMidAfterProbation({
   .select("mid")
   .ilike(
     "mid",
-    `JCF-${roleCode}-${nameCode}-${yearCode}%`
+    `JCF-${validatedRoleCode}-${nameCode}-${yearCode}%`
   );
 
     if (midsError) {
@@ -355,12 +370,12 @@ export async function generateCandidateMidAfterProbation({
       .filter(Boolean);
     const serial = getNextSerial(
   existingMids,
-  roleCode,
+  validatedRoleCode,
   nameCode,
   yearCode
 );
 
-    mid = `JCF-${roleCode}-${nameCode}-${yearCode}${serial}`;
+    mid = `JCF-${validatedRoleCode}-${nameCode}-${yearCode}${serial}`;
   }
 
   const { data: updatedLifecycle, error: updateError } = await supabase

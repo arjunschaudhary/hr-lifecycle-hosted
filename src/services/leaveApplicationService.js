@@ -1,50 +1,19 @@
 import { supabase } from "./supabaseClient";
+import {
+  calculateAllocatedLeaveDays,
+  calculateLeaveDays,
+  calculateRemainingLeaveDays,
+  ELIGIBLE_LEAVE_STATUSES,
+} from "../utils/leaveRules";
 
-
-const ELIGIBLE_STATUSES = [
-  "WELCOME_MAIL_SENT",
-  "IN_PROBATION",
-  "PROBATION_REVIEW",
-  "PROBATION_EXTENDED",
-  "PROBATION_PASSED",
-  "MID_GENERATED",
-  "OFFER_LETTER_GENERATED",
-  "OFFER_LETTER_SENT",
-  "ACTIVE",
-  "SIGNED_OFFER_VERIFIED"
-];
-
-// ------------------------------
-// Calculate Leave Days
-// Sundays are NOT counted
-// ------------------------------
-export function calculateLeaveDays(startDate, endDate) {
-  const start = new Date(startDate);
-  const end = new Date(endDate);
-
-  if (start > end) {
-    throw new Error("Start Date cannot be after End Date.");
-  }
-
-  let days = 0;
-  const current = new Date(start);
-
-  while (current <= end) {
-    // Sunday = 0
-    if (current.getDay() !== 0) {
-      days++;
-    }
-
-    current.setDate(current.getDate() + 1);
-  }
-
-  return days;
+function sumExtensionMonths(extensionRows = []) {
+  return extensionRows.reduce(
+    (total, extension) => total + Number(extension.extension_value || 0),
+    0
+  );
 }
 
-// ------------------------------
-// Validate Leave Form
-// ------------------------------
-export function validateLeaveApplication(formData) {
+export function validateLeaveApplication(formData, remainingLeaveDays) {
   if (!formData.candidate_id) {
     throw new Error("Candidate ID is required.");
   }
@@ -71,11 +40,13 @@ export function validateLeaveApplication(formData) {
   );
 
   if (
-    leaveDays > 15 &&
+    Number.isFinite(Number(remainingLeaveDays)) &&
+    leaveDays > Number(remainingLeaveDays) &&
+    !formData.reason?.trim() &&
     !formData.supporting_document?.trim()
   ) {
     throw new Error(
-      "Supporting document is mandatory for leave greater than 15 days."
+      "Reason or supporting document is required when leave exceeds remaining balance."
     );
   }
 
@@ -97,7 +68,7 @@ export async function getEligibleCandidates() {
       lifecycle_status,
       mid
     `)
-    .in("lifecycle_status", ELIGIBLE_STATUSES)
+    .in("lifecycle_status", ELIGIBLE_LEAVE_STATUSES)
     .order("full_name");
 
   if (error) {
@@ -113,14 +84,13 @@ export async function submitLeaveApplication(formData) {
     throw new Error("Supabase is not configured.");
   }
 
-  const requestedLeaveDays =
-    validateLeaveApplication(formData);
+  const requestedLeaveDays = validateLeaveApplication(formData);
 
   // Check candidate lifecycle status
   const { data: lifecycle, error: lifecycleError } =
   await supabase
     .from("hr_lifecycle")
-    .select("lifecycle_status, mid")
+    .select("lifecycle_status, mid, internship_duration_months")
     .eq("candidate_id", formData.candidate_id)
     .single();
 
@@ -129,7 +99,7 @@ export async function submitLeaveApplication(formData) {
   }
 
   if (
-    !ELIGIBLE_STATUSES.includes(
+    !ELIGIBLE_LEAVE_STATUSES.includes(
       lifecycle.lifecycle_status
     )
   ) {
@@ -137,6 +107,23 @@ export async function submitLeaveApplication(formData) {
       "Candidate is not eligible to apply for leave."
     );
   }
+
+  const { data: extensionRows, error: extensionError } = await supabase
+    .from("internship_extensions")
+    .select("extension_value")
+    .eq("candidate_id", formData.candidate_id)
+    .eq("extension_type", "MONTHS")
+    .eq("is_processed", true);
+
+  if (extensionError) {
+    throw extensionError;
+  }
+
+  const extensionMonths = sumExtensionMonths(extensionRows);
+  const allocatedLeaveDays = calculateAllocatedLeaveDays(
+    lifecycle.internship_duration_months,
+    extensionMonths
+  );
 
   const { data: overlappingLeave, error: overlapError } =
     await supabase
@@ -171,21 +158,56 @@ export async function submitLeaveApplication(formData) {
     throw balanceError;
   }
 
+  const approvedLeaveDays = Number(balance?.approved_leave_days || 0);
+  const extraLeaveDays = Number(balance?.extra_leave_days || 0);
+  const remainingLeaveDays = calculateRemainingLeaveDays(
+    allocatedLeaveDays,
+    approvedLeaveDays
+  );
+
+  if (
+    requestedLeaveDays > remainingLeaveDays &&
+    !formData.reason?.trim() &&
+    !formData.supporting_document?.trim()
+  ) {
+    throw new Error(
+      "Reason or supporting document is required when leave exceeds remaining balance."
+    );
+  }
+
   if (!balance) {
     const { error: createBalanceError } = await supabase
       .from("leave_balances")
       .insert({
         candidate_id: formData.candidate_id,
         mid: lifecycle.mid,
-        allocated_leave_days: 15,
+        allocated_leave_days: allocatedLeaveDays,
         approved_leave_days: 0,
-        remaining_leave_days: 15,
+        remaining_leave_days: allocatedLeaveDays,
         extra_leave_days: 0,
         created_at: now,
       });
 
     if (createBalanceError) {
       throw createBalanceError;
+    }
+  } else if (
+    Number(balance.allocated_leave_days || 0) !== allocatedLeaveDays ||
+    Number(balance.remaining_leave_days || 0) !== remainingLeaveDays
+  ) {
+    const { error: updateBalanceError } = await supabase
+      .from("leave_balances")
+      .update({
+        allocated_leave_days: allocatedLeaveDays,
+        approved_leave_days: approvedLeaveDays,
+        remaining_leave_days: remainingLeaveDays,
+        extra_leave_days: extraLeaveDays,
+        updated_at: now,
+      })
+      .eq("candidate_id", formData.candidate_id);
+
+    if (updateBalanceError) {
+      throw updateBalanceError;
     }
   }
   // Insert Leave Request

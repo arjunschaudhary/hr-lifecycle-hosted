@@ -39,6 +39,7 @@ function buildFallbackProbationRecords() {
         email: candidate?.email,
         phone: candidate?.phone,
         appliedRole: candidate?.roleAppliedFor,
+        roleCode: null,
         department: candidate?.department,
         source: candidate?.createdSource,
         attemptNo: attempt.attemptNo,
@@ -61,6 +62,7 @@ function mapSupabaseProbationRecord(row) {
     email: row.email,
     phone: row.phone,
     appliedRole: row.applied_role,
+    roleCode: row.role_code,
     department: "",
     source: row.source,
     attemptNo: "",
@@ -243,7 +245,7 @@ export default function ProbationReview() {
       const { mid } = await generateCandidateMidAfterProbation({
         candidateId: record.candidateId,
         fullName: record.fullName,
-        appliedRole: record.appliedRole,
+        roleCode: record.roleCode,
         existingMid: record.mid,
         performedBy: "HR",
       });

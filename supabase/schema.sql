@@ -31,6 +31,7 @@ CREATE TABLE master_candidates (
     city VARCHAR(100),
     state VARCHAR(100),
     applied_role VARCHAR(100),
+    role_code VARCHAR(20),
     department VARCHAR(100),
     qualification VARCHAR(150),
     college_name VARCHAR(150),
@@ -51,6 +52,9 @@ CREATE TABLE hr_lifecycle (
     probation_end_date DATE,
     original_end_date DATE,
     internship_duration_months INTEGER CHECK (internship_duration_months IN (3,4,6,12)),
+    total_extension_months INTEGER NOT NULL DEFAULT 0,
+    total_internship_duration_days INTEGER,
+    current_internship_duration_days INTEGER,
     current_end_date DATE,
     probation_extension_count INTEGER DEFAULT 0,
     probation_review_notes TEXT,
@@ -156,7 +160,7 @@ CREATE TABLE internship_extensions (
         REFERENCES master_candidates(candidate_id)
         ON DELETE CASCADE,
 
-    mid VARCHAR(50) NOT NULL,
+    mid VARCHAR(50),
 
     extension_type VARCHAR(20)
         CHECK (extension_type IN ('MONTHS','LEAVE')),
@@ -183,6 +187,7 @@ INSERT INTO master_candidates (
     city,
     state,
     applied_role,
+    role_code,
     department,
     qualification,
     college_name,
@@ -192,20 +197,20 @@ INSERT INTO master_candidates (
     notes,
     submitted_at
 ) VALUES
-('00000000-0000-0000-0000-000000000001', 'Aarav', 'Sharma', 'Aarav Sharma', 'aarav.sharma@example.com', '+91-9876500001', '+91-9123400001', '12 MG Road', 'Bengaluru', 'Karnataka', 'Software Intern', 'Engineering', 'B.Tech Computer Science', 'JCF Institute of Technology', 'Website', NULL, 'Immediate', 'New candidate awaiting HR review.', NOW() - INTERVAL '18 days'),
-('00000000-0000-0000-0000-000000000002', 'Isha', 'Nair', 'Isha Nair', 'isha.nair@example.com', '+91-9876500002', '+91-9123400002', '45 Lake View Street', 'Kochi', 'Kerala', 'HR Intern', 'Human Resources', 'MBA Human Resources', 'Kerala School of Management', 'Referral', 'Meera Thomas', 'Two weeks notice', 'HR profile approved for probation.', NOW() - INTERVAL '17 days'),
-('00000000-0000-0000-0000-000000000003', 'Kabir', 'Mehta', 'Kabir Mehta', 'kabir.mehta@example.com', '+91-9876500003', '+91-9123400003', '8 Design Colony', 'Mumbai', 'Maharashtra', 'Design Intern', 'Creative', 'B.Des Visual Design', 'Mumbai Design College', 'LinkedIn', NULL, 'Immediate', 'Probation initiated for design role.', NOW() - INTERVAL '16 days'),
-('00000000-0000-0000-0000-000000000004', 'Meera', 'Iyer', 'Meera Iyer', 'meera.iyer@example.com', '+91-9876500004', '+91-9123400004', '21 Anna Salai', 'Chennai', 'Tamil Nadu', 'Marketing Intern', 'Marketing', 'BBA Marketing', 'Chennai Business School', 'Website', NULL, 'Immediate', 'Welcome mail sent after probation setup.', NOW() - INTERVAL '15 days'),
-('00000000-0000-0000-0000-000000000005', 'Rohan', 'Gupta', 'Rohan Gupta', 'rohan.gupta@example.com', '+91-9876500005', '+91-9123400005', '67 Civil Lines', 'Delhi', 'Delhi', 'Data Intern', 'Analytics', 'B.Sc Statistics', 'Delhi Science College', 'Campus Drive', NULL, 'Immediate', 'Candidate is currently in probation.', NOW() - INTERVAL '14 days'),
-('00000000-0000-0000-0000-000000000006', 'Ananya', 'Rao', 'Ananya Rao', 'ananya.rao@example.com', '+91-9876500006', '+91-9123400006', '19 Jubilee Hills', 'Hyderabad', 'Telangana', 'Finance Intern', 'Finance', 'B.Com Finance', 'Hyderabad Commerce College', 'Referral', 'Sanjay Rao', 'One month notice', 'Probation review pending.', NOW() - INTERVAL '13 days'),
-('00000000-0000-0000-0000-000000000007', 'Dev', 'Patel', 'Dev Patel', 'dev.patel@example.com', '+91-9876500007', '+91-9123400007', '34 Satellite Road', 'Ahmedabad', 'Gujarat', 'Operations Intern', 'Operations', 'BBA Operations', 'Ahmedabad Management Institute', 'LinkedIn', NULL, 'Immediate', 'Probation rejected after review.', NOW() - INTERVAL '12 days'),
-('00000000-0000-0000-0000-000000000008', 'Nisha', 'Verma', 'Nisha Verma', 'nisha.verma@example.com', '+91-9876500008', '+91-9123400008', '52 Gomti Nagar', 'Lucknow', 'Uttar Pradesh', 'QA Intern', 'Quality Assurance', 'B.Tech Information Technology', 'Lucknow Engineering College', 'Website', NULL, 'Two weeks notice', 'Probation extended for additional assessment.', NOW() - INTERVAL '11 days'),
-('00000000-0000-0000-0000-000000000009', 'Arjun', 'Reddy', 'Arjun Reddy', 'arjun.reddy@example.com', '+91-9876500009', '+91-9123400009', '73 Hitech City', 'Hyderabad', 'Telangana', 'Software Intern', 'Engineering', 'MCA', 'Deccan Computer Academy', 'Campus Drive', NULL, 'Immediate', 'MID generated after probation passed.', NOW() - INTERVAL '10 days'),
-('00000000-0000-0000-0000-000000000010', 'Priya', 'Menon', 'Priya Menon', 'priya.menon@example.com', '+91-9876500010', '+91-9123400010', '11 Brigade Road', 'Bengaluru', 'Karnataka', 'Content Intern', 'Content', 'BA English', 'Bengaluru Arts College', 'Referral', 'Anita Menon', 'Immediate', 'Offer letter generated and awaiting send.', NOW() - INTERVAL '9 days'),
-('00000000-0000-0000-0000-000000000011', 'Vikram', 'Singh', 'Vikram Singh', 'vikram.singh@example.com', '+91-9876500011', '+91-9123400011', '88 Park Street', 'Kolkata', 'West Bengal', 'Business Analyst Intern', 'Strategy', 'BBA Business Analytics', 'Kolkata Business College', 'LinkedIn', NULL, 'Immediate', 'Active intern with verified signed offer.', NOW() - INTERVAL '8 days'),
-('00000000-0000-0000-0000-000000000012', 'Sara', 'Khan', 'Sara Khan', 'sara.khan@example.com', '+91-9876500012', '+91-9123400012', '15 FC Road', 'Pune', 'Maharashtra', 'Support Intern', 'Customer Support', 'BA Psychology', 'Pune Liberal Arts College', 'Website', NULL, 'Immediate', 'Signed offer requires mismatch review.', NOW() - INTERVAL '7 days'),
-('00000000-0000-0000-0000-000000000013', 'Neha', 'Joshi', 'Neha Joshi', 'neha.joshi@example.com', '+91-9876500013', '+91-9123400013', '24 University Road', 'Jaipur', 'Rajasthan', 'Product Intern', 'Product', 'B.Tech Electronics', 'Jaipur Technical University', 'Campus Drive', NULL, 'Two weeks notice', 'Probation passed; MID generation pending.', NOW() - INTERVAL '6 days'),
-('00000000-0000-0000-0000-000000000014', 'Aditya', 'Bose', 'Aditya Bose', 'aditya.bose@example.com', '+91-9876500014', '+91-9123400014', '6 Salt Lake Sector V', 'Kolkata', 'West Bengal', 'Research Intern', 'Research', 'M.Sc Data Science', 'Eastern Research University', 'Referral', 'Ritika Bose', 'Immediate', 'Active intern with signed offer submitted.', NOW() - INTERVAL '5 days');
+('00000000-0000-0000-0000-000000000001', 'Aarav', 'Sharma', 'Aarav Sharma', 'aarav.sharma@example.com', '+91-9876500001', '+91-9123400001', '12 MG Road', 'Bengaluru', 'Karnataka', 'Software Intern', NULL, 'Engineering', 'B.Tech Computer Science', 'JCF Institute of Technology', 'Website', NULL, 'Immediate', 'New candidate awaiting HR review.', NOW() - INTERVAL '18 days'),
+('00000000-0000-0000-0000-000000000002', 'Isha', 'Nair', 'Isha Nair', 'isha.nair@example.com', '+91-9876500002', '+91-9123400002', '45 Lake View Street', 'Kochi', 'Kerala', 'HR Intern', NULL, 'Human Resources', 'MBA Human Resources', 'Kerala School of Management', 'Referral', 'Meera Thomas', 'Two weeks notice', 'HR profile approved for probation.', NOW() - INTERVAL '17 days'),
+('00000000-0000-0000-0000-000000000003', 'Kabir', 'Mehta', 'Kabir Mehta', 'kabir.mehta@example.com', '+91-9876500003', '+91-9123400003', '8 Design Colony', 'Mumbai', 'Maharashtra', 'Design Intern', NULL, 'Creative', 'B.Des Visual Design', 'Mumbai Design College', 'LinkedIn', NULL, 'Immediate', 'Probation initiated for design role.', NOW() - INTERVAL '16 days'),
+('00000000-0000-0000-0000-000000000004', 'Meera', 'Iyer', 'Meera Iyer', 'meera.iyer@example.com', '+91-9876500004', '+91-9123400004', '21 Anna Salai', 'Chennai', 'Tamil Nadu', 'Marketing Intern', NULL, 'Marketing', 'BBA Marketing', 'Chennai Business School', 'Website', NULL, 'Immediate', 'Welcome mail sent after probation setup.', NOW() - INTERVAL '15 days'),
+('00000000-0000-0000-0000-000000000005', 'Rohan', 'Gupta', 'Rohan Gupta', 'rohan.gupta@example.com', '+91-9876500005', '+91-9123400005', '67 Civil Lines', 'Delhi', 'Delhi', 'Data Intern', NULL, 'Analytics', 'B.Sc Statistics', 'Delhi Science College', 'Campus Drive', NULL, 'Immediate', 'Candidate is currently in probation.', NOW() - INTERVAL '14 days'),
+('00000000-0000-0000-0000-000000000006', 'Ananya', 'Rao', 'Ananya Rao', 'ananya.rao@example.com', '+91-9876500006', '+91-9123400006', '19 Jubilee Hills', 'Hyderabad', 'Telangana', 'Finance Intern', NULL, 'Finance', 'B.Com Finance', 'Hyderabad Commerce College', 'Referral', 'Sanjay Rao', 'One month notice', 'Probation review pending.', NOW() - INTERVAL '13 days'),
+('00000000-0000-0000-0000-000000000007', 'Dev', 'Patel', 'Dev Patel', 'dev.patel@example.com', '+91-9876500007', '+91-9123400007', '34 Satellite Road', 'Ahmedabad', 'Gujarat', 'Operations Intern', NULL, 'Operations', 'BBA Operations', 'Ahmedabad Management Institute', 'LinkedIn', NULL, 'Immediate', 'Probation rejected after review.', NOW() - INTERVAL '12 days'),
+('00000000-0000-0000-0000-000000000008', 'Nisha', 'Verma', 'Nisha Verma', 'nisha.verma@example.com', '+91-9876500008', '+91-9123400008', '52 Gomti Nagar', 'Lucknow', 'Uttar Pradesh', 'QA Intern', NULL, 'Quality Assurance', 'B.Tech Information Technology', 'Lucknow Engineering College', 'Website', NULL, 'Two weeks notice', 'Probation extended for additional assessment.', NOW() - INTERVAL '11 days'),
+('00000000-0000-0000-0000-000000000009', 'Arjun', 'Reddy', 'Arjun Reddy', 'arjun.reddy@example.com', '+91-9876500009', '+91-9123400009', '73 Hitech City', 'Hyderabad', 'Telangana', 'Software Intern', NULL, 'Engineering', 'MCA', 'Deccan Computer Academy', 'Campus Drive', NULL, 'Immediate', 'MID generated after probation passed.', NOW() - INTERVAL '10 days'),
+('00000000-0000-0000-0000-000000000010', 'Priya', 'Menon', 'Priya Menon', 'priya.menon@example.com', '+91-9876500010', '+91-9123400010', '11 Brigade Road', 'Bengaluru', 'Karnataka', 'Content Intern', NULL, 'Content', 'BA English', 'Bengaluru Arts College', 'Referral', 'Anita Menon', 'Immediate', 'Offer letter generated and awaiting send.', NOW() - INTERVAL '9 days'),
+('00000000-0000-0000-0000-000000000011', 'Vikram', 'Singh', 'Vikram Singh', 'vikram.singh@example.com', '+91-9876500011', '+91-9123400011', '88 Park Street', 'Kolkata', 'West Bengal', 'Business Analyst Intern', NULL, 'Strategy', 'BBA Business Analytics', 'Kolkata Business College', 'LinkedIn', NULL, 'Immediate', 'Active intern with verified signed offer.', NOW() - INTERVAL '8 days'),
+('00000000-0000-0000-0000-000000000012', 'Sara', 'Khan', 'Sara Khan', 'sara.khan@example.com', '+91-9876500012', '+91-9123400012', '15 FC Road', 'Pune', 'Maharashtra', 'Support Intern', NULL, 'Customer Support', 'BA Psychology', 'Pune Liberal Arts College', 'Website', NULL, 'Immediate', 'Signed offer requires mismatch review.', NOW() - INTERVAL '7 days'),
+('00000000-0000-0000-0000-000000000013', 'Neha', 'Joshi', 'Neha Joshi', 'neha.joshi@example.com', '+91-9876500013', '+91-9123400013', '24 University Road', 'Jaipur', 'Rajasthan', 'Product Intern', NULL, 'Product', 'B.Tech Electronics', 'Jaipur Technical University', 'Campus Drive', NULL, 'Two weeks notice', 'Probation passed; MID generation pending.', NOW() - INTERVAL '6 days'),
+('00000000-0000-0000-0000-000000000014', 'Aditya', 'Bose', 'Aditya Bose', 'aditya.bose@example.com', '+91-9876500014', '+91-9123400014', '6 Salt Lake Sector V', 'Kolkata', 'West Bengal', 'Research Intern', NULL, 'Research', 'M.Sc Data Science', 'Eastern Research University', 'Referral', 'Ritika Bose', 'Immediate', 'Active intern with signed offer submitted.', NOW() - INTERVAL '5 days');
 
 INSERT INTO hr_lifecycle (
     candidate_id,
@@ -419,6 +424,7 @@ SELECT
     c.email,
     c.phone,
     c.applied_role,
+    c.role_code,
     c.source,
     l.lifecycle_status AS probation_status,
     l.probation_start_date,
@@ -525,6 +531,7 @@ SELECT
     c.city,
     c.state,
     c.applied_role,
+    c.role_code,
     c.department,
     c.qualification,
     c.college_name,
@@ -540,6 +547,9 @@ SELECT
     l.original_end_date,
     l.current_end_date,
     l.internship_duration_months,
+    l.total_extension_months,
+    l.total_internship_duration_days,
+    l.current_internship_duration_days,
     l.probation_extension_count,
 
     l.probation_review_notes,

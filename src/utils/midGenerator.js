@@ -20,12 +20,21 @@ export function formatSerial(serialNo) {
   return String(serialNo).padStart(3, "0");
 }
 
-export function generateMID(roleCode, nameCode, serialNo) {
+export function getYearCode(dateValue = new Date()) {
+  return new Date(dateValue).getFullYear().toString().slice(-2);
+}
+
+export function generateMID(
+  roleCode,
+  nameCode,
+  serialNo,
+  yearCode = getYearCode()
+) {
   if (!roleCode || !nameCode || !serialNo) {
     return "";
   }
 
-  return `${roleCode}/${nameCode}/${formatSerial(serialNo)}`;
+  return `JCF-${roleCode}-${nameCode}-${yearCode}${formatSerial(serialNo)}`;
 }
 
 export function getNextSerial(roleCode, nameCode, midRegistry = []) {
