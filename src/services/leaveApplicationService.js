@@ -6,6 +6,8 @@ import {
   ELIGIBLE_LEAVE_STATUSES,
 } from "../utils/leaveRules";
 
+const EXTRA_LEAVE_REASON_MIN_LENGTH = 12;
+
 function sumExtensionMonths(extensionRows = []) {
   return extensionRows.reduce(
     (total, extension) => total + Number(extension.extension_value || 0),
@@ -13,7 +15,29 @@ function sumExtensionMonths(extensionRows = []) {
   );
 }
 
-export function validateLeaveApplication(formData, remainingLeaveDays) {
+function hasExtraLeaveProof(formData) {
+  return (
+    String(formData.supporting_document || "").trim().length > 0 ||
+    String(formData.reason || "").trim().length >= EXTRA_LEAVE_REASON_MIN_LENGTH
+  );
+}
+
+function assertExtraLeaveProof({
+  formData,
+  requestedLeaveDays,
+  remainingLeaveDays,
+}) {
+  if (
+    requestedLeaveDays > Number(remainingLeaveDays || 0) &&
+    !hasExtraLeaveProof(formData)
+  ) {
+    throw new Error(
+      "This request exceeds the remaining leave balance. Add a supporting document or a clear reason before submitting."
+    );
+  }
+}
+
+export function validateLeaveApplication(formData) {
   if (!formData.candidate_id) {
     throw new Error("Candidate ID is required.");
   }
@@ -38,17 +62,6 @@ export function validateLeaveApplication(formData, remainingLeaveDays) {
     formData.start_date,
     formData.end_date
   );
-
-  if (
-    Number.isFinite(Number(remainingLeaveDays)) &&
-    leaveDays > Number(remainingLeaveDays) &&
-    !formData.reason?.trim() &&
-    !formData.supporting_document?.trim()
-  ) {
-    throw new Error(
-      "Reason or supporting document is required when leave exceeds remaining balance."
-    );
-  }
 
   return leaveDays;
 }
@@ -165,15 +178,11 @@ export async function submitLeaveApplication(formData) {
     approvedLeaveDays
   );
 
-  if (
-    requestedLeaveDays > remainingLeaveDays &&
-    !formData.reason?.trim() &&
-    !formData.supporting_document?.trim()
-  ) {
-    throw new Error(
-      "Reason or supporting document is required when leave exceeds remaining balance."
-    );
-  }
+  assertExtraLeaveProof({
+    formData,
+    requestedLeaveDays,
+    remainingLeaveDays,
+  });
 
   if (!balance) {
     const { error: createBalanceError } = await supabase

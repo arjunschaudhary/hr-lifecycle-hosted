@@ -21,6 +21,7 @@ export default function LeaveApplication() {
 
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
+  const [errorMessage, setErrorMessage] = useState("");
 
   useEffect(() => {
     let isMounted = true;
@@ -56,6 +57,7 @@ export default function LeaveApplication() {
 
     setLoading(true);
     setMessage("");
+    setErrorMessage("");
 
     try {
       await submitLeaveApplication(form);
@@ -71,7 +73,7 @@ export default function LeaveApplication() {
         supporting_document: "",
       });
     } catch (err) {
-      alert(err.message);
+      setErrorMessage(err.message || "Unable to submit leave request.");
     }
 
     setLoading(false);
@@ -108,6 +110,12 @@ export default function LeaveApplication() {
       {message && (
         <p className="success-message">
           {message}
+        </p>
+      )}
+
+      {errorMessage && (
+        <p className="error-message">
+          {errorMessage}
         </p>
       )}
 
