@@ -548,7 +548,19 @@ SELECT
     l.current_end_date,
     l.internship_duration_months,
     l.total_extension_months,
+    l.total_extension_months AS extension_months,
+    (COALESCE(l.total_extension_months, 0) * 30) AS extension_duration_days,
     l.total_internship_duration_days,
+    COALESCE(
+        l.total_internship_duration_days,
+        (l.internship_duration_months * 30) + (COALESCE(l.total_extension_months, 0) * 30)
+    ) AS total_duration_days,
+    (
+        COALESCE(
+            l.total_internship_duration_days,
+            (l.internship_duration_months * 30) + (COALESCE(l.total_extension_months, 0) * 30)
+        ) / 30
+    ) AS total_internship_duration_months,
     l.current_internship_duration_days,
     l.probation_extension_count,
 

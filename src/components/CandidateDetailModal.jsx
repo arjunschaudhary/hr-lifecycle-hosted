@@ -2,6 +2,26 @@ import { useEffect, useState } from "react";
 
 import { fetchCandidateDetail } from "../services/candidateDetailService";
 
+function formatWithUnit(value, unit) {
+  if (value === null || value === undefined || value === "") {
+    return "-";
+  }
+
+  return `${value} ${unit}`;
+}
+
+function formatDetailValue(value, formatter) {
+  if (formatter) {
+    return formatter(value);
+  }
+
+  if (value === null || value === undefined || value === "") {
+    return "-";
+  }
+
+  return value;
+}
+
 const detailFields = [
   ["Full Name", "full_name"],
   ["Email", "email"],
@@ -11,6 +31,7 @@ const detailFields = [
   ["City", "city"],
   ["State", "state"],
   ["Applied Role", "applied_role"],
+  ["Role Code", "role_code"],
   ["Department", "department"],
   ["Qualification", "qualification"],
   ["College Name", "college_name"],
@@ -19,7 +40,31 @@ const detailFields = [
   ["Lifecycle Status", "lifecycle_status"],
   ["Internship / Probation Start Date", "probation_start_date"],
   ["Probation End Date", "probation_end_date"],
-  ["Internship Duration Months", "internship_duration_months"],
+  [
+    "Original Internship Duration",
+    "internship_duration_months",
+    (value) => formatWithUnit(value, "months"),
+  ],
+  [
+    "Extension Added",
+    "extension_months",
+    (value) => formatWithUnit(value, "months"),
+  ],
+  [
+    "Extension Duration Days",
+    "extension_duration_days",
+    (value) => formatWithUnit(value, "days"),
+  ],
+  [
+    "Total Duration Days",
+    "total_duration_days",
+    (value) => formatWithUnit(value, "days"),
+  ],
+  [
+    "Total Internship Duration",
+    "total_internship_duration_months",
+    (value) => formatWithUnit(value, "months"),
+  ],
   ["Original Internship End Date", "original_end_date"],
   ["Current Internship End Date", "current_end_date"],
   ["Probation Extension Count", "probation_extension_count"],
@@ -143,7 +188,7 @@ export default function CandidateDetailModal({ candidateId, onClose }) {
 
         <div className="candidate-details-grid">
 
-          {detailFields.map(([label,key]) => (
+          {detailFields.map(([label,key,formatter]) => (
 
             <div
               className="candidate-detail-card"
@@ -156,11 +201,7 @@ export default function CandidateDetailModal({ candidateId, onClose }) {
 
 
               <strong>
-                {candidateDetail[key] === null ||
-                candidateDetail[key] === undefined ||
-                candidateDetail[key] === ""
-                  ? "-"
-                  : candidateDetail[key]}
+                {formatDetailValue(candidateDetail[key], formatter)}
               </strong>
 
 
