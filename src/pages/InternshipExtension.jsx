@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { CalendarClock } from "lucide-react";
 import {
@@ -22,6 +22,7 @@ export default function InternshipExtension() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
+  const isMountedRef = useRef(false);
 
   const selectedCandidate = useMemo(
     () =>
@@ -31,28 +32,65 @@ export default function InternshipExtension() {
     [candidates, selectedCandidateId]
   );
 
-  async function loadCandidates(term = searchTerm) {
+  const loadCandidates = useCallback(async (term) => {
     try {
       setIsLoading(true);
       const data = await fetchExtensionCandidates(term);
-      setCandidates(data);
 
-      if (
-        selectedCandidateId &&
-        !data.some((candidate) => candidate.candidate_id === selectedCandidateId)
-      ) {
-        setSelectedCandidateId("");
-      }
+      if (!isMountedRef.current) return;
+
+      setCandidates(data);
+      setSelectedCandidateId((currentCandidateId) =>
+        currentCandidateId &&
+        !data.some((candidate) => candidate.candidate_id === currentCandidateId)
+          ? ""
+          : currentCandidateId
+      );
     } catch (error) {
+      if (!isMountedRef.current) return;
+
       console.error("Unable to load extension candidates:", error);
       setErrorMessage(error.message || "Unable to load extension candidates.");
     } finally {
-      setIsLoading(false);
+      if (isMountedRef.current) {
+        setIsLoading(false);
+      }
     }
-  }
+  }, []);
 
   useEffect(() => {
-    loadCandidates("");
+    isMountedRef.current = true;
+
+    async function loadInitialCandidates() {
+      try {
+        const data = await fetchExtensionCandidates("");
+
+        if (!isMountedRef.current) return;
+
+        setCandidates(data);
+        setSelectedCandidateId((currentCandidateId) =>
+          currentCandidateId &&
+          !data.some((candidate) => candidate.candidate_id === currentCandidateId)
+            ? ""
+            : currentCandidateId
+        );
+      } catch (error) {
+        if (!isMountedRef.current) return;
+
+        console.error("Unable to load extension candidates:", error);
+        setErrorMessage(error.message || "Unable to load extension candidates.");
+      } finally {
+        if (isMountedRef.current) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    loadInitialCandidates();
+
+    return () => {
+      isMountedRef.current = false;
+    };
   }, []);
 
   async function handleSearch(event) {
