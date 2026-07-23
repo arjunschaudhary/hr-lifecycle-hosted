@@ -5,6 +5,14 @@ import { dummyActiveInterns } from "../data";
 import CandidateDetailModal from "../components/CandidateDetailModal";
 import { markSignedOfferSubmitted } from "../services/lifecycleActionService";
 import { fetchActiveInterns } from "../services/activeInternsService";
+import { createCandidatePortalAccount } from "../services/candidatePortalAccountService";
+
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function isValidUuid(value) {
+  return typeof value === "string" && UUID_PATTERN.test(value);
+}
 
 function buildFallbackActiveInternRecords() {
   return dummyActiveInterns.map((intern) => ({
@@ -64,6 +72,7 @@ export default function ActiveInterns() {
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
   const [actionCandidateId, setActionCandidateId] = useState(null);
+  const [portalActionCandidateId, setPortalActionCandidateId] = useState(null);
   const [actionMessage, setActionMessage] = useState("");
   const [selectedCandidateId, setSelectedCandidateId] = useState(null);
 
@@ -141,6 +150,41 @@ export default function ActiveInterns() {
       setErrorMessage(error.message || "Unable to mark signed offer as submitted.");
     } finally {
       setActionCandidateId(null);
+    }
+  }
+
+  async function handleCreatePortalAccount(intern) {
+    setPortalActionCandidateId(intern.candidateId);
+    setActionMessage("");
+    setErrorMessage("");
+
+    try {
+      const response = await createCandidatePortalAccount({
+        candidateId: intern.candidateId,
+      });
+
+      if (response.outcome === "ACTIVATED") {
+        setActionMessage(
+          response.invitation_sent
+            ? `Portal account created and invitation sent to ${response.email}.`
+            : "Portal account activated for the existing authentication user.",
+        );
+      } else if (response.outcome === "REACTIVATED") {
+        setActionMessage("Portal account reactivated successfully.");
+      } else if (response.outcome === "REPAIRED") {
+        setActionMessage("Portal account records repaired successfully.");
+      } else {
+        setActionMessage("Portal account is already active.");
+      }
+    } catch (error) {
+      console.error("Unable to create candidate portal account:", error);
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Unable to create the candidate portal account.",
+      );
+    } finally {
+      setPortalActionCandidateId(null);
     }
   }
 
@@ -230,18 +274,35 @@ export default function ActiveInterns() {
               <td>{intern.sentAt}</td>
               <td>{intern.signedOfferStatus}</td>
               <td>
-                {intern.lifecycleStatus === "ACTIVE" && (
-                  <button
-                    type="button"
-                    className="btn btn-primary"
-                    disabled={actionCandidateId === intern.candidateId}
-                    onClick={() => handleMarkSignedOfferSubmitted(intern)}
-                  >
-                    {actionCandidateId === intern.candidateId
-                      ? "Marking..."
-                      : "Mark Signed Offer Submitted"}
-                  </button>
-                )}
+                <div className="action-group">
+                  {intern.lifecycleStatus === "ACTIVE" &&
+                    isValidUuid(intern.candidateId) && (
+                      <button
+                        type="button"
+                        className="btn btn-primary"
+                        disabled={
+                          portalActionCandidateId === intern.candidateId
+                        }
+                        onClick={() => handleCreatePortalAccount(intern)}
+                      >
+                        {portalActionCandidateId === intern.candidateId
+                          ? "Creating Portal..."
+                          : "Create Portal Account"}
+                      </button>
+                    )}
+                  {intern.lifecycleStatus === "ACTIVE" && (
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      disabled={actionCandidateId === intern.candidateId}
+                      onClick={() => handleMarkSignedOfferSubmitted(intern)}
+                    >
+                      {actionCandidateId === intern.candidateId
+                        ? "Marking..."
+                        : "Mark Signed Offer Submitted"}
+                    </button>
+                  )}
+                </div>
               </td>
             </tr>
           ))}
