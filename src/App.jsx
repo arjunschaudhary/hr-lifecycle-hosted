@@ -2,6 +2,7 @@ import "./App.css";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 
 import ProtectedRoute from "./components/ProtectedRoute";
+import CandidateProtectedRoute from "./components/CandidateProtectedRoute";
 import HRDashboard from "./pages/HRDashboard";
 import HRLogin from "./pages/HRLogin";
 import ForgotPassword from "./pages/ForgotPassword";
@@ -17,6 +18,7 @@ import ActivityLog from "./pages/ActivityLog";
 import LeaveDashboard from "./pages/LeaveDashboard";
 import LeaveApplication from "./pages/LeaveApplication";
 import InternshipExtension from "./pages/InternshipExtension";
+import CandidatePortal from "./pages/CandidatePortal";
 
 
 function App() {
@@ -28,6 +30,9 @@ function App() {
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/set-password" element={<SetPassword />} />
         <Route path="/candidate-form" element={<CandidateProbationForm />} />
+        <Route element={<CandidateProtectedRoute />}>
+          <Route path="/portal" element={<CandidatePortal />} />
+        </Route>
         <Route element={<ProtectedRoute />}>
           <Route path="/" element={<HRDashboard />} />
           <Route path="/probation-review" element={<ProbationReview />} />
@@ -43,7 +48,7 @@ function App() {
           <Route path="/leave-application" element={<LeaveApplication />} />
           <Route path="/internship-extension" element={<InternshipExtension />} />
         </Route>
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     </BrowserRouter>
   );

@@ -19,18 +19,27 @@ const STAFF_ROLE_SLUGS = [
   "ADMIN",
 ];
 
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+const normalizeCandidateId = (value) =>
+  typeof value === "string" && UUID_PATTERN.test(value) ? value : null;
+
 const INITIAL_AUTH_STATE = {
   session: null,
   user: null,
   loading: true,
   isActiveAppUser: false,
   hasStaffAccess: false,
+  hasCandidateRole: false,
+  candidateId: null,
+  hasCandidateAccess: false,
   authorizationError: null,
 };
 
 const NO_SESSION_KEY = "NO_SESSION";
 const AUTHORIZATION_ERROR_MESSAGE =
-  "We could not verify your HR workspace access. Please try again or contact an administrator.";
+  "We could not verify your workspace access. Please try again or contact an administrator.";
 
 export function AuthProvider({ children }) {
   const [authState, setAuthState] = useState(INITIAL_AUTH_STATE);
@@ -73,6 +82,9 @@ export function AuthProvider({ children }) {
         const result = {
           isActiveAppUser: false,
           hasStaffAccess: false,
+          hasCandidateRole: false,
+          candidateId: null,
+          hasCandidateAccess: false,
           authorizationError: null,
         };
 
@@ -93,32 +105,55 @@ export function AuthProvider({ children }) {
         loading: true,
         isActiveAppUser: false,
         hasStaffAccess: false,
+        hasCandidateRole: false,
+        candidateId: null,
+        hasCandidateAccess: false,
         authorizationError: null,
       });
 
       let result;
 
       try {
-        const [activeUserResult, staffRoleResult] = await Promise.all([
-          supabase.rpc("current_user_is_active"),
-          supabase.rpc("current_user_has_any_role", {
-            p_role_slugs: STAFF_ROLE_SLUGS,
-          }),
-        ]);
+        const [activeUserResult, staffRoleResult, candidateRoleResult, candidateIdResult] =
+          await Promise.all([
+            supabase.rpc("current_user_is_active"),
+            supabase.rpc("current_user_has_any_role", {
+              p_role_slugs: STAFF_ROLE_SLUGS,
+            }),
+            supabase.rpc("current_user_has_role", {
+              p_role_slug: "CANDIDATE",
+            }),
+            supabase.rpc("current_candidate_id"),
+          ]);
 
-        if (activeUserResult.error || staffRoleResult.error) {
+        if (
+          activeUserResult.error ||
+          staffRoleResult.error ||
+          candidateRoleResult.error ||
+          candidateIdResult.error
+        ) {
           throw new Error("Authorization verification failed.");
         }
 
+        const candidateId = normalizeCandidateId(candidateIdResult.data);
+        const hasCandidateRole = candidateRoleResult.data === true;
+        const isActiveAppUser = activeUserResult.data === true;
+
         result = {
-          isActiveAppUser: activeUserResult.data === true,
+          isActiveAppUser,
           hasStaffAccess: staffRoleResult.data === true,
+          hasCandidateRole,
+          candidateId,
+          hasCandidateAccess: isActiveAppUser && hasCandidateRole && Boolean(candidateId),
           authorizationError: null,
         };
       } catch {
         result = {
           isActiveAppUser: false,
           hasStaffAccess: false,
+          hasCandidateRole: false,
+          candidateId: null,
+          hasCandidateAccess: false,
           authorizationError: AUTHORIZATION_ERROR_MESSAGE,
         };
       }
@@ -127,6 +162,9 @@ export function AuthProvider({ children }) {
         return {
           isActiveAppUser: false,
           hasStaffAccess: false,
+          hasCandidateRole: false,
+          candidateId: null,
+          hasCandidateAccess: false,
           authorizationError: AUTHORIZATION_ERROR_MESSAGE,
         };
       }

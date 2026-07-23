@@ -12,6 +12,7 @@ export default function HRLogin() {
     loading,
     isActiveAppUser,
     hasStaffAccess,
+    hasCandidateAccess,
     authorizationError,
     signIn,
     signOut,
@@ -23,6 +24,7 @@ export default function HRLogin() {
   const [logoutLoading, setLogoutLoading] = useState(false);
 
   const requestedPath = location.state?.from?.pathname || "/";
+  const isCandidatePath = requestedPath.startsWith("/portal");
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -32,8 +34,18 @@ export default function HRLogin() {
     try {
       const result = await signIn(email, password);
 
-      if (result.isActiveAppUser && result.hasStaffAccess) {
+      if (isCandidatePath && result.hasCandidateAccess) {
         navigate(requestedPath, { replace: true });
+      } else if (
+        !isCandidatePath &&
+        result.isActiveAppUser &&
+        result.hasStaffAccess
+      ) {
+        navigate(requestedPath, { replace: true });
+      } else if (result.isActiveAppUser && result.hasStaffAccess) {
+        navigate("/", { replace: true });
+      } else if (result.hasCandidateAccess) {
+        navigate("/portal", { replace: true });
       }
     } catch {
       setFormError(
@@ -60,17 +72,29 @@ export default function HRLogin() {
     return (
       <div className="auth-state-screen" role="status" aria-live="polite">
         <LoaderCircle className="auth-spinner" aria-hidden="true" />
-        <p>Checking HR workspace access...</p>
+        <p>Checking workspace access...</p>
       </div>
     );
   }
 
-  if (session && isActiveAppUser && hasStaffAccess) {
-    return <Navigate to="/" replace />;
-  }
-
   if (session) {
-    let message = "This account does not have access to the HR workspace.";
+    if (isCandidatePath && hasCandidateAccess) {
+      return <Navigate to={requestedPath} replace />;
+    }
+
+    if (!isCandidatePath && isActiveAppUser && hasStaffAccess) {
+      return <Navigate to={requestedPath} replace />;
+    }
+
+    if (isActiveAppUser && hasStaffAccess) {
+      return <Navigate to="/" replace />;
+    }
+
+    if (hasCandidateAccess) {
+      return <Navigate to="/portal" replace />;
+    }
+
+    let message = "This account does not have access to an available workspace.";
 
     if (authorizationError) {
       message = authorizationError;
@@ -109,7 +133,7 @@ export default function HRLogin() {
         <div className="auth-login-icon" aria-hidden="true">
           <LockKeyhole />
         </div>
-        <h1 id="hr-login-title">HR Login</h1>
+        <h1 id="hr-login-title">Workspace Sign In</h1>
 
         <form className="auth-login-form" onSubmit={handleSubmit}>
           <div className="auth-form-field">
