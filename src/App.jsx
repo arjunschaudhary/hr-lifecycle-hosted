@@ -6,6 +6,7 @@ import HRDashboard from "./pages/HRDashboard";
 import HRLogin from "./pages/HRLogin";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
+import SetPassword from "./pages/SetPassword";
 import CandidateProbationForm from "./pages/CandidateProbationForm";
 import ProbationReview from "./pages/ProbationReview";
 import OfferApproval from "./pages/OfferApproval";
@@ -25,6 +26,7 @@ function App() {
         <Route path="/login" element={<HRLogin />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/set-password" element={<SetPassword />} />
         <Route path="/candidate-form" element={<CandidateProbationForm />} />
         <Route element={<ProtectedRoute />}>
           <Route path="/" element={<HRDashboard />} />
