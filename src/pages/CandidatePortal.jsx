@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { BriefcaseBusiness } from "lucide-react";
 
 import { useAuth } from "../context/authContext";
 import { fetchCurrentCandidatePortalSummary } from "../services/candidatePortalService";
+import { submitCurrentCandidateSignedOffer } from "../services/candidateSignedOfferUploadService";
 
 const formatValue = (value) => {
   if (value === null || value === undefined) {
@@ -55,6 +56,24 @@ const formatDuration = (value) => {
   return `${duration} month${duration === 1 ? "" : "s"}`;
 };
 
+const formatFileSize = (value) => {
+  const size = Number(value);
+
+  if (!Number.isFinite(size) || size <= 0) {
+    return "";
+  }
+
+  if (size < 1024) {
+    return `${size} bytes`;
+  }
+
+  if (size < 1024 * 1024) {
+    return `${(size / 1024).toFixed(1)} KB`;
+  }
+
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+};
+
 function SummaryFields({ fields }) {
   const availableFields = fields.filter((field) => field.value);
 
@@ -83,7 +102,14 @@ function SummaryCard({ title, children }) {
   );
 }
 
-function PortalSummary({ summary }) {
+function PortalSummary({
+  summary,
+  selectedFile,
+  uploadLoading,
+  fileInputRef,
+  onFileChange,
+  onSubmit,
+}) {
   const profile = summary.profile;
   const internship = summary.internship;
   const leave = summary.leave;
@@ -152,12 +178,38 @@ function PortalSummary({ summary }) {
 
       <SummaryCard title="Signed Offer">
         <SummaryFields fields={signedOfferFields} />
-        <button className="btn btn-primary" type="button" disabled>
-          Submit Signed Offer
-        </button>
-        <p className="page-subtitle">
-          Secure signed-offer upload will be enabled after file storage is configured.
-        </p>
+        {signedOffer.canSubmit && (
+          <form onSubmit={onSubmit} noValidate>
+            <div className="form-group">
+              <label htmlFor="signed-offer-file">Signed offer PDF</label>
+              <input
+                ref={fileInputRef}
+                id="signed-offer-file"
+                type="file"
+                accept=".pdf,application/pdf"
+                onChange={onFileChange}
+                disabled={signedOffer.canSubmit === false || uploadLoading}
+                aria-describedby="signed-offer-file-help"
+              />
+              <p id="signed-offer-file-help" className="page-subtitle">
+                PDF only, maximum 10 MB.
+              </p>
+              {selectedFile && (
+                <p className="page-subtitle">
+                  Selected file: <strong>{selectedFile.name}</strong> ({formatFileSize(selectedFile.size)})
+                </p>
+              )}
+            </div>
+            <button
+              className="btn btn-primary"
+              type="submit"
+              disabled={!signedOffer.canSubmit || !selectedFile || uploadLoading}
+              aria-busy={uploadLoading}
+            >
+              {uploadLoading ? "Uploading..." : "Submit Signed Offer"}
+            </button>
+          </form>
+        )}
       </SummaryCard>
 
       <SummaryCard title="Performance">
@@ -173,6 +225,11 @@ export default function CandidatePortal() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [retryKey, setRetryKey] = useState(0);
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [uploadLoading, setUploadLoading] = useState(false);
+  const [uploadError, setUploadError] = useState("");
+  const [uploadSuccess, setUploadSuccess] = useState("");
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -217,6 +274,74 @@ export default function CandidatePortal() {
     setError("");
     setSummary(null);
     setRetryKey((currentKey) => currentKey + 1);
+  };
+
+  const resetFileInput = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
+  const handleFileChange = (event) => {
+    setUploadError("");
+    setUploadSuccess("");
+    setSelectedFile(event.target.files?.[0] || null);
+  };
+
+  const handleSubmitSignedOffer = async (event) => {
+    event.preventDefault();
+
+    if (!summary?.signedOffer?.canSubmit || !selectedFile || uploadLoading) {
+      return;
+    }
+
+    const authenticatedCandidateId = formatValue(candidateId);
+    const summaryCandidateId = formatValue(summary.profile?.candidateId);
+
+    if (
+      authenticatedCandidateId &&
+      summaryCandidateId &&
+      authenticatedCandidateId.toLowerCase() !== summaryCandidateId.toLowerCase()
+    ) {
+      setUploadError("Candidate reference could not be verified.");
+      setUploadSuccess("");
+      return;
+    }
+
+    const uploadCandidateId = authenticatedCandidateId || summaryCandidateId;
+
+    setUploadLoading(true);
+    setUploadError("");
+    setUploadSuccess("");
+
+    try {
+      await submitCurrentCandidateSignedOffer({
+        candidateId: uploadCandidateId,
+        file: selectedFile,
+      });
+
+      setSelectedFile(null);
+      resetFileInput();
+      setUploadSuccess("Signed offer submitted successfully.");
+      setLoading(true);
+      setSummary(null);
+      setRetryKey((currentKey) => currentKey + 1);
+    } catch (submitError) {
+      const safeMessage =
+        submitError instanceof Error
+          ? submitError.message
+          : "Unable to complete the signed-offer submission. Please try again.";
+
+      setUploadError(safeMessage);
+      setUploadSuccess("");
+
+      if (safeMessage.includes("clean up") || safeMessage.includes("contact HR")) {
+        setSelectedFile(null);
+        resetFileInput();
+      }
+    } finally {
+      setUploadLoading(false);
+    }
   };
 
   return (
@@ -272,7 +397,28 @@ export default function CandidatePortal() {
         </section>
       )}
 
-      {!loading && !error && summary && <PortalSummary summary={summary} />}
+      {!loading && !error && summary && (
+        <PortalSummary
+          summary={summary}
+          selectedFile={selectedFile}
+          uploadLoading={uploadLoading}
+          fileInputRef={fileInputRef}
+          onFileChange={handleFileChange}
+          onSubmit={handleSubmitSignedOffer}
+        />
+      )}
+
+      {uploadError && (
+        <section className="card card-danger" role="alert">
+          <p className="auth-inline-error">{uploadError}</p>
+        </section>
+      )}
+
+      {uploadSuccess && (
+        <section className="card card-success" role="status" aria-live="polite">
+          <p className="auth-success-message">{uploadSuccess}</p>
+        </section>
+      )}
     </main>
   );
 }
