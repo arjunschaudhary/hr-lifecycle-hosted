@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { ClipboardCheck } from "lucide-react";
 import { dummyCandidates, dummyProbationAttempts } from "../data";
@@ -10,6 +10,7 @@ import {
   approveCandidateForProbation,
 } from "../services/lifecycleActionService";
 import { fetchProbationReviewCandidates } from "../services/probationReviewService";
+import { sendCandidateWelcomeEmail } from "../services/welcomeMailService";
 import ApproveProbationModal from "../components/ApproveProbationModal";
 const reviewStatuses = [
   "HR_REVIEW_PENDING",
@@ -23,6 +24,10 @@ const reviewStatuses = [
   "UNDER_REVIEW",
   "RECONSIDERATION",
 ];
+
+function requiresWelcomeMailManualCheck(message) {
+  return message.includes("Check the sender Sent folder before retrying.");
+}
 
 function buildFallbackProbationRecords() {
   return dummyProbationAttempts
@@ -101,6 +106,16 @@ export default function ProbationReview() {
   const [errorMessage, setErrorMessage] = useState("");
   const [actionCandidateId, setActionCandidateId] = useState(null);
   const [actionMessage, setActionMessage] = useState("");
+  const [sendingWelcomeMailCandidateIds, setSendingWelcomeMailCandidateIds] =
+    useState(() => new Set());
+  const [welcomeMailError, setWelcomeMailError] = useState("");
+  const [welcomeMailSuccessMessage, setWelcomeMailSuccessMessage] =
+    useState("");
+  const [
+    welcomeMailRetryBlockedCandidateIds,
+    setWelcomeMailRetryBlockedCandidateIds,
+  ] = useState(() => new Set());
+  const welcomeMailInFlightCandidateIdsRef = useRef(new Set());
   const [selectedCandidateId, setSelectedCandidateId] = useState(null);
   const [showApproveModal, setShowApproveModal] = useState(false);
   const [approveCandidate, setApproveCandidate] = useState(null);
@@ -236,6 +251,68 @@ export default function ProbationReview() {
     }
   }
 
+  async function handleSendWelcomeEmail(candidateId) {
+    if (
+      welcomeMailInFlightCandidateIdsRef.current.has(candidateId) ||
+      welcomeMailRetryBlockedCandidateIds.has(candidateId)
+    ) {
+      return;
+    }
+
+    welcomeMailInFlightCandidateIdsRef.current.add(candidateId);
+    setSendingWelcomeMailCandidateIds((currentCandidateIds) => {
+      const nextCandidateIds = new Set(currentCandidateIds);
+      nextCandidateIds.add(candidateId);
+      return nextCandidateIds;
+    });
+    setWelcomeMailError("");
+    setWelcomeMailSuccessMessage("");
+
+    try {
+      const result = await sendCandidateWelcomeEmail(candidateId);
+
+      setWelcomeMailRetryBlockedCandidateIds((currentCandidateIds) => {
+        const nextCandidateIds = new Set(currentCandidateIds);
+        nextCandidateIds.delete(candidateId);
+        return nextCandidateIds;
+      });
+      setWelcomeMailSuccessMessage(
+        result.alreadyCompleted
+          ? "Welcome email was already sent."
+          : "Welcome email sent successfully."
+      );
+      await refreshProbationRecords();
+    } catch (error) {
+      const safeMessage =
+        error instanceof Error
+          ? error.message
+          : "Unable to send the welcome email. Please try again.";
+
+      setWelcomeMailError(safeMessage);
+
+      if (requiresWelcomeMailManualCheck(safeMessage)) {
+        setWelcomeMailRetryBlockedCandidateIds((currentCandidateIds) => {
+          const nextCandidateIds = new Set(currentCandidateIds);
+          nextCandidateIds.add(candidateId);
+          return nextCandidateIds;
+        });
+      } else {
+        setWelcomeMailRetryBlockedCandidateIds((currentCandidateIds) => {
+          const nextCandidateIds = new Set(currentCandidateIds);
+          nextCandidateIds.delete(candidateId);
+          return nextCandidateIds;
+        });
+      }
+    } finally {
+      welcomeMailInFlightCandidateIdsRef.current.delete(candidateId);
+      setSendingWelcomeMailCandidateIds((currentCandidateIds) => {
+        const nextCandidateIds = new Set(currentCandidateIds);
+        nextCandidateIds.delete(candidateId);
+        return nextCandidateIds;
+      });
+    }
+  }
+
   async function handleGenerateMid(record) {
     setActionCandidateId(record.candidateId);
     setActionMessage("");
@@ -314,6 +391,12 @@ export default function ProbationReview() {
 
       {actionMessage && <p>{actionMessage}</p>}
 
+      {welcomeMailError && <p role="alert">{welcomeMailError}</p>}
+
+      {welcomeMailSuccessMessage && (
+        <p role="status">{welcomeMailSuccessMessage}</p>
+      )}
+
       <div className="table-container">
 
       <table>
@@ -387,21 +470,19 @@ export default function ProbationReview() {
                   <button
                     type="button"
                     className="btn btn-primary"
-                    disabled={actionCandidateId === record.candidateId}
+                    disabled={
+                      sendingWelcomeMailCandidateIds.has(record.candidateId) ||
+                      welcomeMailRetryBlockedCandidateIds.has(
+                        record.candidateId
+                      )
+                    }
                     onClick={() =>
-                      handleLifecycleAction({
-                        candidateId: record.candidateId,
-                        fromStatus: "HR_APPROVED_FOR_PROBATION",
-                        toStatus: "WELCOME_MAIL_SENT",
-                        activityType: "WELCOME_MAIL_SENT",
-                        remarks: "Welcome mail marked as sent by HR",
-                        successMessage: "Welcome mail marked as sent.",
-                      })
+                      handleSendWelcomeEmail(record.candidateId)
                     }
                   >
-                    {actionCandidateId === record.candidateId
-                      ? "Marking..."
-                      : "Mark Welcome Mail Sent"}
+                    {sendingWelcomeMailCandidateIds.has(record.candidateId)
+                      ? "Sending Email..."
+                      : "Send Welcome Email"}
                   </button>
                 )}
 
