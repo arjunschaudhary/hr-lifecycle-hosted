@@ -19,6 +19,7 @@ import LeaveDashboard from "./pages/LeaveDashboard";
 import LeaveApplication from "./pages/LeaveApplication";
 import InternshipExtension from "./pages/InternshipExtension";
 import CandidatePortal from "./pages/CandidatePortal";
+import PerformanceDashboard from "./pages/PerformanceDashboard";
 
 
 function App() {
@@ -47,6 +48,10 @@ function App() {
           <Route path="/leave-dashboard" element={<LeaveDashboard />} />
           <Route path="/leave-application" element={<LeaveApplication />} />
           <Route path="/internship-extension" element={<InternshipExtension />} />
+          <Route
+            path="/performance-dashboard"
+            element={<PerformanceDashboard />}
+          />
         </Route>
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>

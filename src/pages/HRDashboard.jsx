@@ -19,6 +19,7 @@ import {
   XCircle,
   RefreshCw,
   CalendarClock,
+  Gauge,
 } from "lucide-react";
 
 import {
@@ -31,6 +32,7 @@ import {
 
 import { getDashboardCounts } from "../utils/dashboardCounts";
 import { fetchDashboardCounts } from "../services/hrDashboardService";
+import { useAuth } from "../context/authContext";
 
 
 function buildFallbackDashboardCounts() {
@@ -152,6 +154,7 @@ return (
 
 export default function HRDashboard(){
 
+const { hasPerformanceDashboardAccess } = useAuth();
 
 const fallbackCounts =
 useMemo(
@@ -376,6 +379,15 @@ const modules = [
     label: "Activity Logs",
     icon: <History size={18} />,
   },
+  ...(hasPerformanceDashboardAccess
+    ? [
+        {
+          path: "/performance-dashboard",
+          label: "Performance Dashboard",
+          icon: <Gauge size={18} />,
+        },
+      ]
+    : []),
   {
     label: "Leave Dashboard",
     path: "/leave-dashboard",
