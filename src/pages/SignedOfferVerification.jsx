@@ -98,6 +98,18 @@ const getMatchBadgeClass = (status) => {
   return "badge-primary";
 };
 
+const getStatusBadgeClass = (status) => {
+  if (status === "VERIFIED" || status === "SIGNED_OFFER_VERIFIED") {
+    return "badge-success";
+  }
+
+  if (status === "MISMATCH_REVIEW") {
+    return "badge-warning";
+  }
+
+  return "badge-primary";
+};
+
 const hasLinkedFile = (record) =>
   Boolean(record.fileId && record.objectPath && record.originalFilename);
 
@@ -111,6 +123,12 @@ const canReviewRecord = (record) =>
       record.signedOfferStatus === "SIGNED_OFFER_SUBMITTED",
   );
 
+const isCompletedReviewRecord = (record) =>
+  record.lifecycleStatus === "SIGNED_OFFER_VERIFIED" ||
+  record.lifecycleStatus === "MISMATCH_REVIEW" ||
+  record.signedOfferStatus === "SIGNED_OFFER_VERIFIED" ||
+  record.signedOfferStatus === "MISMATCH_REVIEW";
+
 export default function SignedOfferVerification() {
   const [records, setRecords] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -121,6 +139,7 @@ export default function SignedOfferVerification() {
   const [successMessage, setSuccessMessage] = useState("");
   const [reviewNotes, setReviewNotes] = useState({});
   const [selectedCandidateId, setSelectedCandidateId] = useState(null);
+  const [selectedReviewRecord, setSelectedReviewRecord] = useState(null);
 
   const loadReviewQueue = useCallback(async (isActive = () => true) => {
     if (!isActive()) {
@@ -169,6 +188,50 @@ export default function SignedOfferVerification() {
       isMounted = false;
     };
   }, [loadReviewQueue]);
+
+  useEffect(() => {
+    if (!selectedReviewRecord) {
+      return undefined;
+    }
+
+    const handleEscape = (event) => {
+      if (event.key === "Escape" && !actionVerificationId) {
+        setSelectedReviewRecord(null);
+      }
+    };
+
+    document.addEventListener("keydown", handleEscape);
+
+    return () => {
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [actionVerificationId, selectedReviewRecord]);
+
+  useEffect(() => {
+    if (!selectedReviewRecord) {
+      return undefined;
+    }
+
+    const previousBodyOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousBodyOverflow;
+    };
+  }, [selectedReviewRecord]);
+
+  const handleOpenReview = (record) => {
+    setActionError("");
+    setSelectedReviewRecord(record);
+  };
+
+  const handleCloseReview = () => {
+    if (actionVerificationId) {
+      return;
+    }
+
+    setSelectedReviewRecord(null);
+  };
 
   const handleRetry = () => {
     void loadReviewQueue();
@@ -244,6 +307,7 @@ export default function SignedOfferVerification() {
       });
 
       await loadReviewQueue();
+      setSelectedReviewRecord(null);
       setSuccessMessage(
         targetStatus === "SIGNED_OFFER_VERIFIED"
           ? "Signed offer verified successfully."
@@ -256,6 +320,19 @@ export default function SignedOfferVerification() {
       setActionVerificationId(null);
     }
   };
+
+  const selectedReviewOverallMatchStatus = selectedReviewRecord
+    ? getOverallMatchStatus(selectedReviewRecord)
+    : "PENDING";
+  const selectedReviewIsPending = selectedReviewRecord
+    ? canReviewRecord(selectedReviewRecord)
+    : false;
+  const selectedReviewActionIsRunning = selectedReviewRecord
+    ? actionVerificationId === selectedReviewRecord.verificationId
+    : false;
+  const selectedReviewDownloadIsRunning = selectedReviewRecord
+    ? downloadingFileId === selectedReviewRecord.fileId
+    : false;
 
   return (
     <div className="app-page">
@@ -314,31 +391,21 @@ export default function SignedOfferVerification() {
             <thead>
               <tr>
                 <th>Candidate Name</th>
-                <th>Email</th>
-                <th>Phone</th>
-                <th>Role</th>
+                <th>Applied Role</th>
                 <th>MID</th>
-                <th>Submitted At</th>
-                <th>Email Match</th>
-                <th>Phone Match</th>
-                <th>Overall Match</th>
-                <th>Verified At</th>
-                <th>Verification Notes</th>
-                <th>Original Filename</th>
-                <th>File Size</th>
+                <th>Submitted Date</th>
+                <th>Signed-off Status</th>
                 <th>File Status</th>
-                <th>Uploaded Date</th>
-                <th>Status</th>
+                <th>Overall Match</th>
                 <th>Action</th>
               </tr>
             </thead>
             <tbody>
-  {records.map((record) => {
-    const isPendingReview = canReviewRecord(record);
-    const isActionRunning =
-      actionVerificationId === record.verificationId;
-    const isDownloadRunning = downloadingFileId === record.fileId;
-    const overallMatchStatus = getOverallMatchStatus(record);
+              {records.map((record) => {
+                const isPendingReview = canReviewRecord(record);
+                const isCompleted = isCompletedReviewRecord(record);
+                const overallMatchStatus = getOverallMatchStatus(record);
+                const hasFile = hasLinkedFile(record);
 
                 return (
                   <tr key={record.verificationId}>
@@ -351,100 +418,55 @@ export default function SignedOfferVerification() {
                         {formatValue(record.fullName, "Unnamed candidate")}
                       </button>
                     </td>
-                    <td>{formatValue(record.email, "Not available")}</td>
-                    <td>{formatValue(record.phone, "Not available")}</td>
                     <td>{formatValue(record.appliedRole, "Not available")}</td>
                     <td>{formatValue(record.mid, "Not available")}</td>
                     <td>{formatDate(record.signedOfferSubmittedAt)}</td>
-                <td>
-                  <span
-                    className={`badge ${getMatchBadgeClass(
-                      record.emailMatchStatus,
-                    )}`}
-                  >
-                    {formatStatus(record.emailMatchStatus, "Pending")}
-                  </span>
-                </td>
-                <td>
-                  <span
-                    className={`badge ${getMatchBadgeClass(
-                      record.phoneMatchStatus,
-                    )}`}
-                  >
-                    {formatStatus(record.phoneMatchStatus, "Pending")}
-                  </span>
-                </td>
-                <td>
-                  <span
-                    className={`badge ${getMatchBadgeClass(
-                      overallMatchStatus,
-                    )}`}
-                  >
-                    {formatStatus(overallMatchStatus)}
-                  </span>
-                </td>
-                    <td>{formatDate(record.verifiedAt)}</td>
-                    <td>{formatValue(record.verificationNotes, "Not available")}</td>
-                    <td>{formatValue(record.originalFilename, "File unavailable")}</td>
-                    <td>{formatFileSize(record.fileSizeBytes)}</td>
-                    <td>{formatStatus(record.fileStatus, "File unavailable")}</td>
-                    <td>{formatDate(record.uploadedAt)}</td>
                     <td>
-                      <span className="badge badge-primary">
+                      <span
+                        className={`badge ${getStatusBadgeClass(
+                          record.signedOfferStatus,
+                        )}`}
+                      >
                         {formatStatus(record.signedOfferStatus)}
                       </span>
                     </td>
                     <td>
-                      {hasLinkedFile(record) && (
+                      <span
+                        className={`badge ${getStatusBadgeClass(
+                          record.fileStatus,
+                        )}`}
+                      >
+                        {formatStatus(record.fileStatus, "File unavailable")}
+                      </span>
+                    </td>
+                    <td>
+                      <span
+                        className={`badge ${getMatchBadgeClass(
+                          overallMatchStatus,
+                        )}`}
+                      >
+                        {formatStatus(overallMatchStatus)}
+                      </span>
+                    </td>
+                    <td>
+                      {isPendingReview && hasFile ? (
+                        <button
+                          type="button"
+                          className="btn btn-primary"
+                          onClick={() => handleOpenReview(record)}
+                        >
+                          Review Signed Offer
+                        </button>
+                      ) : isCompleted && hasFile ? (
                         <button
                           type="button"
                           className="btn btn-secondary"
-                          disabled={isDownloadRunning}
-                          onClick={() => handleDownload(record)}
+                          onClick={() => handleOpenReview(record)}
                         >
-                          {isDownloadRunning ? "Downloading..." : "Download PDF"}
+                          View Review
                         </button>
-                      )}
-
-                      {isPendingReview ? (
-                        <div className="form-group">
-                          <label htmlFor={`verification-notes-${record.verificationId}`}>
-                            Verification notes
-                          </label>
-                          <textarea
-                            id={`verification-notes-${record.verificationId}`}
-                            value={reviewNotes[record.verificationId] || ""}
-                            onChange={(event) =>
-                              setReviewNotes((currentNotes) => ({
-                                ...currentNotes,
-                                [record.verificationId]: event.target.value,
-                              }))
-                            }
-                            maxLength={2000}
-                            rows={3}
-                            disabled={isActionRunning}
-                          />
-                          <button
-                            type="button"
-                            className="btn btn-success"
-                            disabled={isActionRunning}
-                            onClick={() =>
-                              handleReview(record, "SIGNED_OFFER_VERIFIED")
-                            }
-                          >
-                            {isActionRunning ? "Saving..." : "Verify Signed Offer"}
-                          </button>{" "}
-                          <button
-                            type="button"
-                            className="btn btn-primary"
-                            disabled={isActionRunning}
-                            onClick={() => handleReview(record, "MISMATCH_REVIEW")}
-                          >
-                            {isActionRunning ? "Saving..." : "Mark Mismatch Review"}
-                          </button>
-                        </div>
                       ) : (
-                        <span>No action</span>
+                        <span>File unavailable</span>
                       )}
                     </td>
                   </tr>
@@ -452,6 +474,262 @@ export default function SignedOfferVerification() {
               })}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {selectedReviewRecord && (
+        <div
+          className="modal-overlay"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              handleCloseReview();
+            }
+          }}
+        >
+          <section
+            className="candidate-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="signed-offer-review-title"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div className="candidate-modal-header">
+              <div>
+                <h2 id="signed-offer-review-title">Signed Offer Review</h2>
+                <p>
+                  {formatValue(
+                    selectedReviewRecord.fullName,
+                    "Unnamed candidate",
+                  )}
+                </p>
+              </div>
+              <button
+                type="button"
+                className="modal-close-btn"
+                onClick={handleCloseReview}
+                disabled={Boolean(actionVerificationId)}
+                aria-label="Close signed offer review"
+              >
+                &times;
+              </button>
+            </div>
+
+            <h3>Candidate Summary</h3>
+            <div className="candidate-details-grid">
+              <div className="candidate-detail-card">
+                <span>Full Name</span>
+                <strong>
+                  {formatValue(selectedReviewRecord.fullName, "Not available")}
+                </strong>
+              </div>
+              <div className="candidate-detail-card">
+                <span>Email</span>
+                <strong style={{ overflowWrap: "anywhere" }}>
+                  {formatValue(selectedReviewRecord.email, "Not available")}
+                </strong>
+              </div>
+              <div className="candidate-detail-card">
+                <span>Phone</span>
+                <strong>
+                  {formatValue(selectedReviewRecord.phone, "Not available")}
+                </strong>
+              </div>
+              <div className="candidate-detail-card">
+                <span>Applied Role</span>
+                <strong>
+                  {formatValue(selectedReviewRecord.appliedRole, "Not available")}
+                </strong>
+              </div>
+              <div className="candidate-detail-card">
+                <span>MID</span>
+                <strong>
+                  {formatValue(selectedReviewRecord.mid, "Not available")}
+                </strong>
+              </div>
+              <div className="candidate-detail-card">
+                <span>Lifecycle Status</span>
+                <strong>
+                  {formatStatus(selectedReviewRecord.lifecycleStatus)}
+                </strong>
+              </div>
+              <div className="candidate-detail-card">
+                <span>Signed-off Status</span>
+                <strong>
+                  <span
+                    className={`badge ${getStatusBadgeClass(
+                      selectedReviewRecord.signedOfferStatus,
+                    )}`}
+                  >
+                    {formatStatus(selectedReviewRecord.signedOfferStatus)}
+                  </span>
+                </strong>
+              </div>
+              <div className="candidate-detail-card">
+                <span>Submitted Date</span>
+                <strong>
+                  {formatDate(selectedReviewRecord.signedOfferSubmittedAt)}
+                </strong>
+              </div>
+            </div>
+
+            <h3>File Summary</h3>
+            <div className="candidate-details-grid">
+              <div className="candidate-detail-card">
+                <span>Original Filename</span>
+                <strong style={{ overflowWrap: "anywhere" }}>
+                  {formatValue(
+                    selectedReviewRecord.originalFilename,
+                    "File unavailable",
+                  )}
+                </strong>
+              </div>
+              <div className="candidate-detail-card">
+                <span>File Size</span>
+                <strong>{formatFileSize(selectedReviewRecord.fileSizeBytes)}</strong>
+              </div>
+              <div className="candidate-detail-card">
+                <span>File Status</span>
+                <strong>
+                  <span
+                    className={`badge ${getStatusBadgeClass(
+                      selectedReviewRecord.fileStatus,
+                    )}`}
+                  >
+                    {formatStatus(
+                      selectedReviewRecord.fileStatus,
+                      "File unavailable",
+                    )}
+                  </span>
+                </strong>
+              </div>
+              <div className="candidate-detail-card">
+                <span>Uploaded Date</span>
+                <strong>{formatDate(selectedReviewRecord.uploadedAt)}</strong>
+              </div>
+            </div>
+            <div className="action-group">
+              <button
+                type="button"
+                className="btn btn-secondary"
+                disabled={selectedReviewDownloadIsRunning}
+                onClick={() => handleDownload(selectedReviewRecord)}
+              >
+                {selectedReviewDownloadIsRunning
+                  ? "Downloading..."
+                  : "Download PDF"}
+              </button>
+            </div>
+
+            <h3>Verification Summary</h3>
+            <div className="candidate-details-grid">
+              <div className="candidate-detail-card">
+                <span>Email Match</span>
+                <strong>
+                  <span
+                    className={`badge ${getMatchBadgeClass(
+                      selectedReviewRecord.emailMatchStatus,
+                    )}`}
+                  >
+                    {formatStatus(selectedReviewRecord.emailMatchStatus, "Pending")}
+                  </span>
+                </strong>
+              </div>
+              <div className="candidate-detail-card">
+                <span>Phone Match</span>
+                <strong>
+                  <span
+                    className={`badge ${getMatchBadgeClass(
+                      selectedReviewRecord.phoneMatchStatus,
+                    )}`}
+                  >
+                    {formatStatus(selectedReviewRecord.phoneMatchStatus, "Pending")}
+                  </span>
+                </strong>
+              </div>
+              <div className="candidate-detail-card">
+                <span>Overall Match</span>
+                <strong>
+                  <span
+                    className={`badge ${getMatchBadgeClass(
+                      selectedReviewOverallMatchStatus,
+                    )}`}
+                  >
+                    {formatStatus(selectedReviewOverallMatchStatus)}
+                  </span>
+                </strong>
+              </div>
+              <div className="candidate-detail-card">
+                <span>Verified Date</span>
+                <strong>{formatDate(selectedReviewRecord.verifiedAt)}</strong>
+              </div>
+              <div className="candidate-detail-card">
+                <span>Existing Verification Notes</span>
+                <strong style={{ overflowWrap: "anywhere" }}>
+                  {formatValue(
+                    selectedReviewRecord.verificationNotes,
+                    "Not available",
+                  )}
+                </strong>
+              </div>
+            </div>
+
+            {selectedReviewIsPending ? (
+              <div className="form-group">
+                <label htmlFor={`verification-notes-${selectedReviewRecord.verificationId}`}>
+                  Verification notes
+                </label>
+                <textarea
+                  id={`verification-notes-${selectedReviewRecord.verificationId}`}
+                  value={reviewNotes[selectedReviewRecord.verificationId] || ""}
+                  onChange={(event) =>
+                    setReviewNotes((currentNotes) => ({
+                      ...currentNotes,
+                      [selectedReviewRecord.verificationId]: event.target.value,
+                    }))
+                  }
+                  maxLength={2000}
+                  rows={4}
+                  disabled={selectedReviewActionIsRunning}
+                  aria-describedby="signed-offer-review-notes-help"
+                />
+                <small id="signed-offer-review-notes-help">
+                  Notes are required when marking a signed offer for mismatch review.
+                </small>
+                <div className="action-group">
+                  <button
+                    type="button"
+                    className="btn btn-success"
+                    disabled={selectedReviewActionIsRunning}
+                    onClick={() =>
+                      handleReview(
+                        selectedReviewRecord,
+                        "SIGNED_OFFER_VERIFIED",
+                      )
+                    }
+                  >
+                    {selectedReviewActionIsRunning
+                      ? "Saving..."
+                      : "Verify Signed Offer"}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-warning"
+                    disabled={selectedReviewActionIsRunning}
+                    onClick={() =>
+                      handleReview(selectedReviewRecord, "MISMATCH_REVIEW")
+                    }
+                  >
+                    {selectedReviewActionIsRunning
+                      ? "Saving..."
+                      : "Mark Mismatch Review"}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <p role="status">This review is complete and read-only.</p>
+            )}
+          </section>
         </div>
       )}
 
