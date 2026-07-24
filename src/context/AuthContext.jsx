@@ -19,6 +19,14 @@ const STAFF_ROLE_SLUGS = [
   "ADMIN",
 ];
 
+const PERFORMANCE_DASHBOARD_ROLE_SLUGS = [
+  "HR_SITE_CONNECT",
+  "HR_SITE_CONNECT_LEAD",
+  "HR_EXECUTIVE",
+  "HR_EXECUTIVE_LEAD",
+  "HR_LEAD",
+];
+
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -31,6 +39,7 @@ const INITIAL_AUTH_STATE = {
   loading: true,
   isActiveAppUser: false,
   hasStaffAccess: false,
+  hasPerformanceDashboardAccess: false,
   hasCandidateRole: false,
   candidateId: null,
   hasCandidateAccess: false,
@@ -82,6 +91,7 @@ export function AuthProvider({ children }) {
         const result = {
           isActiveAppUser: false,
           hasStaffAccess: false,
+          hasPerformanceDashboardAccess: false,
           hasCandidateRole: false,
           candidateId: null,
           hasCandidateAccess: false,
@@ -105,6 +115,7 @@ export function AuthProvider({ children }) {
         loading: true,
         isActiveAppUser: false,
         hasStaffAccess: false,
+        hasPerformanceDashboardAccess: false,
         hasCandidateRole: false,
         candidateId: null,
         hasCandidateAccess: false,
@@ -114,21 +125,30 @@ export function AuthProvider({ children }) {
       let result;
 
       try {
-        const [activeUserResult, staffRoleResult, candidateRoleResult, candidateIdResult] =
-          await Promise.all([
-            supabase.rpc("current_user_is_active"),
-            supabase.rpc("current_user_has_any_role", {
-              p_role_slugs: STAFF_ROLE_SLUGS,
-            }),
-            supabase.rpc("current_user_has_role", {
-              p_role_slug: "CANDIDATE",
-            }),
-            supabase.rpc("current_candidate_id"),
-          ]);
+        const [
+          activeUserResult,
+          staffRoleResult,
+          performanceDashboardRoleResult,
+          candidateRoleResult,
+          candidateIdResult,
+        ] = await Promise.all([
+          supabase.rpc("current_user_is_active"),
+          supabase.rpc("current_user_has_any_role", {
+            p_role_slugs: STAFF_ROLE_SLUGS,
+          }),
+          supabase.rpc("current_user_has_any_role", {
+            p_role_slugs: PERFORMANCE_DASHBOARD_ROLE_SLUGS,
+          }),
+          supabase.rpc("current_user_has_role", {
+            p_role_slug: "CANDIDATE",
+          }),
+          supabase.rpc("current_candidate_id"),
+        ]);
 
         if (
           activeUserResult.error ||
           staffRoleResult.error ||
+          performanceDashboardRoleResult.error ||
           candidateRoleResult.error ||
           candidateIdResult.error
         ) {
@@ -142,6 +162,8 @@ export function AuthProvider({ children }) {
         result = {
           isActiveAppUser,
           hasStaffAccess: staffRoleResult.data === true,
+          hasPerformanceDashboardAccess:
+            isActiveAppUser && performanceDashboardRoleResult.data === true,
           hasCandidateRole,
           candidateId,
           hasCandidateAccess: isActiveAppUser && hasCandidateRole && Boolean(candidateId),
@@ -151,6 +173,7 @@ export function AuthProvider({ children }) {
         result = {
           isActiveAppUser: false,
           hasStaffAccess: false,
+          hasPerformanceDashboardAccess: false,
           hasCandidateRole: false,
           candidateId: null,
           hasCandidateAccess: false,
@@ -162,6 +185,7 @@ export function AuthProvider({ children }) {
         return {
           isActiveAppUser: false,
           hasStaffAccess: false,
+          hasPerformanceDashboardAccess: false,
           hasCandidateRole: false,
           candidateId: null,
           hasCandidateAccess: false,
