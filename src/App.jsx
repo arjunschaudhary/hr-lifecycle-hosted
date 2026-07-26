@@ -20,6 +20,7 @@ import LeaveApplication from "./pages/LeaveApplication";
 import InternshipExtension from "./pages/InternshipExtension";
 import CandidatePortal from "./pages/CandidatePortal";
 import PerformanceDashboard from "./pages/PerformanceDashboard";
+import DailyPerformanceMarking from "./pages/DailyPerformanceMarking";
 
 
 function App() {
@@ -51,6 +52,10 @@ function App() {
           <Route
             path="/performance-dashboard"
             element={<PerformanceDashboard />}
+          />
+          <Route
+            path="/performance-dashboard/:candidateCycleId/daily"
+            element={<DailyPerformanceMarking />}
           />
         </Route>
         <Route path="*" element={<Navigate to="/login" replace />} />

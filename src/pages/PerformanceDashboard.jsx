@@ -422,6 +422,7 @@ const PerformanceDashboard = () => {
                       <th>Final Score</th>
                       <th>Performance Band</th>
                       <th>Result Status</th>
+                      <th>Action</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -457,6 +458,16 @@ const PerformanceDashboard = () => {
                           >
                             {formatStatus(record.resultStatus)}
                           </span>
+                        </td>
+                        <td>
+                          <div className="action-group">
+                            <Link
+                              to={`/performance-dashboard/${record.candidateCycleId}/daily`}
+                              className="btn btn-primary"
+                            >
+                              Open Daily Entries
+                            </Link>
+                          </div>
                         </td>
                       </tr>
                     ))}
