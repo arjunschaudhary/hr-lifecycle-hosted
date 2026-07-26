@@ -27,6 +27,13 @@ const PERFORMANCE_DASHBOARD_ROLE_SLUGS = [
   "HR_LEAD",
 ];
 
+const PERFORMANCE_MARKING_ROLE_SLUGS = [
+  "HR_SITE_CONNECT",
+  "HR_SITE_CONNECT_LEAD",
+  "HR_EXECUTIVE_LEAD",
+  "HR_LEAD",
+];
+
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -40,6 +47,7 @@ const INITIAL_AUTH_STATE = {
   isActiveAppUser: false,
   hasStaffAccess: false,
   hasPerformanceDashboardAccess: false,
+  hasPerformanceMarkingAccess: false,
   hasCandidateRole: false,
   candidateId: null,
   hasCandidateAccess: false,
@@ -92,6 +100,7 @@ export function AuthProvider({ children }) {
           isActiveAppUser: false,
           hasStaffAccess: false,
           hasPerformanceDashboardAccess: false,
+          hasPerformanceMarkingAccess: false,
           hasCandidateRole: false,
           candidateId: null,
           hasCandidateAccess: false,
@@ -116,6 +125,7 @@ export function AuthProvider({ children }) {
         isActiveAppUser: false,
         hasStaffAccess: false,
         hasPerformanceDashboardAccess: false,
+        hasPerformanceMarkingAccess: false,
         hasCandidateRole: false,
         candidateId: null,
         hasCandidateAccess: false,
@@ -129,6 +139,7 @@ export function AuthProvider({ children }) {
           activeUserResult,
           staffRoleResult,
           performanceDashboardRoleResult,
+          performanceMarkingRoleResult,
           candidateRoleResult,
           candidateIdResult,
         ] = await Promise.all([
@@ -138,6 +149,9 @@ export function AuthProvider({ children }) {
           }),
           supabase.rpc("current_user_has_any_role", {
             p_role_slugs: PERFORMANCE_DASHBOARD_ROLE_SLUGS,
+          }),
+          supabase.rpc("current_user_has_any_role", {
+            p_role_slugs: PERFORMANCE_MARKING_ROLE_SLUGS,
           }),
           supabase.rpc("current_user_has_role", {
             p_role_slug: "CANDIDATE",
@@ -149,6 +163,7 @@ export function AuthProvider({ children }) {
           activeUserResult.error ||
           staffRoleResult.error ||
           performanceDashboardRoleResult.error ||
+          performanceMarkingRoleResult.error ||
           candidateRoleResult.error ||
           candidateIdResult.error
         ) {
@@ -164,6 +179,8 @@ export function AuthProvider({ children }) {
           hasStaffAccess: staffRoleResult.data === true,
           hasPerformanceDashboardAccess:
             isActiveAppUser && performanceDashboardRoleResult.data === true,
+          hasPerformanceMarkingAccess:
+            isActiveAppUser && performanceMarkingRoleResult.data === true,
           hasCandidateRole,
           candidateId,
           hasCandidateAccess: isActiveAppUser && hasCandidateRole && Boolean(candidateId),
@@ -174,6 +191,7 @@ export function AuthProvider({ children }) {
           isActiveAppUser: false,
           hasStaffAccess: false,
           hasPerformanceDashboardAccess: false,
+          hasPerformanceMarkingAccess: false,
           hasCandidateRole: false,
           candidateId: null,
           hasCandidateAccess: false,
@@ -186,6 +204,7 @@ export function AuthProvider({ children }) {
           isActiveAppUser: false,
           hasStaffAccess: false,
           hasPerformanceDashboardAccess: false,
+          hasPerformanceMarkingAccess: false,
           hasCandidateRole: false,
           candidateId: null,
           hasCandidateAccess: false,
