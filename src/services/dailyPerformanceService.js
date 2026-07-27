@@ -30,12 +30,14 @@ const DAILY_ENTRY_COLUMNS = [
   "full_name",
   "cycle_id",
   "cycle_code",
+  "cycle_status",
   "pod_id",
   "pod_code",
   "pod_name",
   "evaluation_start_date",
   "evaluation_end_date",
   "result_status",
+  "eligible_days",
   "performance_date",
   "is_scorable",
   "exclusion_reason",
@@ -126,12 +128,15 @@ function mapDailyPerformanceEntry(row) {
     !isValidUuid(row.pod_id) ||
     !isNonEmptyString(row.full_name) ||
     !isNonEmptyString(row.cycle_code) ||
+    !isNonEmptyString(row.cycle_status) ||
     !isNonEmptyString(row.pod_code) ||
     !isNonEmptyString(row.pod_name) ||
     !isNonEmptyString(row.result_status) ||
     !isNonEmptyString(row.performance_date) ||
     !isValidDate(row.evaluation_start_date) ||
     !isValidDate(row.evaluation_end_date) ||
+    !Number.isInteger(row.eligible_days) ||
+    row.eligible_days < 0 ||
     typeof row.is_scorable !== "boolean" ||
     !isNullableString(row.exclusion_reason) ||
     !isNullableUuid(row.entry_id) ||
@@ -163,12 +168,14 @@ function mapDailyPerformanceEntry(row) {
     fullName: row.full_name,
     cycleId: row.cycle_id,
     cycleCode: row.cycle_code,
+    cycleStatus: row.cycle_status,
     podId: row.pod_id,
     podCode: row.pod_code,
     podName: row.pod_name,
     evaluationStartDate: row.evaluation_start_date,
     evaluationEndDate: row.evaluation_end_date,
     resultStatus: row.result_status,
+    eligibleDays: row.eligible_days,
     performanceDate: row.performance_date,
     isScorable: row.is_scorable,
     exclusionReason: row.exclusion_reason,

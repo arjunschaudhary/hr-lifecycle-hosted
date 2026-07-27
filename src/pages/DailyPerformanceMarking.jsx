@@ -19,6 +19,11 @@ const PROTECTED_RESULT_STATUSES = new Set([
   "FINALIZED",
   "LOCKED",
 ]);
+const PROTECTED_CYCLE_STATUSES = new Set([
+  "DRAFT",
+  "FINALIZED",
+  "LOCKED",
+]);
 const SCORE_OPTIONS = Array.from({ length: 11 }, (_, index) => index - 5);
 const DATE_FORMATTER = new Intl.DateTimeFormat("en-IN", {
   day: "numeric",
@@ -231,7 +236,6 @@ const DailyPerformanceMarking = () => {
     }
 
     const firstRow = rows[0];
-    const eligibleDays = rows.filter((row) => row.isScorable).length;
     const scoredRows = rows.filter((row) => row.entryId !== null);
     const scoredDays = scoredRows.length;
     const dailyAverage =
@@ -247,6 +251,7 @@ const DailyPerformanceMarking = () => {
     return {
       fullName: firstRow.fullName,
       cycleCode: firstRow.cycleCode,
+      cycleStatus: firstRow.cycleStatus,
       podLabel:
         firstRow.podName && firstRow.podCode
           ? `${firstRow.podName} (${firstRow.podCode})`
@@ -255,7 +260,7 @@ const DailyPerformanceMarking = () => {
         firstRow.evaluationStartDate
       )} - ${formatDate(firstRow.evaluationEndDate)}`,
       resultStatus: firstRow.resultStatus,
-      eligibleDays,
+      eligibleDays: firstRow.eligibleDays,
       scoredDays,
       dailyAverage,
       dailyComponentScore,
@@ -266,8 +271,14 @@ const DailyPerformanceMarking = () => {
     summary &&
       PROTECTED_RESULT_STATUSES.has(summary.resultStatus)
   );
+  const isProtectedCycle = Boolean(
+    summary &&
+      PROTECTED_CYCLE_STATUSES.has(summary.cycleStatus)
+  );
   const canEdit =
-    hasPerformanceMarkingAccess && !isProtectedResult;
+    hasPerformanceMarkingAccess &&
+    !isProtectedCycle &&
+    !isProtectedResult;
 
   const handleDraftChange = (performanceDate, field, value) => {
     setDrafts((currentDrafts) => ({
@@ -404,6 +415,10 @@ const DailyPerformanceMarking = () => {
                 value={summary.fullName}
               />
               <MetricCard title="Cycle" value={summary.cycleCode} />
+              <MetricCard
+                title="Cycle Status"
+                value={formatStatus(summary.cycleStatus)}
+              />
               <MetricCard title="Pod" value={summary.podLabel} />
               <MetricCard
                 title="Evaluation Period"
@@ -435,6 +450,13 @@ const DailyPerformanceMarking = () => {
               />
             </div>
           </section>
+
+          {isProtectedCycle && (
+            <p className="info-banner" role="status" aria-live="polite">
+              Daily performance marking is not available for this cycle
+              status.
+            </p>
+          )}
 
           {isProtectedResult && (
             <p className="info-banner" role="status" aria-live="polite">
