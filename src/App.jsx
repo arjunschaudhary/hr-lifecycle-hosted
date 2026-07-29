@@ -3,6 +3,7 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 
 import ProtectedRoute from "./components/ProtectedRoute";
 import CandidateProtectedRoute from "./components/CandidateProtectedRoute";
+import LeadReviewProtectedRoute from "./components/LeadReviewProtectedRoute";
 import HRDashboard from "./pages/HRDashboard";
 import HRLogin from "./pages/HRLogin";
 import ForgotPassword from "./pages/ForgotPassword";
@@ -21,7 +22,8 @@ import InternshipExtension from "./pages/InternshipExtension";
 import CandidatePortal from "./pages/CandidatePortal";
 import PerformanceDashboard from "./pages/PerformanceDashboard";
 import DailyPerformanceMarking from "./pages/DailyPerformanceMarking";
-
+import LeadReviews from "./pages/LeadReviews";
+import LeadReviewDetail from "./pages/LeadReviewDetail";
 
 function App() {
   return (
@@ -34,6 +36,13 @@ function App() {
         <Route path="/candidate-form" element={<CandidateProbationForm />} />
         <Route element={<CandidateProtectedRoute />}>
           <Route path="/portal" element={<CandidatePortal />} />
+        </Route>
+        <Route element={<LeadReviewProtectedRoute />}>
+          <Route path="/lead-reviews" element={<LeadReviews />} />
+          <Route
+            path="/lead-reviews/:candidateCycleId"
+            element={<LeadReviewDetail />}
+          />
         </Route>
         <Route element={<ProtectedRoute />}>
           <Route path="/" element={<HRDashboard />} />

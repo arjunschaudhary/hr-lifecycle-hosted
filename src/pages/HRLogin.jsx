@@ -12,6 +12,7 @@ export default function HRLogin() {
     loading,
     isActiveAppUser,
     hasStaffAccess,
+    hasLeadReviewAccess,
     hasCandidateAccess,
     authorizationError,
     signIn,
@@ -25,6 +26,7 @@ export default function HRLogin() {
 
   const requestedPath = location.state?.from?.pathname || "/";
   const isCandidatePath = requestedPath.startsWith("/portal");
+  const isLeadReviewPath = requestedPath.startsWith("/lead-reviews");
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -34,16 +36,28 @@ export default function HRLogin() {
     try {
       const result = await signIn(email, password);
 
-      if (isCandidatePath && result.hasCandidateAccess) {
+      if (
+        isLeadReviewPath &&
+        result.isActiveAppUser &&
+        result.hasLeadReviewAccess
+      ) {
+        navigate(requestedPath, { replace: true });
+      } else if (isCandidatePath && result.hasCandidateAccess) {
         navigate(requestedPath, { replace: true });
       } else if (
         !isCandidatePath &&
+        !isLeadReviewPath &&
         result.isActiveAppUser &&
         result.hasStaffAccess
       ) {
         navigate(requestedPath, { replace: true });
       } else if (result.isActiveAppUser && result.hasStaffAccess) {
         navigate("/", { replace: true });
+      } else if (
+        result.isActiveAppUser &&
+        result.hasLeadReviewAccess
+      ) {
+        navigate("/lead-reviews", { replace: true });
       } else if (result.hasCandidateAccess) {
         navigate("/portal", { replace: true });
       }
@@ -78,16 +92,33 @@ export default function HRLogin() {
   }
 
   if (session) {
+    if (
+      isLeadReviewPath &&
+      isActiveAppUser &&
+      hasLeadReviewAccess
+    ) {
+      return <Navigate to={requestedPath} replace />;
+    }
+
     if (isCandidatePath && hasCandidateAccess) {
       return <Navigate to={requestedPath} replace />;
     }
 
-    if (!isCandidatePath && isActiveAppUser && hasStaffAccess) {
+    if (
+      !isCandidatePath &&
+      !isLeadReviewPath &&
+      isActiveAppUser &&
+      hasStaffAccess
+    ) {
       return <Navigate to={requestedPath} replace />;
     }
 
     if (isActiveAppUser && hasStaffAccess) {
       return <Navigate to="/" replace />;
+    }
+
+    if (isActiveAppUser && hasLeadReviewAccess) {
+      return <Navigate to="/lead-reviews" replace />;
     }
 
     if (hasCandidateAccess) {
