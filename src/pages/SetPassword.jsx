@@ -8,15 +8,75 @@ import {
 } from "lucide-react";
 
 import { useAuth } from "../context/authContext";
+import { supabase } from "../services/supabaseClient";
+
+function getInvitationParameters() {
+  const parameters = new URLSearchParams(window.location.search);
+
+  return {
+    tokenHash: parameters.get("token_hash")?.trim() ?? "",
+    type: parameters.get("type")?.trim() ?? "",
+  };
+}
+
+function clearInvitationParameters() {
+  const url = new URL(window.location.href);
+  url.searchParams.delete("token_hash");
+  url.searchParams.delete("type");
+
+  const nextUrl = `${url.pathname}${url.search}${url.hash}`;
+  window.history.replaceState(window.history.state, "", nextUrl);
+}
 
 export default function SetPassword() {
   const { session, loading, updatePassword, signOut } = useAuth();
+  const [invitation, setInvitation] = useState(getInvitationParameters);
+  const [verificationStatus, setVerificationStatus] = useState("idle");
+  const [verificationError, setVerificationError] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [setupComplete, setSetupComplete] = useState(false);
   const [logoutWarning, setLogoutWarning] = useState("");
+
+  const hasValidInvitationParameters =
+    invitation.tokenHash !== "" && invitation.type === "invite";
+  const invitationVerified = verificationStatus === "verified";
+  const canSetPassword = Boolean(session) || invitationVerified;
+
+  const handleContinue = async () => {
+    if (
+      verificationStatus === "verifying" ||
+      !hasValidInvitationParameters
+    ) {
+      return;
+    }
+
+    setVerificationStatus("verifying");
+    setVerificationError("");
+
+    try {
+      const { data, error: verificationFailure } =
+        await supabase.auth.verifyOtp({
+          token_hash: invitation.tokenHash,
+          type: "invite",
+        });
+
+      if (verificationFailure || !data.session) {
+        throw new Error("Invitation verification failed.");
+      }
+
+      clearInvitationParameters();
+      setInvitation({ tokenHash: "", type: "" });
+      setVerificationStatus("verified");
+    } catch {
+      setVerificationStatus("error");
+      setVerificationError(
+        "This invitation link is invalid or has expired. Contact HR to request a new invitation.",
+      );
+    }
+  };
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -91,7 +151,7 @@ export default function SetPassword() {
     );
   }
 
-  if (!session) {
+  if (!canSetPassword && !hasValidInvitationParameters) {
     return (
       <div className="auth-login-page">
         <section
@@ -104,6 +164,55 @@ export default function SetPassword() {
           </h1>
           <p>This invitation link is invalid or has expired.</p>
           <p>Contact HR to request a new invitation.</p>
+        </section>
+      </div>
+    );
+  }
+
+  if (!canSetPassword) {
+    const isVerifying = verificationStatus === "verifying";
+
+    return (
+      <div className="auth-login-page">
+        <section
+          className="auth-login-card"
+          aria-labelledby="continue-account-setup-title"
+        >
+          <div className="auth-login-icon" aria-hidden="true">
+            <KeyRound />
+          </div>
+          <h1 id="continue-account-setup-title">
+            Continue to account setup
+          </h1>
+          <p>
+            Continue to verify your invitation and create your candidate portal
+            password.
+          </p>
+          {verificationError && (
+            <p className="auth-inline-error" role="alert">
+              {verificationError}
+            </p>
+          )}
+          <button
+            className="auth-submit-button"
+            type="button"
+            onClick={() => void handleContinue()}
+            disabled={isVerifying}
+            aria-busy={isVerifying}
+          >
+            {isVerifying && (
+              <LoaderCircle
+                className="auth-spinner"
+                size={18}
+                aria-hidden="true"
+              />
+            )}
+            {isVerifying
+              ? "Verifying invitation..."
+              : verificationStatus === "error"
+                ? "Try verification again"
+                : "Continue to account setup"}
+          </button>
         </section>
       </div>
     );
@@ -169,7 +278,11 @@ export default function SetPassword() {
             aria-busy={submitting}
           >
             {submitting ? (
-              <LoaderCircle className="auth-spinner" size={18} aria-hidden="true" />
+              <LoaderCircle
+                className="auth-spinner"
+                size={18}
+                aria-hidden="true"
+              />
             ) : (
               <Save size={18} aria-hidden="true" />
             )}

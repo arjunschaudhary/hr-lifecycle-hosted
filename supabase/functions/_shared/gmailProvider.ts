@@ -1,5 +1,11 @@
 import type { WelcomeEmailTemplate } from "./welcomeEmailTemplate.ts";
 
+export type EmailTemplate = {
+  subject: string;
+  text: string;
+  html: string;
+};
+
 type GmailConfiguration = {
   clientId: string;
   clientSecret: string;
@@ -45,8 +51,8 @@ function requireEnvironmentValue(name: string): string {
       "CONFIGURATION",
       "NOT_SENT",
       false,
-      "Welcome-email provider configuration is incomplete.",
-      "Welcome-email delivery is not configured.",
+      "Email provider configuration is incomplete.",
+      "Email delivery is not configured.",
       500,
     );
   }
@@ -73,7 +79,7 @@ function validateEmailAddress(
       "NOT_SENT",
       false,
       failureMessage,
-      "Welcome-email delivery is not configured.",
+      "Email delivery is not configured.",
       500,
     );
   }
@@ -89,8 +95,8 @@ function getGmailConfiguration(): GmailConfiguration {
       "CONFIGURATION",
       "NOT_SENT",
       false,
-      "Welcome-email sender name is invalid.",
-      "Welcome-email delivery is not configured.",
+      "Email sender name is invalid.",
+      "Email delivery is not configured.",
       500,
     );
   }
@@ -103,13 +109,13 @@ function getGmailConfiguration(): GmailConfiguration {
     refreshToken: requireEnvironmentValue("GMAIL_OAUTH_REFRESH_TOKEN"),
     senderEmail: validateEmailAddress(
       requireEnvironmentValue("GMAIL_SENDER_EMAIL"),
-      "Welcome-email sender address is invalid.",
+      "Email sender address is invalid.",
     ),
     senderName,
     replyToEmail: replyToValue
       ? validateEmailAddress(
         replyToValue,
-        "Welcome-email reply-to address is invalid.",
+        "Email reply-to address is invalid.",
       )
       : undefined,
   };
@@ -162,7 +168,7 @@ async function requestAccessToken(
         : "Gmail OAuth credentials or configuration were rejected.",
       retryable
         ? "The email provider is temporarily unavailable."
-        : "Welcome-email delivery is not configured.",
+        : "Email delivery is not configured.",
       retryable ? 502 : 500,
     );
   }
@@ -289,20 +295,40 @@ function normalizeBodyLineEndings(value: string): string {
 function createMimeMessage(
   configuration: GmailConfiguration,
   recipientEmail: string,
-  template: WelcomeEmailTemplate,
+  template: EmailTemplate,
 ): string {
   const recipient = validateEmailAddress(
     recipientEmail,
-    "Welcome-email recipient address is invalid.",
+    "Email recipient address is invalid.",
   );
 
-  if (/[\r\n]/.test(template.subject) || !template.subject.trim()) {
+  if (
+    typeof template.subject !== "string" ||
+    /[\r\n]/.test(template.subject) ||
+    !template.subject.trim()
+  ) {
     throw new GmailProviderError(
       "CONFIGURATION",
       "NOT_SENT",
       false,
-      "Welcome-email subject is invalid.",
-      "Welcome-email delivery could not be prepared.",
+      "Email subject is invalid.",
+      "Email delivery could not be prepared.",
+      500,
+    );
+  }
+
+  if (
+    typeof template.text !== "string" ||
+    typeof template.html !== "string" ||
+    !template.text.trim() ||
+    !template.html.trim()
+  ) {
+    throw new GmailProviderError(
+      "CONFIGURATION",
+      "NOT_SENT",
+      false,
+      "Email template content is invalid.",
+      "Email delivery could not be prepared.",
       500,
     );
   }
@@ -348,9 +374,9 @@ function encodeMimeForGmail(mimeMessage: string): string {
     .replace(/=+$/g, "");
 }
 
-export async function sendWelcomeEmailWithGmail(
+export async function sendEmailWithGmail(
   recipientEmail: string,
-  template: WelcomeEmailTemplate,
+  template: EmailTemplate,
 ): Promise<{ messageId: string }> {
   const configuration = getGmailConfiguration();
   const accessToken = await requestAccessToken(configuration);
@@ -380,7 +406,7 @@ export async function sendWelcomeEmailWithGmail(
       "UNKNOWN",
       false,
       "Gmail delivery outcome is unknown after a network failure.",
-      "Welcome-email delivery outcome is unknown. Check the sender Sent folder before retrying.",
+      "Email delivery outcome is unknown. Check the sender Sent folder before retrying.",
       502,
     );
   }
@@ -392,7 +418,7 @@ export async function sendWelcomeEmailWithGmail(
         "UNKNOWN",
         false,
         "Gmail returned a server error with an unknown delivery outcome.",
-        "Welcome-email delivery outcome is unknown. Check the sender Sent folder before retrying.",
+        "Email delivery outcome is unknown. Check the sender Sent folder before retrying.",
         502,
       );
     }
@@ -405,10 +431,10 @@ export async function sendWelcomeEmailWithGmail(
       retryable,
       retryable
         ? "Gmail returned a transient non-success response."
-        : "Gmail rejected the welcome-email request.",
+        : "Gmail rejected the email request.",
       retryable
         ? "The email provider is temporarily unavailable."
-        : "The email provider rejected the welcome-email request.",
+        : "The email provider rejected the email request.",
       502,
     );
   }
@@ -423,7 +449,7 @@ export async function sendWelcomeEmailWithGmail(
       "UNKNOWN",
       false,
       "Gmail returned an unreadable success response.",
-      "Welcome-email delivery outcome is unknown. Check the sender Sent folder before retrying.",
+      "Email delivery outcome is unknown. Check the sender Sent folder before retrying.",
       502,
     );
   }
@@ -441,10 +467,44 @@ export async function sendWelcomeEmailWithGmail(
       "UNKNOWN",
       false,
       "Gmail returned success without a message ID.",
-      "Welcome-email delivery outcome is unknown. Check the sender Sent folder before retrying.",
+      "Email delivery outcome is unknown. Check the sender Sent folder before retrying.",
       502,
     );
   }
 
   return { messageId };
+}
+
+function toWelcomeEmailMessage(value: string): string {
+  if (value === "Gmail rejected the email request.") {
+    return "Gmail rejected the welcome-email request.";
+  }
+
+  if (value === "The email provider rejected the email request.") {
+    return "The email provider rejected the welcome-email request.";
+  }
+
+  return value.replace(/^Email /, "Welcome-email ");
+}
+
+export async function sendWelcomeEmailWithGmail(
+  recipientEmail: string,
+  template: WelcomeEmailTemplate,
+): Promise<{ messageId: string }> {
+  try {
+    return await sendEmailWithGmail(recipientEmail, template);
+  } catch (error) {
+    if (!isGmailProviderError(error)) {
+      throw error;
+    }
+
+    throw new GmailProviderError(
+      error.stage,
+      error.deliveryOutcome,
+      error.retryable,
+      toWelcomeEmailMessage(error.safeFailureMessage),
+      toWelcomeEmailMessage(error.publicMessage),
+      error.httpStatus,
+    );
+  }
 }

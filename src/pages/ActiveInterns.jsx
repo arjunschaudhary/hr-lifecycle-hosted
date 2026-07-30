@@ -30,6 +30,8 @@ function buildFallbackActiveInternRecords() {
     offerStatus: "",
     sentAt: intern.activeStartDate,
     signedOfferStatus: "",
+    portalAccountStatus: null,
+    portalUserId: null,
   }));
 }
 
@@ -49,6 +51,8 @@ function mapSupabaseActiveInternRecord(row) {
     offerStatus: row.offer_status,
     sentAt: row.sent_at ?? row.offer_letter_sent_at,
     signedOfferStatus: row.signed_offer_status,
+    portalAccountStatus: row.portal_account_status,
+    portalUserId: row.portal_user_id,
   };
 }
 function getStatusClass(status) {
@@ -176,6 +180,8 @@ export default function ActiveInterns() {
       } else {
         setActionMessage("Portal account is already active.");
       }
+
+      await refreshActiveInterns();
     } catch (error) {
       console.error("Unable to create candidate portal account:", error);
       setErrorMessage(
@@ -276,7 +282,11 @@ export default function ActiveInterns() {
               <td>
                 <div className="action-group">
                   {intern.lifecycleStatus === "ACTIVE" &&
-                    isValidUuid(intern.candidateId) && (
+                    isValidUuid(intern.candidateId) &&
+                    !(
+                      intern.portalAccountStatus === "ACTIVE" &&
+                      isValidUuid(intern.portalUserId)
+                    ) && (
                       <button
                         type="button"
                         className="btn btn-primary"
@@ -289,6 +299,12 @@ export default function ActiveInterns() {
                           ? "Creating Portal..."
                           : "Create Portal Account"}
                       </button>
+                    )}
+                  {intern.portalAccountStatus === "ACTIVE" &&
+                    isValidUuid(intern.portalUserId) && (
+                      <span className="badge badge-success">
+                        Portal Active
+                      </span>
                     )}
                   {intern.lifecycleStatus === "ACTIVE" && (
                     <button

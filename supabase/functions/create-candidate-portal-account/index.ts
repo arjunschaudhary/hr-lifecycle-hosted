@@ -1,13 +1,16 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import {
+  GmailProviderError,
+  isGmailProviderError,
+  sendEmailWithGmail,
+} from "../_shared/gmailProvider.ts";
+import { buildCandidatePortalInvitationEmailTemplate } from "../_shared/candidatePortalInvitationEmailTemplate.ts";
 
 const APPROVED_STAFF_ROLES = [
   "HR_SITE_CONNECT",
   "HR_SITE_CONNECT_LEAD",
-  "HR_EXECUTIVE",
-  "HR_EXECUTIVE_LEAD",
   "HR_LEAD",
-  "FOUNDERS_OFFICE",
   "ADMIN",
 ] as const;
 
@@ -79,6 +82,44 @@ function isFinalizationRow(value: unknown): value is FinalizationRow {
 function nonBlank(value: string | undefined): string | undefined {
   const trimmed = value?.trim();
   return trimmed ? trimmed : undefined;
+}
+
+function buildCandidatePortalSetupUrl(
+  redirectUrl: string,
+  tokenHash: string,
+  verificationType: string,
+): string {
+  let setupUrl: URL;
+
+  try {
+    setupUrl = new URL(redirectUrl);
+  } catch {
+    throw new HttpError(
+      500,
+      "Candidate portal invitation redirect is not configured.",
+    );
+  }
+
+  if (
+    !["https:", "http:"].includes(setupUrl.protocol) ||
+    setupUrl.username ||
+    setupUrl.password
+  ) {
+    throw new HttpError(
+      500,
+      "Candidate portal invitation redirect is not configured.",
+    );
+  }
+
+  const query = new URLSearchParams({
+    token_hash: tokenHash,
+    type: verificationType,
+  });
+
+  setupUrl.search = query.toString();
+  setupUrl.hash = "";
+
+  return setupUrl.toString();
 }
 
 function extractKeyValue(rawValue: string | undefined): string | undefined {
@@ -200,7 +241,7 @@ function getErrorDetails(error: unknown): ErrorDetails {
   return { message: "Unknown error" };
 }
 
-function isExistingAuthUserInviteError(error: unknown): boolean {
+function isExistingAuthUserError(error: unknown): boolean {
   const message = getErrorDetails(error).message.toLowerCase();
 
   return [
@@ -296,86 +337,6 @@ async function findAuthUserIdByEmail(
   }
 
   return typeof result.data === "string" ? result.data : null;
-}
-
-async function inviteCandidateUser(
-  adminClient: SupabaseClient,
-  candidateId: string,
-  candidateName: string,
-  email: string,
-): Promise<{ userId: string; invited: boolean }> {
-  const redirectUrl = nonBlank(
-    Deno.env.get("CANDIDATE_PORTAL_REDIRECT_URL"),
-  );
-  const options: {
-    data: Record<string, string>;
-    redirectTo?: string;
-  } = {
-    data: {
-      candidate_id: candidateId,
-      full_name: candidateName,
-    },
-  };
-
-  if (redirectUrl) {
-    options.redirectTo = redirectUrl;
-  }
-
-  const invitation = await adminClient.auth.admin.inviteUserByEmail(
-    email,
-    options,
-  );
-
-  if (!invitation.error && invitation.data.user?.id) {
-    return { userId: invitation.data.user.id, invited: true };
-  }
-
-  if (!invitation.error) {
-    logServerError(
-      "inviteUserByEmail_missing_user_id",
-      new Error("inviteUserByEmail returned no user ID."),
-      {
-        candidateId,
-      },
-    );
-    throw new HttpError(
-      500,
-      "Unable to create the candidate Auth account.",
-    );
-  }
-
-  if (!isExistingAuthUserInviteError(invitation.error)) {
-    logServerError("inviteUserByEmail", invitation.error, {
-      candidateId,
-    });
-    throw new HttpError(
-      500,
-      "Unable to create the candidate Auth account.",
-    );
-  }
-
-  try {
-    const concurrentUserId = await findAuthUserIdByEmail(adminClient, email);
-
-    if (concurrentUserId) {
-      return { userId: concurrentUserId, invited: false };
-    }
-  } catch (error) {
-    logServerError("find_auth_user_id_by_email_after_existing_user_invite", error, {
-      candidateId,
-    });
-  }
-
-  logServerError(
-    "find_auth_user_id_by_email_after_existing_user_invite_missing_id",
-    new Error("No Auth user ID was found after an existing-user invitation error."),
-    { candidateId },
-  );
-
-  throw new HttpError(
-    500,
-    "Unable to resolve the candidate Auth account.",
-  );
 }
 
 function classifyError(error: unknown): HttpError {
@@ -475,6 +436,8 @@ async function handleRequest(request: Request): Promise<Response> {
 
   let adminClient: SupabaseClient | null = null;
   let newlyInvitedUserId: string | null = null;
+  let preserveInvitedUser = false;
+  let gmailInvitationDelivered = false;
   let actorUserId: string | undefined;
 
   try {
@@ -580,18 +543,170 @@ async function handleRequest(request: Request): Promise<Response> {
       );
 
       if (!selectedUserId) {
-        const invitation = await inviteCandidateUser(
-          adminClient,
-          candidateId,
-          candidateName,
-          candidateEmail,
+        const redirectUrl = nonBlank(
+          Deno.env.get("CANDIDATE_PORTAL_REDIRECT_URL"),
         );
 
-        selectedUserId = invitation.userId;
-        invitationSent = invitation.invited;
+        if (!redirectUrl) {
+          throw new HttpError(
+            500,
+            "Candidate portal invitation redirect is not configured.",
+          );
+        }
 
-        if (invitation.invited) {
-          newlyInvitedUserId = invitation.userId;
+        const invitation = await adminClient.auth.admin.generateLink({
+          type: "invite",
+          email: candidateEmail,
+          options: {
+            data: {
+              candidate_id: candidateId,
+              full_name: candidateName,
+            },
+            redirectTo: redirectUrl,
+          },
+        });
+
+        if (invitation.error) {
+          if (!isExistingAuthUserError(invitation.error)) {
+            logServerError("generate_candidate_invitation_link", invitation.error, {
+              candidateId,
+              actorUserId,
+            });
+            throw new HttpError(
+              500,
+              "Unable to create the candidate Auth account.",
+            );
+          }
+
+          selectedUserId = await findAuthUserIdByEmail(
+            adminClient,
+            candidateEmail,
+          );
+
+          if (!selectedUserId) {
+            logServerError(
+              "find_auth_user_after_generate_link_conflict",
+              new Error(
+                "No Auth user ID was found after an existing-user error.",
+              ),
+              { candidateId, actorUserId },
+            );
+            throw new HttpError(
+              500,
+              "Unable to resolve the candidate Auth account.",
+            );
+          }
+        } else {
+          const generatedUserId = invitation.data.user?.id ?? null;
+          const tokenHash =
+            invitation.data.properties?.hashed_token?.trim() ?? "";
+          const verificationType =
+            invitation.data.properties?.verification_type ?? "";
+
+          if (generatedUserId && UUID_PATTERN.test(generatedUserId)) {
+            newlyInvitedUserId = generatedUserId;
+          }
+
+          if (
+            !newlyInvitedUserId ||
+            !tokenHash ||
+            verificationType !== "invite"
+          ) {
+            logServerError(
+              "generate_candidate_invitation_link_invalid_response",
+              new Error(
+                "generateLink returned no usable user ID or invite token.",
+              ),
+              { candidateId, actorUserId },
+            );
+            throw new HttpError(
+              500,
+              "Unable to create the candidate invitation.",
+            );
+          }
+
+          selectedUserId = newlyInvitedUserId;
+          const invitationLink = buildCandidatePortalSetupUrl(
+            redirectUrl,
+            tokenHash,
+            verificationType,
+          );
+
+          let invitationTemplate: ReturnType<
+            typeof buildCandidatePortalInvitationEmailTemplate
+          >;
+
+          try {
+            invitationTemplate =
+              buildCandidatePortalInvitationEmailTemplate({
+                candidateName,
+                invitationLink,
+              });
+          } catch (error) {
+            logServerError(
+              "build_candidate_portal_invitation_template",
+              error,
+              { candidateId, actorUserId },
+            );
+            throw new HttpError(
+              500,
+              "Unable to prepare the candidate portal invitation.",
+            );
+          }
+
+          try {
+            await sendEmailWithGmail(
+              candidateEmail,
+              invitationTemplate,
+            );
+            gmailInvitationDelivered = true;
+            preserveInvitedUser = true;
+            invitationSent = true;
+          } catch (error) {
+            if (
+              error instanceof GmailProviderError &&
+              error.deliveryOutcome === "UNKNOWN"
+            ) {
+              preserveInvitedUser = true;
+              logServerError(
+                "gmail_candidate_invitation_unknown_outcome",
+                error,
+                { candidateId, actorUserId },
+              );
+              throw new HttpError(
+                502,
+                "Candidate portal invitation delivery outcome is unknown. Check the Gmail Sent folder before retrying.",
+              );
+            }
+
+            if (isGmailProviderError(error)) {
+              logServerError(
+                "gmail_candidate_invitation_definite_failure",
+                error,
+                { candidateId, actorUserId },
+              );
+
+              const publicMessage =
+                error.stage === "CONFIGURATION"
+                  ? "Candidate portal invitation delivery is not configured."
+                  : error.retryable
+                    ? "The email provider is temporarily unavailable."
+                    : "The email provider rejected the candidate portal invitation.";
+
+              throw new HttpError(error.httpStatus, publicMessage);
+            }
+
+            preserveInvitedUser = true;
+            logServerError(
+              "gmail_candidate_invitation_unclassified_failure",
+              error,
+              { candidateId, actorUserId },
+            );
+            throw new HttpError(
+              502,
+              "Candidate portal invitation delivery outcome is unknown. Check the Gmail Sent folder before retrying.",
+            );
+          }
         }
       }
     }
@@ -646,7 +761,31 @@ async function handleRequest(request: Request): Promise<Response> {
   } catch (error) {
     let compensationFailed = false;
 
-    if (newlyInvitedUserId && adminClient) {
+    if (gmailInvitationDelivered) {
+      logServerError(
+        "candidate_portal_finalization_failed_after_gmail_delivery",
+        error,
+        {
+          candidateId,
+          actorUserId,
+        },
+      );
+
+      return jsonResponse(
+        {
+          error:
+            "Invitation email was sent, but portal account finalization is pending. Retry the action.",
+        },
+        500,
+      );
+    }
+
+    if (
+      newlyInvitedUserId &&
+      adminClient &&
+      !preserveInvitedUser &&
+      !gmailInvitationDelivered
+    ) {
       const compensation = await adminClient.auth.admin.deleteUser(
         newlyInvitedUserId,
       );
