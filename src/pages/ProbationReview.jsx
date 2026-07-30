@@ -11,6 +11,7 @@ import {
 } from "../services/lifecycleActionService";
 import { fetchProbationReviewCandidates } from "../services/probationReviewService";
 import { sendCandidateWelcomeEmail } from "../services/welcomeMailService";
+import { markCandidateInProbation } from "../services/inProbationActionService";
 import ApproveProbationModal from "../components/ApproveProbationModal";
 const reviewStatuses = [
   "HR_REVIEW_PENDING",
@@ -111,11 +112,18 @@ export default function ProbationReview() {
   const [welcomeMailError, setWelcomeMailError] = useState("");
   const [welcomeMailSuccessMessage, setWelcomeMailSuccessMessage] =
     useState("");
+  const [markingInProbationCandidateIds, setMarkingInProbationCandidateIds] =
+    useState(() => new Set());
+  const [inProbationLifecycleMessage, setInProbationLifecycleMessage] =
+    useState("");
+  const [performanceAssignmentMessage, setPerformanceAssignmentMessage] =
+    useState("");
   const [
     welcomeMailRetryBlockedCandidateIds,
     setWelcomeMailRetryBlockedCandidateIds,
   ] = useState(() => new Set());
   const welcomeMailInFlightCandidateIdsRef = useRef(new Set());
+  const markInProbationInFlightCandidateIdsRef = useRef(new Set());
   const [selectedCandidateId, setSelectedCandidateId] = useState(null);
   const [showApproveModal, setShowApproveModal] = useState(false);
   const [approveCandidate, setApproveCandidate] = useState(null);
@@ -313,6 +321,70 @@ export default function ProbationReview() {
     }
   }
 
+  async function handleMarkInProbation(candidateId) {
+    if (markInProbationInFlightCandidateIdsRef.current.has(candidateId)) {
+      return;
+    }
+
+    markInProbationInFlightCandidateIdsRef.current.add(candidateId);
+    setMarkingInProbationCandidateIds((currentCandidateIds) => {
+      const nextCandidateIds = new Set(currentCandidateIds);
+      nextCandidateIds.add(candidateId);
+      return nextCandidateIds;
+    });
+    setActionMessage("");
+    setErrorMessage("");
+    setInProbationLifecycleMessage("");
+    setPerformanceAssignmentMessage("");
+
+    try {
+      const result = await markCandidateInProbation(candidateId);
+
+      setInProbationLifecycleMessage(
+        result.transitionCompleted
+          ? "Candidate marked as in probation."
+          : "Candidate is already marked as in probation."
+      );
+
+      switch (result.performanceOutcome) {
+        case "PERFORMANCE_ASSIGNED":
+          setPerformanceAssignmentMessage(
+            "Performance cycle assigned and eligible days refreshed."
+          );
+          break;
+        case "PERFORMANCE_PENDING_POD":
+          setPerformanceAssignmentMessage(
+            "Performance assignment is pending a valid pod membership."
+          );
+          break;
+        case "PERFORMANCE_PENDING_CYCLE":
+          setPerformanceAssignmentMessage(
+            "Performance assignment is pending an OPEN performance cycle."
+          );
+          break;
+        default:
+          setPerformanceAssignmentMessage(
+            "Performance assignment could not be completed and was recorded for review."
+          );
+      }
+
+      await refreshProbationRecords();
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Unable to mark the candidate in probation. Please try again."
+      );
+    } finally {
+      markInProbationInFlightCandidateIdsRef.current.delete(candidateId);
+      setMarkingInProbationCandidateIds((currentCandidateIds) => {
+        const nextCandidateIds = new Set(currentCandidateIds);
+        nextCandidateIds.delete(candidateId);
+        return nextCandidateIds;
+      });
+    }
+  }
+
   async function handleGenerateMid(record) {
     setActionCandidateId(record.candidateId);
     setActionMessage("");
@@ -395,6 +467,14 @@ export default function ProbationReview() {
 
       {welcomeMailSuccessMessage && (
         <p role="status">{welcomeMailSuccessMessage}</p>
+      )}
+
+      {inProbationLifecycleMessage && (
+        <p role="status">{inProbationLifecycleMessage}</p>
+      )}
+
+      {performanceAssignmentMessage && (
+        <p role="status">{performanceAssignmentMessage}</p>
       )}
 
       <div className="table-container">
@@ -490,20 +570,15 @@ export default function ProbationReview() {
                   <button
                     type="button"
                     className="btn btn-primary"
-                    disabled={actionCandidateId === record.candidateId}
+                    disabled={markingInProbationCandidateIds.has(
+                      record.candidateId
+                    )}
                     onClick={() =>
-                      handleLifecycleAction({
-                        candidateId: record.candidateId,
-                        fromStatus: "WELCOME_MAIL_SENT",
-                        toStatus: "IN_PROBATION",
-                        activityType: "IN_PROBATION",
-                        remarks: "Candidate marked as in probation by HR",
-                        successMessage: "Candidate marked as in probation.",
-                      })
+                      handleMarkInProbation(record.candidateId)
                     }
                   >
-                    {actionCandidateId === record.candidateId
-                      ? "Marking..."
+                    {markingInProbationCandidateIds.has(record.candidateId)
+                      ? "Assigning..."
                       : "Mark In Probation"}
                   </button>
                 )}
