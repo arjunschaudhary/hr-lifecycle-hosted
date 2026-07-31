@@ -20,6 +20,7 @@ import LeaveDashboard from "./pages/LeaveDashboard";
 import LeaveApplication from "./pages/LeaveApplication";
 import InternshipExtension from "./pages/InternshipExtension";
 import CandidatePortal from "./pages/CandidatePortal";
+import CandidateExitForm from "./pages/CandidateExitForm";
 import PerformanceDashboard from "./pages/PerformanceDashboard";
 import DailyPerformanceMarking from "./pages/DailyPerformanceMarking";
 import LeadReviews from "./pages/LeadReviews";
@@ -36,6 +37,7 @@ function App() {
         <Route path="/candidate-form" element={<CandidateProbationForm />} />
         <Route element={<CandidateProtectedRoute />}>
           <Route path="/portal" element={<CandidatePortal />} />
+          <Route path="/candidate-exit-form" element={<CandidateExitForm />} />
         </Route>
         <Route element={<LeadReviewProtectedRoute />}>
           <Route path="/lead-reviews" element={<LeadReviews />} />

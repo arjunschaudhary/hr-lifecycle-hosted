@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { BriefcaseBusiness } from "lucide-react";
+import { Link } from "react-router-dom";
+import { BriefcaseBusiness, ClipboardList } from "lucide-react";
 
 import { useAuth } from "../context/authContext";
 import { fetchCurrentCandidatePortalSummary } from "../services/candidatePortalService";
 import { submitCurrentCandidateSignedOffer } from "../services/candidateSignedOfferUploadService";
+import { getCandidateExitCase } from "../services/exitService";
 
 const formatValue = (value) => {
   if (value === null || value === undefined) {
@@ -104,6 +106,7 @@ function SummaryCard({ title, children }) {
 
 function PortalSummary({
   summary,
+  exitCase,
   selectedFile,
   uploadLoading,
   fileInputRef,
@@ -160,6 +163,33 @@ function PortalSummary({
       <SummaryCard title="Internship Information">
         <SummaryFields fields={internshipFields} />
       </SummaryCard>
+
+      {exitCase && (
+        <SummaryCard title="Exit Questionnaire">
+          {exitCase.candidate_form_completed ? (
+            <div>
+              <div style={{ marginBottom: 12 }}>
+                <span className="badge badge-success">
+                  Exit Questionnaire Submitted
+                </span>
+              </div>
+              <p className="page-subtitle" style={{ margin: 0 }}>
+                Thank you! Your exit feedback has already been recorded.
+              </p>
+            </div>
+          ) : (
+            <div>
+              <p className="page-subtitle" style={{ marginBottom: 16 }}>
+                An exit process has been initiated for your internship. Please complete your exit questionnaire.
+              </p>
+              <Link to="/candidate-exit-form" className="btn btn-primary" style={{ textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 8 }}>
+                <ClipboardList size={18} />
+                Complete Exit Questionnaire
+              </Link>
+            </div>
+          )}
+        </SummaryCard>
+      )}
 
       <SummaryCard title="Leave Summary">
         {leave.available ? (
@@ -222,6 +252,7 @@ function PortalSummary({
 export default function CandidatePortal() {
   const { user, candidateId } = useAuth();
   const [summary, setSummary] = useState(null);
+  const [exitCase, setExitCase] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [retryKey, setRetryKey] = useState(0);
@@ -236,13 +267,17 @@ export default function CandidatePortal() {
 
     const loadSummary = async () => {
       try {
-        const nextSummary = await fetchCurrentCandidatePortalSummary();
+        const [nextSummary, nextExitCase] = await Promise.all([
+          fetchCurrentCandidatePortalSummary(),
+          getCandidateExitCase().catch(() => null),
+        ]);
 
         if (!isMounted) {
           return;
         }
 
         setSummary(nextSummary);
+        setExitCase(nextExitCase);
         setError("");
       } catch (loadError) {
         if (!isMounted) {
@@ -250,6 +285,7 @@ export default function CandidatePortal() {
         }
 
         setSummary(null);
+        setExitCase(null);
         setError(
           loadError instanceof Error
             ? loadError.message
@@ -400,6 +436,7 @@ export default function CandidatePortal() {
       {!loading && !error && summary && (
         <PortalSummary
           summary={summary}
+          exitCase={exitCase}
           selectedFile={selectedFile}
           uploadLoading={uploadLoading}
           fileInputRef={fileInputRef}
