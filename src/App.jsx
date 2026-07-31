@@ -4,6 +4,7 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import ProtectedRoute from "./components/ProtectedRoute";
 import CandidateProtectedRoute from "./components/CandidateProtectedRoute";
 import LeadReviewProtectedRoute from "./components/LeadReviewProtectedRoute";
+import PodManagementProtectedRoute from "./components/PodManagementProtectedRoute";
 import HRDashboard from "./pages/HRDashboard";
 import HRLogin from "./pages/HRLogin";
 import ForgotPassword from "./pages/ForgotPassword";
@@ -24,6 +25,7 @@ import PerformanceDashboard from "./pages/PerformanceDashboard";
 import DailyPerformanceMarking from "./pages/DailyPerformanceMarking";
 import LeadReviews from "./pages/LeadReviews";
 import LeadReviewDetail from "./pages/LeadReviewDetail";
+import PodManagement from "./pages/PodManagement";
 
 function App() {
   return (
@@ -43,6 +45,9 @@ function App() {
             path="/lead-reviews/:candidateCycleId"
             element={<LeadReviewDetail />}
           />
+        </Route>
+        <Route element={<PodManagementProtectedRoute />}>
+          <Route path="/pod-management" element={<PodManagement />} />
         </Route>
         <Route element={<ProtectedRoute />}>
           <Route path="/" element={<HRDashboard />} />

@@ -426,3 +426,7 @@ entrypoint = "./functions/create-candidate-portal-account/index.ts"
 [functions.mark-candidate-in-probation]
 verify_jwt = false
 entrypoint = "./functions/mark-candidate-in-probation/index.ts"
+
+[functions.manage-pod-membership]
+verify_jwt = false
+entrypoint = "./functions/manage-pod-membership/index.ts"

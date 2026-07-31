@@ -1351,3 +1351,222 @@ grid-template-columns:1fr;
     width: 100%;
   }
 }
+
+/* ================= POD MANAGEMENT ================= */
+
+.pod-management-page {
+  max-width: 1500px;
+  margin: 0 auto;
+}
+
+.pod-page-header,
+.pod-section-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.pod-page-header {
+  margin-bottom: 24px;
+}
+
+.pod-page-header .page-header-modern {
+  margin-bottom: 0;
+}
+
+.pod-page-header .btn,
+.pod-search-form .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.pod-metric-grid {
+  margin: 24px 0 32px;
+}
+
+.pod-metric-grid .metric-card {
+  min-width: 0;
+}
+
+.pod-metric-grid .metric-card__icon {
+  padding: 15px;
+}
+
+.pod-section {
+  margin-top: 36px;
+}
+
+.pod-section-header {
+  margin-bottom: 16px;
+}
+
+.pod-section-header h2,
+.pod-membership-groups h3 {
+  margin: 0;
+  color: #0f172a;
+  letter-spacing: 0;
+}
+
+.pod-section-header p {
+  margin: 6px 0 0;
+  color: #64748b;
+}
+
+.pod-secondary-text {
+  display: block;
+  margin-top: 5px;
+  color: #64748b;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.pod-search-form {
+  display: grid;
+  grid-template-columns: minmax(240px, 1fr) auto;
+  align-items: end;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.pod-search-form .form-group,
+.pod-selector {
+  margin-bottom: 0;
+}
+
+.pod-selector {
+  width: min(100%, 340px);
+}
+
+.pod-management-page select,
+.pod-management-page textarea {
+  width: 100%;
+  padding: 12px 13px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #0f172a;
+  font: inherit;
+}
+
+.pod-management-page select:focus,
+.pod-management-page textarea:focus {
+  outline: 3px solid rgba(37, 99, 235, 0.16);
+  border-color: #2563eb;
+}
+
+.pod-membership-groups {
+  display: grid;
+  gap: 28px;
+}
+
+.pod-membership-groups h3 {
+  margin-bottom: 12px;
+  font-size: 18px;
+}
+
+.pod-modal-overlay {
+  z-index: 1000;
+}
+
+.pod-modal {
+  width: min(100%, 680px);
+  max-height: min(88vh, 820px);
+  overflow-y: auto;
+  padding: 26px;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.3);
+}
+
+.pod-modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 24px;
+}
+
+.pod-modal-header h2 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 24px;
+  letter-spacing: 0;
+}
+
+.pod-modal-header p {
+  margin: 6px 0 0;
+  color: #64748b;
+}
+
+.pod-modal-form {
+  display: grid;
+  gap: 16px;
+}
+
+.pod-modal-form .form-group {
+  margin-bottom: 0;
+}
+
+.pod-form-help {
+  margin: 0;
+  color: #64748b;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.pod-modal-actions {
+  justify-content: flex-end;
+  padding-top: 6px;
+}
+
+.pod-management-page .info-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 14px 16px;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  background: #eff6ff;
+  color: #1e3a8a;
+}
+
+.pod-management-page .info-banner p {
+  margin: 0;
+}
+
+@media (max-width: 760px) {
+  .pod-page-header,
+  .pod-section-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .pod-page-header .btn {
+    width: 100%;
+  }
+
+  .pod-search-form {
+    grid-template-columns: 1fr;
+  }
+
+  .pod-search-form .btn {
+    width: 100%;
+  }
+
+  .pod-selector {
+    width: 100%;
+  }
+
+  .pod-modal {
+    max-height: 92vh;
+    padding: 20px;
+  }
+
+  .pod-modal-actions .btn {
+    flex: 1 1 140px;
+  }
+}

@@ -39,6 +39,12 @@ const LEAD_REVIEW_ROLE_SLUGS = [
   "TECH_LEAD",
 ];
 
+const POD_MANAGEMENT_ROLE_SLUGS = [
+  "ADMIN",
+  "HR_LEAD",
+  "HR_SITE_CONNECT_LEAD",
+];
+
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -54,6 +60,7 @@ const INITIAL_AUTH_STATE = {
   hasPerformanceDashboardAccess: false,
   hasPerformanceMarkingAccess: false,
   hasLeadReviewAccess: false,
+  hasPodManagementAccess: false,
   hasCandidateRole: false,
   candidateId: null,
   hasCandidateAccess: false,
@@ -108,6 +115,7 @@ export function AuthProvider({ children }) {
           hasPerformanceDashboardAccess: false,
           hasPerformanceMarkingAccess: false,
           hasLeadReviewAccess: false,
+          hasPodManagementAccess: false,
           hasCandidateRole: false,
           candidateId: null,
           hasCandidateAccess: false,
@@ -134,6 +142,7 @@ export function AuthProvider({ children }) {
         hasPerformanceDashboardAccess: false,
         hasPerformanceMarkingAccess: false,
         hasLeadReviewAccess: false,
+        hasPodManagementAccess: false,
         hasCandidateRole: false,
         candidateId: null,
         hasCandidateAccess: false,
@@ -149,6 +158,7 @@ export function AuthProvider({ children }) {
           performanceDashboardRoleResult,
           performanceMarkingRoleResult,
           leadReviewRoleResult,
+          podManagementRoleResult,
           candidateRoleResult,
           candidateIdResult,
         ] = await Promise.all([
@@ -165,6 +175,9 @@ export function AuthProvider({ children }) {
           supabase.rpc("current_user_has_any_role", {
             p_role_slugs: LEAD_REVIEW_ROLE_SLUGS,
           }),
+          supabase.rpc("current_user_has_any_role", {
+            p_role_slugs: POD_MANAGEMENT_ROLE_SLUGS,
+          }),
           supabase.rpc("current_user_has_role", {
             p_role_slug: "CANDIDATE",
           }),
@@ -177,6 +190,7 @@ export function AuthProvider({ children }) {
           performanceDashboardRoleResult.error ||
           performanceMarkingRoleResult.error ||
           leadReviewRoleResult.error ||
+          podManagementRoleResult.error ||
           candidateRoleResult.error ||
           candidateIdResult.error
         ) {
@@ -196,6 +210,8 @@ export function AuthProvider({ children }) {
             isActiveAppUser && performanceMarkingRoleResult.data === true,
           hasLeadReviewAccess:
             isActiveAppUser && leadReviewRoleResult.data === true,
+          hasPodManagementAccess:
+            isActiveAppUser && podManagementRoleResult.data === true,
           hasCandidateRole,
           candidateId,
           hasCandidateAccess: isActiveAppUser && hasCandidateRole && Boolean(candidateId),
@@ -208,6 +224,7 @@ export function AuthProvider({ children }) {
           hasPerformanceDashboardAccess: false,
           hasPerformanceMarkingAccess: false,
           hasLeadReviewAccess: false,
+          hasPodManagementAccess: false,
           hasCandidateRole: false,
           candidateId: null,
           hasCandidateAccess: false,
@@ -222,6 +239,7 @@ export function AuthProvider({ children }) {
           hasPerformanceDashboardAccess: false,
           hasPerformanceMarkingAccess: false,
           hasLeadReviewAccess: false,
+          hasPodManagementAccess: false,
           hasCandidateRole: false,
           candidateId: null,
           hasCandidateAccess: false,

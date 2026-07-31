@@ -20,6 +20,7 @@ import {
   RefreshCw,
   CalendarClock,
   Gauge,
+  Network,
 } from "lucide-react";
 
 import {
@@ -154,7 +155,7 @@ return (
 
 export default function HRDashboard(){
 
-const { hasPerformanceDashboardAccess } = useAuth();
+  const { hasPerformanceDashboardAccess, hasPodManagementAccess } = useAuth();
 
 const fallbackCounts =
 useMemo(
@@ -385,6 +386,15 @@ const modules = [
           path: "/performance-dashboard",
           label: "Performance Dashboard",
           icon: <Gauge size={18} />,
+        },
+      ]
+    : []),
+  ...(hasPodManagementAccess
+    ? [
+        {
+          path: "/pod-management",
+          label: "Pod Management",
+          icon: <Network size={18} />,
         },
       ]
     : []),
