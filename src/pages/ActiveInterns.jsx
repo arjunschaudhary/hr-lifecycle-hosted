@@ -3,9 +3,14 @@ import { Link } from "react-router-dom";
 import { BriefcaseBusiness } from "lucide-react";
 import { dummyActiveInterns } from "../data";
 import CandidateDetailModal from "../components/CandidateDetailModal";
+import { useAuth } from "../context/authContext";
 import { markSignedOfferSubmitted } from "../services/lifecycleActionService";
 import { fetchActiveInterns } from "../services/activeInternsService";
 import { createCandidatePortalAccount } from "../services/candidatePortalAccountService";
+import {
+  grantHrPsyconnectAccess,
+  revokeHrPsyconnectAccess,
+} from "../services/hrPsyconnectAccessService";
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -32,6 +37,10 @@ function buildFallbackActiveInternRecords() {
     signedOfferStatus: "",
     portalAccountStatus: null,
     portalUserId: null,
+    roleCode: null,
+    hrPsyconnectAccessActive: false,
+    hrPsyconnectAccessGrantedAt: null,
+    hrPsyconnectUserRoleId: null,
   }));
 }
 
@@ -53,8 +62,28 @@ function mapSupabaseActiveInternRecord(row) {
     signedOfferStatus: row.signed_offer_status,
     portalAccountStatus: row.portal_account_status,
     portalUserId: row.portal_user_id,
+    roleCode: row.role_code ?? null,
+    hrPsyconnectAccessActive:
+      row.hr_psyconnect_access_active === true,
+    hrPsyconnectAccessGrantedAt:
+      row.hr_psyconnect_access_granted_at ?? null,
+    hrPsyconnectUserRoleId: row.hr_psyconnect_user_role_id ?? null,
   };
 }
+
+function isHrPsyconnectIntern(intern) {
+  return (
+    intern.appliedRole === "HR Psyconnect Intern" && intern.roleCode === "HPI"
+  );
+}
+
+function hasActivePortalAccount(intern) {
+  return (
+    intern.portalAccountStatus === "ACTIVE" &&
+    isValidUuid(intern.portalUserId)
+  );
+}
+
 function getStatusClass(status) {
 
   switch (status) {
@@ -71,12 +100,16 @@ function getStatusClass(status) {
 }
 
 export default function ActiveInterns() {
+  const { hasPodManagementAccess } = useAuth();
   const fallbackRecords = useMemo(() => buildFallbackActiveInternRecords(), []);
   const [activeInterns, setActiveInterns] = useState(fallbackRecords);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
   const [actionCandidateId, setActionCandidateId] = useState(null);
   const [portalActionCandidateId, setPortalActionCandidateId] = useState(null);
+  const [accessActionCandidateIds, setAccessActionCandidateIds] = useState(
+    () => new Set(),
+  );
   const [actionMessage, setActionMessage] = useState("");
   const [selectedCandidateId, setSelectedCandidateId] = useState(null);
 
@@ -194,6 +227,82 @@ export default function ActiveInterns() {
     }
   }
 
+  async function handleGrantHrPsyconnectAccess(intern) {
+    setAccessActionCandidateIds((currentIds) => {
+      const nextIds = new Set(currentIds);
+      nextIds.add(intern.candidateId);
+      return nextIds;
+    });
+    setActionMessage("");
+    setErrorMessage("");
+
+    try {
+      const response = await grantHrPsyconnectAccess(intern.candidateId);
+
+      setActionMessage(
+        response?.changed === false
+          ? "HR Psyconnect access is already active."
+          : "HR Psyconnect access granted successfully.",
+      );
+      await refreshActiveInterns();
+    } catch (error) {
+      console.error("Unable to grant HR Psyconnect access:", error);
+      setErrorMessage(
+        error instanceof Error && error.message
+          ? error.message
+          : "Unable to grant HR Psyconnect access.",
+      );
+    } finally {
+      setAccessActionCandidateIds((currentIds) => {
+        const nextIds = new Set(currentIds);
+        nextIds.delete(intern.candidateId);
+        return nextIds;
+      });
+    }
+  }
+
+  async function handleRevokeHrPsyconnectAccess(intern) {
+    const confirmed = window.confirm(
+      `Revoke HR Psyconnect workspace access for ${intern.fullName}?`,
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setAccessActionCandidateIds((currentIds) => {
+      const nextIds = new Set(currentIds);
+      nextIds.add(intern.candidateId);
+      return nextIds;
+    });
+    setActionMessage("");
+    setErrorMessage("");
+
+    try {
+      const response = await revokeHrPsyconnectAccess(intern.candidateId);
+
+      setActionMessage(
+        response?.changed === false
+          ? "HR Psyconnect access is already inactive."
+          : "HR Psyconnect access revoked successfully.",
+      );
+      await refreshActiveInterns();
+    } catch (error) {
+      console.error("Unable to revoke HR Psyconnect access:", error);
+      setErrorMessage(
+        error instanceof Error && error.message
+          ? error.message
+          : "Unable to revoke HR Psyconnect access.",
+      );
+    } finally {
+      setAccessActionCandidateIds((currentIds) => {
+        const nextIds = new Set(currentIds);
+        nextIds.delete(intern.candidateId);
+        return nextIds;
+      });
+    }
+  }
+
   return (
     <div className="app-page">
       <Link
@@ -305,6 +414,71 @@ export default function ActiveInterns() {
                       <span className="badge badge-success">
                         Portal Active
                       </span>
+                    )}
+                  {isHrPsyconnectIntern(intern) &&
+                    !hasActivePortalAccount(intern) && (
+                      <span className="badge badge-primary">
+                        Portal Required
+                      </span>
+                    )}
+                  {isHrPsyconnectIntern(intern) &&
+                    hasActivePortalAccount(intern) &&
+                    !intern.hrPsyconnectAccessActive && (
+                      <>
+                        <span className="badge badge-warning">
+                          HR Access Inactive
+                        </span>
+                        {hasPodManagementAccess && (
+                          <button
+                            type="button"
+                            className="btn btn-primary"
+                            disabled={accessActionCandidateIds.has(
+                              intern.candidateId,
+                            )}
+                            onClick={() =>
+                              handleGrantHrPsyconnectAccess(intern)
+                            }
+                          >
+                            {accessActionCandidateIds.has(intern.candidateId)
+                              ? "Granting Access..."
+                              : "Grant HR Psyconnect Access"}
+                          </button>
+                        )}
+                      </>
+                    )}
+                  {isHrPsyconnectIntern(intern) &&
+                    hasActivePortalAccount(intern) &&
+                    intern.hrPsyconnectAccessActive && (
+                      <>
+                        <span
+                          className="badge badge-success"
+                          title={
+                            intern.hrPsyconnectAccessGrantedAt
+                              ? `Granted ${new Date(
+                                  intern.hrPsyconnectAccessGrantedAt,
+                                ).toLocaleDateString("en-IN")}`
+                              : undefined
+                          }
+                        >
+                          HR Access Active
+                        </span>
+                        {hasPodManagementAccess && (
+                          <button
+                            type="button"
+                            className="btn btn-warning"
+                            disabled={accessActionCandidateIds.has(
+                              intern.candidateId,
+                            )}
+                            onClick={() =>
+                              handleRevokeHrPsyconnectAccess(intern)
+                            }
+                          >
+                            {accessActionCandidateIds.has(intern.candidateId)
+                              ? "Revoking Access..."
+                              : "Revoke HR Psyconnect Access"}
+                          </button>
+                        )}
+                      </>
                     )}
                   {intern.lifecycleStatus === "ACTIVE" && (
                     <button

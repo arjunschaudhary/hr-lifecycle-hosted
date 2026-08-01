@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { LoaderCircle, LogOut, ShieldAlert } from "lucide-react";
-import { Navigate, Outlet, useLocation } from "react-router-dom";
+import { Link, Navigate, Outlet, useLocation } from "react-router-dom";
 
 import { useAuth } from "../context/authContext";
 
@@ -21,6 +21,7 @@ export default function ProtectedRoute() {
     loading,
     isActiveAppUser,
     hasStaffAccess,
+    hasCandidateAccess,
     authorizationError,
     signOut,
   } = useAuth();
@@ -87,6 +88,14 @@ export default function ProtectedRoute() {
         <span className="auth-session-email" title={user?.email}>
           Signed in as <strong>{user?.email}</strong>
         </span>
+        {hasCandidateAccess && (
+          <Link
+            to="/portal"
+            className="auth-logout-button auth-logout-button--compact auth-link-button"
+          >
+            Candidate Portal
+          </Link>
+        )}
         <button
           className="auth-logout-button auth-logout-button--compact"
           type="button"
