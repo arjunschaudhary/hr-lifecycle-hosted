@@ -131,12 +131,41 @@ export default function CandidateDetailModal({ candidateId, onClose }) {
     };
   }, [candidateId]);
 
+  useEffect(() => {
+    if (!candidateId) {
+      return undefined;
+    }
+
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") {
+        onClose();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [candidateId, onClose]);
+
+  const handleOverlayClick = (event) => {
+    if (event.target === event.currentTarget) {
+      onClose();
+    }
+  };
+
   if (!candidateId) return null;
    
   return (
-  <div className="modal-overlay">
+  <div className="modal-overlay" onClick={handleOverlayClick}>
 
-    <div className="candidate-modal">
+    <div
+      className="candidate-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="candidate-detail-modal-title"
+    >
 
       <div className="candidate-modal-header">
 
@@ -147,7 +176,7 @@ export default function CandidateDetailModal({ candidateId, onClose }) {
           </div>
 
           <div>
-            <h2>
+            <h2 id="candidate-detail-modal-title">
               {candidateDetail?.full_name || "Candidate Details"}
             </h2>
 
@@ -160,8 +189,10 @@ export default function CandidateDetailModal({ candidateId, onClose }) {
 
 
         <button
+          type="button"
           className="modal-close-btn"
           onClick={onClose}
+          aria-label="Close candidate details"
         >
           ×
         </button>
