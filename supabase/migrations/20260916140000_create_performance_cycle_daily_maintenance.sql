@@ -1,0 +1,719 @@
+begin;
+
+create or replace function public.process_performance_cycle_assignment_job(
+    p_job_id uuid
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $function$
+declare
+    v_job public.automation_jobs%rowtype;
+    v_lifecycle public.hr_lifecycle%rowtype;
+    v_previous_status text;
+    v_previous_error_message text;
+    v_cycle_ids uuid[];
+    v_cycle_id uuid;
+    v_cycle public.performance_cycles%rowtype;
+    v_internship_end_date date;
+    v_effective_start_date date;
+    v_pod_id uuid;
+    v_assignment_id uuid;
+    v_eligible_days integer;
+    v_error_message text;
+    v_business_date date :=
+        (current_timestamp at time zone 'Asia/Kolkata')::date;
+    v_timestamp timestamptz := pg_catalog.now();
+begin
+    if p_job_id is null then
+        raise exception using
+            errcode = '22004',
+            message = 'Performance-assignment job ID is required.';
+    end if;
+
+    perform pg_catalog.pg_advisory_xact_lock(
+        pg_catalog.hashtextextended(
+            'performance-assignment-job:' || p_job_id::text,
+            0::bigint
+        )
+    );
+
+    begin
+        select aj.*
+        into strict v_job
+        from public.automation_jobs aj
+        where aj.job_id = p_job_id
+        for update;
+    exception
+        when no_data_found then
+            raise exception using
+                errcode = 'P0001',
+                message = 'Performance-assignment job was not found.';
+    end;
+
+    if v_job.job_type is distinct from 'PERFORMANCE_CYCLE_ASSIGNMENT' then
+        raise exception using
+            errcode = 'P0001',
+            message = 'Performance-assignment job type is invalid.';
+    end if;
+
+    if v_job.job_status = 'SUCCESS' then
+        return pg_catalog.jsonb_build_object(
+            'success', true,
+            'candidateId', v_job.candidate_id,
+            'jobId', v_job.job_id,
+            'jobStatus', v_job.job_status,
+            'performanceOutcome', 'PERFORMANCE_ASSIGNED',
+            'cycleId', v_job.payload ->> 'cycle_id',
+            'assignmentId', v_job.payload ->> 'assignment_id',
+            'eligibleDays', v_job.payload -> 'eligible_days',
+            'message', 'Candidate is already assigned to the performance cycle.'
+        );
+    end if;
+
+    if v_job.job_status = 'CANCELLED' then
+        return pg_catalog.jsonb_build_object(
+            'success', true,
+            'candidateId', v_job.candidate_id,
+            'jobId', v_job.job_id,
+            'jobStatus', v_job.job_status,
+            'performanceOutcome', 'PERFORMANCE_FAILED',
+            'message', 'Performance-cycle assignment job is cancelled.'
+        );
+    end if;
+
+    if v_job.job_status = 'PROCESSING' then
+        return pg_catalog.jsonb_build_object(
+            'success', true,
+            'candidateId', v_job.candidate_id,
+            'jobId', v_job.job_id,
+            'jobStatus', v_job.job_status,
+            'performanceOutcome', 'PERFORMANCE_FAILED',
+            'message', 'Performance-cycle assignment is already being processed.'
+        );
+    end if;
+
+    v_previous_status := v_job.job_status;
+    v_previous_error_message := v_job.error_message;
+
+    update public.automation_jobs
+    set
+        job_status = 'PROCESSING',
+        attempt_count = attempt_count + 1,
+        last_attempt_at = v_timestamp,
+        completed_at = null,
+        error_message = null,
+        updated_at = v_timestamp
+    where job_id = v_job.job_id
+    returning * into v_job;
+
+    begin
+        begin
+            select hl.*
+            into strict v_lifecycle
+            from public.hr_lifecycle hl
+            where hl.candidate_id = v_job.candidate_id
+            for update;
+        exception
+            when no_data_found then
+                raise exception 'Candidate lifecycle record was not found.';
+            when too_many_rows then
+                raise exception 'Candidate has multiple lifecycle records.';
+        end;
+
+        if v_lifecycle.lifecycle_status is null
+           or v_lifecycle.lifecycle_status not in (
+               'IN_PROBATION',
+               'PROBATION_REVIEW',
+               'PROBATION_EXTENDED',
+               'PROBATION_PASSED',
+               'MID_GENERATED',
+               'OFFER_LETTER_GENERATED',
+               'OFFER_LETTER_SENT',
+               'ACTIVE',
+               'SIGNED_OFFER_SUBMITTED',
+               'SIGNED_OFFER_VERIFIED',
+               'MISMATCH_REVIEW'
+           ) then
+            raise exception
+                'Candidate lifecycle status is not eligible for performance assignment.';
+        end if;
+
+        if v_lifecycle.probation_start_date is null then
+            raise exception 'Candidate probation start date is required.';
+        end if;
+
+        if v_lifecycle.probation_start_date > v_business_date then
+            raise exception
+                'Candidate probation start date cannot be in the future.';
+        end if;
+
+        v_internship_end_date := coalesce(
+            v_lifecycle.current_end_date,
+            v_lifecycle.original_end_date
+        );
+
+        if v_internship_end_date is null then
+            raise exception 'Candidate internship end date is required.';
+        end if;
+
+        if v_internship_end_date < v_lifecycle.probation_start_date then
+            raise exception
+                'Candidate internship end date is earlier than probation start date.';
+        end if;
+
+        select pg_catalog.array_agg(
+            matching_cycle.id
+            order by matching_cycle.start_date, matching_cycle.id
+        )
+        into v_cycle_ids
+        from (
+            select pc.id, pc.start_date
+            from public.performance_cycles pc
+            where pc.cycle_status = 'OPEN'
+              and v_business_date between pc.start_date and pc.end_date
+              and greatest(
+                  pc.start_date,
+                  v_lifecycle.probation_start_date
+              ) <= least(
+                  pc.end_date,
+                  v_internship_end_date
+              )
+            for update
+        ) as matching_cycle;
+
+        if coalesce(pg_catalog.cardinality(v_cycle_ids), 0) = 0 then
+            v_error_message :=
+                'No applicable OPEN performance cycle is currently available.';
+
+            update public.automation_jobs
+            set
+                job_status = 'RETRY',
+                scheduled_at = v_timestamp + interval '15 minutes',
+                completed_at = null,
+                error_message = v_error_message,
+                payload = payload || pg_catalog.jsonb_build_object(
+                    'pending_reason',
+                    'OPEN_CYCLE'
+                ),
+                updated_at = v_timestamp
+            where job_id = v_job.job_id
+            returning * into v_job;
+
+            if v_previous_status is distinct from 'RETRY'
+               or v_previous_error_message is distinct from v_error_message then
+                insert into public.hr_activity_logs (
+                    candidate_id,
+                    activity_type,
+                    from_status,
+                    to_status,
+                    remarks,
+                    activity_status,
+                    error_message,
+                    metadata,
+                    performed_by,
+                    performed_at,
+                    created_at,
+                    updated_at
+                )
+                values (
+                    v_job.candidate_id,
+                    'PERFORMANCE_ASSIGNMENT_PENDING',
+                    'IN_PROBATION',
+                    'IN_PROBATION',
+                    'Performance-cycle assignment is pending an OPEN cycle',
+                    'PENDING',
+                    v_error_message,
+                    pg_catalog.jsonb_build_object(
+                        'job_id',
+                        v_job.job_id,
+                        'pending_reason',
+                        'OPEN_CYCLE'
+                    ),
+                    v_job.requested_by::text,
+                    v_timestamp,
+                    v_timestamp,
+                    v_timestamp
+                );
+            end if;
+
+            return pg_catalog.jsonb_build_object(
+                'success', true,
+                'candidateId', v_job.candidate_id,
+                'jobId', v_job.job_id,
+                'jobStatus', v_job.job_status,
+                'performanceOutcome', 'PERFORMANCE_PENDING_CYCLE',
+                'message', v_error_message
+            );
+        end if;
+
+        if pg_catalog.cardinality(v_cycle_ids) > 1 then
+            v_error_message :=
+                'Multiple applicable OPEN performance cycles were found.';
+
+            update public.automation_jobs
+            set
+                job_status = 'FAILED',
+                completed_at = null,
+                error_message = v_error_message,
+                payload = payload || pg_catalog.jsonb_build_object(
+                    'failure_reason',
+                    'MULTIPLE_OPEN_CYCLES'
+                ),
+                updated_at = v_timestamp
+            where job_id = v_job.job_id
+            returning * into v_job;
+
+            if v_previous_status is distinct from 'FAILED'
+               or v_previous_error_message is distinct from v_error_message then
+                insert into public.hr_activity_logs (
+                    candidate_id,
+                    activity_type,
+                    from_status,
+                    to_status,
+                    remarks,
+                    activity_status,
+                    error_message,
+                    metadata,
+                    performed_by,
+                    performed_at,
+                    created_at,
+                    updated_at
+                )
+                values (
+                    v_job.candidate_id,
+                    'PERFORMANCE_ASSIGNMENT_FAILED',
+                    'IN_PROBATION',
+                    'IN_PROBATION',
+                    'Performance-cycle assignment failed because cycle configuration is ambiguous',
+                    'FAILED',
+                    v_error_message,
+                    pg_catalog.jsonb_build_object(
+                        'job_id',
+                        v_job.job_id,
+                        'failure_reason',
+                        'MULTIPLE_OPEN_CYCLES'
+                    ),
+                    v_job.requested_by::text,
+                    v_timestamp,
+                    v_timestamp,
+                    v_timestamp
+                );
+            end if;
+
+            return pg_catalog.jsonb_build_object(
+                'success', true,
+                'candidateId', v_job.candidate_id,
+                'jobId', v_job.job_id,
+                'jobStatus', v_job.job_status,
+                'performanceOutcome', 'PERFORMANCE_FAILED',
+                'message', v_error_message
+            );
+        end if;
+
+        v_cycle_id := v_cycle_ids[1];
+
+        select pc.*
+        into strict v_cycle
+        from public.performance_cycles pc
+        where pc.id = v_cycle_id
+        for update;
+
+        if v_cycle.cycle_status is distinct from 'OPEN'
+           or v_business_date not between v_cycle.start_date and v_cycle.end_date then
+            raise exception
+                'Applicable performance cycle changed during processing.';
+        end if;
+
+        v_effective_start_date := greatest(
+            v_cycle.start_date,
+            v_lifecycle.probation_start_date
+        );
+
+        select pm.pod_id
+        into v_pod_id
+        from public.pod_memberships pm
+        where pm.candidate_id = v_job.candidate_id
+          and pm.membership_type = 'CANDIDATE'
+          and pm.effective_from <= v_effective_start_date
+          and (
+              pm.effective_to is null
+              or pm.effective_to >= v_effective_start_date
+          )
+        order by
+            pm.effective_from desc,
+            pm.created_at desc,
+            pm.id desc
+        limit 1;
+
+        if v_pod_id is null then
+            v_error_message :=
+                'No valid candidate pod membership exists on the evaluation start date.';
+
+            update public.automation_jobs
+            set
+                job_status = 'RETRY',
+                scheduled_at = v_timestamp + interval '15 minutes',
+                completed_at = null,
+                error_message = v_error_message,
+                payload = payload || pg_catalog.jsonb_build_object(
+                    'cycle_id',
+                    v_cycle_id,
+                    'pending_reason',
+                    'POD_MEMBERSHIP'
+                ),
+                updated_at = v_timestamp
+            where job_id = v_job.job_id
+            returning * into v_job;
+
+            if v_previous_status is distinct from 'RETRY'
+               or v_previous_error_message is distinct from v_error_message then
+                insert into public.hr_activity_logs (
+                    candidate_id,
+                    activity_type,
+                    from_status,
+                    to_status,
+                    remarks,
+                    activity_status,
+                    error_message,
+                    metadata,
+                    performed_by,
+                    performed_at,
+                    created_at,
+                    updated_at
+                )
+                values (
+                    v_job.candidate_id,
+                    'PERFORMANCE_ASSIGNMENT_PENDING',
+                    'IN_PROBATION',
+                    'IN_PROBATION',
+                    'Performance-cycle assignment is pending a valid pod membership',
+                    'PENDING',
+                    v_error_message,
+                    pg_catalog.jsonb_build_object(
+                        'job_id',
+                        v_job.job_id,
+                        'cycle_id',
+                        v_cycle_id,
+                        'pending_reason',
+                        'POD_MEMBERSHIP'
+                    ),
+                    v_job.requested_by::text,
+                    v_timestamp,
+                    v_timestamp,
+                    v_timestamp
+                );
+            end if;
+
+            return pg_catalog.jsonb_build_object(
+                'success', true,
+                'candidateId', v_job.candidate_id,
+                'jobId', v_job.job_id,
+                'jobStatus', v_job.job_status,
+                'performanceOutcome', 'PERFORMANCE_PENDING_POD',
+                'cycleId', v_cycle_id,
+                'message', v_error_message
+            );
+        end if;
+
+        v_assignment_id := public.assign_candidate_to_performance_cycle(
+            v_job.candidate_id,
+            v_cycle_id
+        );
+
+        if v_assignment_id is null then
+            raise exception
+                'Candidate performance-cycle assignment returned no ID.';
+        end if;
+
+        v_eligible_days :=
+            public.refresh_candidate_cycle_eligible_days(v_assignment_id);
+
+        perform *
+        from public.refresh_candidate_cycle_daily_summary(v_assignment_id);
+
+        perform *
+        from public.refresh_candidate_cycle_review_summary(v_assignment_id);
+
+        perform public.refresh_candidate_cycle_exceptional_summary(
+            v_assignment_id
+        );
+
+        perform *
+        from public.refresh_candidate_cycle_result_status(v_assignment_id);
+
+        update public.automation_jobs
+        set
+            job_status = 'SUCCESS',
+            completed_at = v_timestamp,
+            error_message = null,
+            payload = payload || pg_catalog.jsonb_build_object(
+                'cycle_id',
+                v_cycle_id,
+                'assignment_id',
+                v_assignment_id,
+                'eligible_days',
+                v_eligible_days
+            ),
+            updated_at = v_timestamp
+        where job_id = v_job.job_id
+        returning * into v_job;
+
+        insert into public.hr_activity_logs (
+            candidate_id,
+            activity_type,
+            from_status,
+            to_status,
+            remarks,
+            activity_status,
+            metadata,
+            performed_by,
+            performed_at,
+            created_at,
+            updated_at
+        )
+        values (
+            v_job.candidate_id,
+            'PERFORMANCE_CYCLE_ASSIGNED',
+            'IN_PROBATION',
+            'IN_PROBATION',
+            'Candidate assigned to the current OPEN performance cycle',
+            'SUCCESS',
+            pg_catalog.jsonb_build_object(
+                'job_id',
+                v_job.job_id,
+                'cycle_id',
+                v_cycle_id,
+                'assignment_id',
+                v_assignment_id,
+                'eligible_days',
+                v_eligible_days
+            ),
+            v_job.requested_by::text,
+            v_timestamp,
+            v_timestamp,
+            v_timestamp
+        );
+
+        return pg_catalog.jsonb_build_object(
+            'success', true,
+            'candidateId', v_job.candidate_id,
+            'jobId', v_job.job_id,
+            'jobStatus', v_job.job_status,
+            'performanceOutcome', 'PERFORMANCE_ASSIGNED',
+            'cycleId', v_cycle_id,
+            'assignmentId', v_assignment_id,
+            'eligibleDays', v_eligible_days,
+            'message', 'Candidate assigned to the current performance cycle.'
+        );
+    exception
+        when others then
+            v_error_message := pg_catalog.left(
+                coalesce(
+                    nullif(pg_catalog.btrim(sqlerrm), ''),
+                    'Performance-cycle assignment failed.'
+                ),
+                1000
+            );
+
+            update public.automation_jobs
+            set
+                job_status = 'FAILED',
+                completed_at = null,
+                error_message = v_error_message,
+                payload = payload || pg_catalog.jsonb_build_object(
+                    'failure_reason',
+                    'PROCESSING_ERROR'
+                ),
+                updated_at = v_timestamp
+            where job_id = v_job.job_id
+            returning * into v_job;
+
+            if v_previous_status is distinct from 'FAILED'
+               or v_previous_error_message is distinct from v_error_message then
+                insert into public.hr_activity_logs (
+                    candidate_id,
+                    activity_type,
+                    from_status,
+                    to_status,
+                    remarks,
+                    activity_status,
+                    error_message,
+                    metadata,
+                    performed_by,
+                    performed_at,
+                    created_at,
+                    updated_at
+                )
+                values (
+                    v_job.candidate_id,
+                    'PERFORMANCE_ASSIGNMENT_FAILED',
+                    'IN_PROBATION',
+                    'IN_PROBATION',
+                    'Performance-cycle assignment processing failed',
+                    'FAILED',
+                    v_error_message,
+                    pg_catalog.jsonb_build_object(
+                        'job_id',
+                        v_job.job_id,
+                        'failure_reason',
+                        'PROCESSING_ERROR'
+                    ),
+                    v_job.requested_by::text,
+                    v_timestamp,
+                    v_timestamp,
+                    v_timestamp
+                );
+            end if;
+
+            return pg_catalog.jsonb_build_object(
+                'success', true,
+                'candidateId', v_job.candidate_id,
+                'jobId', v_job.job_id,
+                'jobStatus', v_job.job_status,
+                'performanceOutcome', 'PERFORMANCE_FAILED',
+                'message', 'Performance-cycle assignment could not be completed.'
+            );
+    end;
+end;
+$function$;
+
+comment on function
+    public.process_performance_cycle_assignment_job(uuid) is
+    'Claims and processes one performance-cycle assignment job using exactly one current OPEN cycle, the existing candidate assignment logic, and candidate-specific eligible-day and summary refresh functions. Pending cycle or pod conditions are durable and retryable; failures never roll back the already committed IN_PROBATION lifecycle transition.';
+
+revoke execute on function
+    public.process_performance_cycle_assignment_job(uuid)
+from public;
+
+revoke execute on function
+    public.process_performance_cycle_assignment_job(uuid)
+from anon;
+
+revoke execute on function
+    public.process_performance_cycle_assignment_job(uuid)
+from authenticated;
+
+grant execute on function
+    public.process_performance_cycle_assignment_job(uuid)
+to service_role;
+
+
+create or replace function public.run_daily_performance_cycle_maintenance()
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $function$
+declare
+    v_business_date date :=
+        (current_timestamp at time zone 'Asia/Kolkata')::date;
+    v_current_month date;
+    v_next_month date;
+    v_review_opened_cycle_count integer := 0;
+    v_opened_cycle_count integer := 0;
+    v_retried_job_count integer := 0;
+    v_retry_error_count integer := 0;
+    v_job record;
+begin
+    v_current_month :=
+        pg_catalog.date_trunc('month', v_business_date::timestamp)::date;
+    v_next_month := (v_current_month + interval '1 month')::date;
+
+    perform public.generate_performance_cycles_for_month(v_current_month);
+    perform public.generate_performance_cycles_for_month(v_next_month);
+
+    update public.performance_cycles
+    set
+        cycle_status = 'REVIEW_OPEN',
+        updated_at = current_timestamp
+    where cycle_status in ('DRAFT', 'OPEN')
+      and review_open_date <= v_business_date;
+
+    get diagnostics v_review_opened_cycle_count = row_count;
+
+    update public.performance_cycles
+    set
+        cycle_status = 'OPEN',
+        updated_at = current_timestamp
+    where cycle_status = 'DRAFT'
+      and v_business_date between start_date and end_date
+      and v_business_date < review_open_date;
+
+    get diagnostics v_opened_cycle_count = row_count;
+
+    for v_job in
+        select aj.job_id
+        from public.automation_jobs aj
+        where aj.job_type = 'PERFORMANCE_CYCLE_ASSIGNMENT'
+          and aj.job_status in ('PENDING', 'RETRY')
+          and aj.payload ->> 'pending_reason' = 'OPEN_CYCLE'
+        order by aj.created_at, aj.job_id
+    loop
+        v_retried_job_count := v_retried_job_count + 1;
+
+        begin
+            perform public.process_performance_cycle_assignment_job(
+                v_job.job_id
+            );
+        exception
+            when others then
+                v_retry_error_count := v_retry_error_count + 1;
+        end;
+    end loop;
+
+    return pg_catalog.jsonb_build_object(
+        'businessDate', v_business_date,
+        'reviewOpenedCycleCount', v_review_opened_cycle_count,
+        'openedCycleCount', v_opened_cycle_count,
+        'retriedJobCount', v_retried_job_count,
+        'retryErrorCount', v_retry_error_count
+    );
+end;
+$function$;
+
+comment on function
+    public.run_daily_performance_cycle_maintenance() is
+    'Runs daily performance-cycle maintenance using the Asia/Kolkata business date. It generates idempotent current- and next-month cycles, advances eligible cycles to OPEN or REVIEW_OPEN without moving statuses backwards, and retries existing PERFORMANCE_CYCLE_ASSIGNMENT jobs waiting for an OPEN cycle. The pg_cron schedule runs at 12:05 AM Asia/Kolkata, which is 18:35 UTC on the previous calendar day.';
+
+revoke execute on function
+    public.run_daily_performance_cycle_maintenance()
+from public;
+
+revoke execute on function
+    public.run_daily_performance_cycle_maintenance()
+from anon;
+
+revoke execute on function
+    public.run_daily_performance_cycle_maintenance()
+from authenticated;
+
+grant execute on function
+    public.run_daily_performance_cycle_maintenance()
+to service_role;
+
+-- PostgreSQL Cron uses UTC. 35 18 * * * runs at 12:05 AM Asia/Kolkata.
+-- This job generates current/next-month cycles, advances cycle statuses,
+-- and retries existing performance assignments waiting for an OPEN cycle.
+do $do$
+declare
+    v_job_id bigint;
+begin
+    for v_job_id in
+        select jobid
+        from cron.job
+        where jobname = 'performance-cycle-daily-maintenance'
+    loop
+        perform cron.unschedule(v_job_id);
+    end loop;
+end;
+$do$;
+
+select cron.schedule(
+    'performance-cycle-daily-maintenance',
+    '35 18 * * *',
+    $cron$select public.run_daily_performance_cycle_maintenance();$cron$
+);
+
+commit;
