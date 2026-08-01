@@ -305,6 +305,37 @@ export default function ExitQuestionField({
     );
   }
 
+  // ----- SINGLE LINE TEXT INPUT -----
+  if (type === "text") {
+    return (
+      <div className="form-group" style={{ marginBottom: 18 }}>
+        {labelEl}
+        <input
+          type="text"
+          id={fieldId}
+          value={value || ""}
+          onChange={(e) => onChange(e.target.value)}
+          required={required}
+          aria-describedby={
+            [hint ? `${fieldId}-hint` : "", error ? `${fieldId}-error` : ""]
+              .filter(Boolean)
+              .join(" ") || undefined
+          }
+          style={{
+            width: "100%",
+            padding: "11px",
+            borderRadius: 8,
+            border: "1px solid #cbd5e1",
+            fontSize: 15,
+            fontFamily: "inherit",
+          }}
+        />
+        {hintEl}
+        {errorEl}
+      </div>
+    );
+  }
+
   // ----- TEXTAREA (default) -----
   return (
     <div className="form-group" style={{ marginBottom: 18 }}>

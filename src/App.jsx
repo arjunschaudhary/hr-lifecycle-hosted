@@ -25,6 +25,7 @@ import PerformanceDashboard from "./pages/PerformanceDashboard";
 import DailyPerformanceMarking from "./pages/DailyPerformanceMarking";
 import LeadReviews from "./pages/LeadReviews";
 import LeadReviewDetail from "./pages/LeadReviewDetail";
+import HRExitEvaluation from "./pages/HRExitEvaluation";
 
 function App() {
   return (
@@ -49,6 +50,9 @@ function App() {
         <Route element={<ProtectedRoute />}>
           <Route path="/" element={<HRDashboard />} />
           <Route path="/probation-review" element={<ProbationReview />} />
+          <Route path="/hr-exit-evaluations" element={<HRExitEvaluation />} />
+          <Route path="/hr-exit-evaluation" element={<HRExitEvaluation />} />
+          <Route path="/hr-exit-evaluation/:exitCaseId" element={<HRExitEvaluation />} />
           <Route path="/offer-approval" element={<OfferApproval />} />
           <Route path="/active-interns" element={<ActiveInterns />} />
           <Route path="/signed-offer-upload" element={<SignedOfferUpload />} />

@@ -110,3 +110,61 @@ export const REJOIN_OPTIONS = [
 
 export const RATING_SCALE = [1, 2, 3, 4, 5];
 export const NPS_SCALE = Array.from({ length: 11 }, (_, i) => i); // 0-10
+
+export const HR_EXIT_REASONS = [
+  ...EXIT_REASONS,
+  { value: "unsure", label: "Unsure" },
+];
+
+export const HR_PREVENTABLE_OPTIONS = [
+  { value: "definitely_yes", label: "Definitely Yes" },
+  { value: "probably_yes", label: "Probably Yes" },
+  { value: "not_sure", label: "Not Sure" },
+  { value: "probably_not", label: "Probably Not" },
+  { value: "definitely_not", label: "Definitely Not" },
+  { value: "not_applicable", label: "Not Applicable" },
+];
+
+export const RETENTION_ATTEMPT_OPTIONS = [
+  { value: "yes", label: "Yes" },
+  { value: "no", label: "No" },
+];
+
+export const HR_EXTENSION_OFFER_OPTIONS = [
+  { value: "yes", label: "Yes" },
+  { value: "no", label: "No" },
+  { value: "not_applicable", label: "Not Applicable" },
+];
+
+export const LEAD_EXTENSION_RECOMMENDATION_OPTIONS = [
+  { value: "yes", label: "Yes" },
+  { value: "no", label: "No" },
+  { value: "not_applicable", label: "Not Applicable" },
+];
+
+export const RECOMMENDATION_DECISION_OPTIONS = [
+  { value: "yes", label: "Yes" },
+  { value: "no", label: "No" },
+  { value: "conditional", label: "Conditional" },
+];
+
+export const REHIRE_ELIGIBILITY_OPTIONS = [
+  { value: "yes", label: "Yes" },
+  { value: "no", label: "No" },
+  { value: "maybe", label: "Maybe" },
+];
+
+export const HANDOVER_COMPLETE_OPTIONS = [
+  { value: "yes", label: "Yes" },
+  { value: "partially", label: "Partially" },
+  { value: "no", label: "No" },
+  { value: "not_applicable", label: "Not Applicable" },
+];
+
+export const HANDOVER_METHOD_OPTIONS = [
+  { value: "live_meeting", label: "Live Meeting" },
+  { value: "whatsapp", label: "WhatsApp" },
+  { value: "email", label: "Email" },
+  { value: "shared_document", label: "Shared Document" },
+  { value: "not_done", label: "Not Done" },
+];

@@ -6,7 +6,12 @@
 import { CheckCircle } from "lucide-react";
 import { Link } from "react-router-dom";
 
-export default function ExitSuccess() {
+export default function ExitSuccess({
+  title = "Feedback Submitted",
+  message = "Thank you for completing the exit questionnaire. Your responses have been recorded. Our HR team will be in touch if needed.",
+  linkText = "← Return to Portal",
+  linkPath = "/portal",
+}) {
   return (
     <section
       className="card card-success"
@@ -22,14 +27,13 @@ export default function ExitSuccess() {
         style={{ marginBottom: 16 }}
       />
       <h1 id="exit-success-title" style={{ marginTop: 0, fontSize: 24 }}>
-        Feedback Submitted
+        {title}
       </h1>
       <p style={{ color: "#64748b", lineHeight: 1.6, marginBottom: 28 }}>
-        Thank you for completing the exit questionnaire. Your responses have been
-        recorded. Our HR team will be in touch if needed.
+        {message}
       </p>
-      <Link className="btn btn-secondary" to="/portal">
-        ← Return to Portal
+      <Link className="btn btn-secondary" to={linkPath}>
+        {linkText}
       </Link>
     </section>
   );
