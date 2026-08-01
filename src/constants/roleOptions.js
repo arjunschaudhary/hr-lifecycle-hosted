@@ -5,6 +5,7 @@ export const ROLE_OPTIONS = [
   { name: "Design Intern", code: "DES" },
   { name: "Finance Intern", code: "FIN" },
   { name: "HR Intern", code: "HRI" },
+  { name: "HR Psyconnect Intern", code: "HPI" },
   { name: "Marketing Intern", code: "MKT" },
   { name: "Operation Intern", code: "OPR" },
   { name: "Product Intern", code: "PRD" },
