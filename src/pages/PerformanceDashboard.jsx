@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   Calculator,
@@ -20,6 +20,42 @@ const DATE_FORMATTER = new Intl.DateTimeFormat("en-IN", {
   month: "short",
   year: "numeric",
 });
+
+const MONTH_NAMES = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
+
+const getMonthKey = (value) => {
+  if (typeof value !== "string") {
+    return "";
+  }
+
+  const match = /^(\d{4})-(\d{2})-\d{2}$/.exec(value);
+  return match ? `${match[1]}-${match[2]}` : "";
+};
+
+const formatMonthLabel = (monthKey) => {
+  const match = /^(\d{4})-(\d{2})$/.exec(monthKey);
+  if (!match) {
+    return monthKey;
+  }
+
+  const monthIndex = Number(match[2]) - 1;
+  return MONTH_NAMES[monthIndex]
+    ? `${MONTH_NAMES[monthIndex]} ${match[1]}`
+    : monthKey;
+};
 
 const formatDate = (value) => {
   if (!value) {
@@ -83,12 +119,14 @@ const PerformanceDashboard = () => {
   const [actionItems, setActionItems] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [pageError, setPageError] = useState("");
+  const [selectedMonthKey, setSelectedMonthKey] = useState("");
   const [selectedCycleId, setSelectedCycleId] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedPod, setSelectedPod] = useState("");
   const [selectedResultStatus, setSelectedResultStatus] = useState("");
   const [selectedActionOwner, setSelectedActionOwner] = useState("");
   const [retryRequestId, setRetryRequestId] = useState(0);
+  const selectedCycleIdRef = useRef("");
 
   useEffect(() => {
     if (!hasPerformanceDashboardAccess) {
@@ -122,16 +160,19 @@ const PerformanceDashboard = () => {
         setCycles(nextCycles);
         setCandidateRecords(nextCandidateRecords);
         setActionItems(nextActionItems);
-        setSelectedCycleId((currentCycleId) => {
-          if (
-            currentCycleId &&
-            nextCycles.some((cycle) => cycle.cycleId === currentCycleId)
-          ) {
-            return currentCycleId;
-          }
+        const preservedCycle = nextCycles.find(
+          (cycle) => cycle.cycleId === selectedCycleIdRef.current,
+        );
+        const nextSelectedCycle =
+          preservedCycle ||
+          nextCycles.find((cycle) => cycle.cycleStatus === "OPEN") ||
+          nextCycles[0] ||
+          null;
+        const nextSelectedCycleId = nextSelectedCycle?.cycleId || "";
 
-          return nextCycles[0]?.cycleId || "";
-        });
+        selectedCycleIdRef.current = nextSelectedCycleId;
+        setSelectedMonthKey(getMonthKey(nextSelectedCycle?.startDate));
+        setSelectedCycleId(nextSelectedCycleId);
       } catch {
         if (isMounted) {
           setPageError("Unable to load the Performance Dashboard.");
@@ -149,6 +190,32 @@ const PerformanceDashboard = () => {
       isMounted = false;
     };
   }, [hasPerformanceDashboardAccess, retryRequestId]);
+
+  const monthOptions = useMemo(() => {
+    const months = new Map();
+
+    cycles.forEach((cycle) => {
+      const key = getMonthKey(cycle.startDate);
+      if (key && !months.has(key)) {
+        months.set(key, {
+          key,
+          label: formatMonthLabel(key),
+        });
+      }
+    });
+
+    return Array.from(months.values()).sort((left, right) =>
+      right.key.localeCompare(left.key),
+    );
+  }, [cycles]);
+
+  const filteredCycles = useMemo(
+    () =>
+      cycles.filter(
+        (cycle) => getMonthKey(cycle.startDate) === selectedMonthKey,
+      ),
+    [cycles, selectedMonthKey],
+  );
 
   const selectedCycle = useMemo(
     () => cycles.find((cycle) => cycle.cycleId === selectedCycleId) || null,
@@ -239,7 +306,27 @@ const PerformanceDashboard = () => {
   );
 
   const handleCycleChange = (event) => {
+    selectedCycleIdRef.current = event.target.value;
     setSelectedCycleId(event.target.value);
+    setSelectedPod("");
+    setSelectedResultStatus("");
+    setSelectedActionOwner("");
+  };
+
+  const handleMonthChange = (event) => {
+    const nextMonthKey = event.target.value;
+    const nextMonthCycles = cycles.filter(
+      (cycle) => getMonthKey(cycle.startDate) === nextMonthKey,
+    );
+    const nextCycle =
+      nextMonthCycles.find((cycle) => cycle.cycleStatus === "OPEN") ||
+      nextMonthCycles[0] ||
+      null;
+    const nextCycleId = nextCycle?.cycleId || "";
+
+    setSelectedMonthKey(nextMonthKey);
+    selectedCycleIdRef.current = nextCycleId;
+    setSelectedCycleId(nextCycleId);
     setSelectedPod("");
     setSelectedResultStatus("");
     setSelectedActionOwner("");
@@ -300,21 +387,39 @@ const PerformanceDashboard = () => {
         <>
           <section aria-labelledby="cycle-overview-heading">
             <h2 id="cycle-overview-heading">Cycle Overview</h2>
-            <div className="form-group">
-              <label htmlFor="performance-cycle">Performance Cycle</label>
-              <select
-                id="performance-cycle"
-                className="form-select"
-                value={selectedCycleId}
-                onChange={handleCycleChange}
-              >
-                {cycles.map((cycle) => (
-                  <option key={cycle.cycleId} value={cycle.cycleId}>
-                    {cycle.cycleCode} ({formatDate(cycle.startDate)} -{" "}
-                    {formatDate(cycle.endDate)})
-                  </option>
-                ))}
-              </select>
+            <div className="metric-grid">
+              <div className="form-group">
+                <label htmlFor="performance-month">Performance Month</label>
+                <select
+                  id="performance-month"
+                  className="form-select"
+                  value={selectedMonthKey}
+                  onChange={handleMonthChange}
+                >
+                  {monthOptions.map((month) => (
+                    <option key={month.key} value={month.key}>
+                      {month.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-group">
+                <label htmlFor="performance-cycle">Performance Cycle</label>
+                <select
+                  id="performance-cycle"
+                  className="form-select"
+                  value={selectedCycleId}
+                  onChange={handleCycleChange}
+                  disabled={filteredCycles.length === 0}
+                >
+                  {filteredCycles.map((cycle) => (
+                    <option key={cycle.cycleId} value={cycle.cycleId}>
+                      {cycle.cycleCode} ({formatDate(cycle.startDate)} -{" "}
+                      {formatDate(cycle.endDate)})
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
 
             <div className="metric-grid">
