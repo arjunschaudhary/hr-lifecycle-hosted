@@ -366,9 +366,16 @@ export default function CandidatePortal() {
 
       <section className="card" aria-labelledby="candidate-reference-title">
         <h2 id="candidate-reference-title">Candidate reference</h2>
+
         <p>
-          Candidate ID: <code>{candidateId}</code>
+          MID:{" "}
+          <strong>
+            {loading
+              ? "Loading..."
+              : formatValue(summary?.profile?.mid) || "Not generated yet"}
+          </strong>
         </p>
+
       </section>
 
       {loading && (
