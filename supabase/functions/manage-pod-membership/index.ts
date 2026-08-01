@@ -17,6 +17,7 @@ const OPERATIONS = new Set([
   "UPDATE_POD",
   "ASSIGN_CANDIDATE",
   "ASSIGN_LEAD",
+  "ASSIGN_HR_REVIEWER",
   "END_MEMBERSHIP",
 ]);
 
@@ -43,6 +44,12 @@ const SAFE_DATABASE_MESSAGES = new Set([
   "Candidate role is not active for the mapped portal user.",
   "Lead membership dates overlap an existing lead assignment in this pod.",
   "Required candidate portal account or active role was not found.",
+  "HR Psyconnect reviewer assignment values are invalid.",
+  "HR Psyconnect reviewers cannot be assigned to an inactive pod.",
+  "HR Psyconnect reviewer was not found.",
+  "Target user does not have active HR_SITE_CONNECT access.",
+  "Pod already has an active HR Psyconnect reviewer. End the current membership before assigning another.",
+  "HR Psyconnect reviewer membership dates overlap an existing assignment in this pod.",
   "Membership and end date are required.",
   "Pod membership is already inactive.",
   "Membership end date cannot be earlier than its start date.",
@@ -161,11 +168,17 @@ function safeDatabaseMessage(error: unknown): string {
 
 function logServerError(
   operation: string,
-  context: { candidateId?: string; podId?: string; jobId?: string } = {},
+  context: {
+    candidateId?: string;
+    userId?: string;
+    podId?: string;
+    jobId?: string;
+  } = {},
 ): void {
   console.error("manage-pod-membership error", {
     operation,
     candidate_id: context.candidateId,
+    user_id: context.userId,
     pod_id: context.podId,
     job_id: context.jobId,
   });
@@ -190,6 +203,7 @@ function parseRequest(body: unknown): {
   rpcName: string;
   rpcArgs: JsonRecord;
   candidateId?: string;
+  userId?: string;
   podId?: string;
 } {
   if (!isRecord(body) || !nonBlank(body.operation)) {
@@ -313,6 +327,38 @@ function parseRequest(body: unknown): {
     };
   }
 
+  if (operation === "ASSIGN_HR_REVIEWER") {
+    requireExactKeys(body, [
+      "operation",
+      "userId",
+      "podId",
+      "effectiveFrom",
+    ]);
+    if (
+      !validUuid(body.userId) ||
+      !validUuid(body.podId) ||
+      !validDate(body.effectiveFrom)
+    ) {
+      throw new HttpError(
+        400,
+        "HR Psyconnect reviewer assignment values are invalid.",
+      );
+    }
+    const userId = body.userId.trim().toLowerCase();
+    const podId = body.podId.trim().toLowerCase();
+    return {
+      operation,
+      rpcName: "assign_hr_site_connect_to_pod",
+      rpcArgs: {
+        p_user_id: userId,
+        p_pod_id: podId,
+        p_effective_from: body.effectiveFrom,
+      },
+      userId,
+      podId,
+    };
+  }
+
   requireExactKeys(body, ["operation", "membershipId", "effectiveTo"]);
   if (!validUuid(body.membershipId) || !validDate(body.effectiveTo)) {
     throw new HttpError(400, "Membership end values are invalid.");
@@ -390,6 +436,7 @@ Deno.serve(async (request: Request) => {
     if (operationResult.error) {
       logServerError("pod_operation", {
         candidateId: requestContext.candidateId,
+        userId: requestContext.userId,
         podId: requestContext.podId,
       });
       throw new HttpError(400, safeDatabaseMessage(operationResult.error));
@@ -397,6 +444,7 @@ Deno.serve(async (request: Request) => {
     if (!isSuccessfulRpcResult(operationResult.data)) {
       logServerError("invalid_pod_operation_response", {
         candidateId: requestContext.candidateId,
+        userId: requestContext.userId,
         podId: requestContext.podId,
       });
       throw new HttpError(
@@ -432,6 +480,7 @@ Deno.serve(async (request: Request) => {
       ) {
         logServerError("performance_assignment_retry", {
           candidateId: requestContext.candidateId,
+          userId: requestContext.userId,
           podId: requestContext.podId,
           jobId,
         });
@@ -478,6 +527,7 @@ Deno.serve(async (request: Request) => {
     }
     logServerError("unexpected_request_failure", {
       candidateId: requestContext?.candidateId,
+      userId: requestContext?.userId,
       podId: requestContext?.podId,
     });
     return jsonResponse(

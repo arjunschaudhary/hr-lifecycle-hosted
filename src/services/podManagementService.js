@@ -63,11 +63,20 @@ const WAITING_COLUMNS = [
   "has_active_portal_account",
 ];
 
+const HR_REVIEWER_COLUMNS = [
+  "user_id",
+  "full_name",
+  "email",
+  "active_pod_count",
+  "active_pod_codes",
+];
+
 const WRITE_OPERATIONS = new Set([
   "CREATE_POD",
   "UPDATE_POD",
   "ASSIGN_CANDIDATE",
   "ASSIGN_LEAD",
+  "ASSIGN_HR_REVIEWER",
   "END_MEMBERSHIP",
 ]);
 
@@ -103,6 +112,12 @@ const SAFE_FUNCTION_MESSAGES = new Set([
   "Candidate role is not active for the mapped portal user.",
   "Lead membership dates overlap an existing lead assignment in this pod.",
   "Required candidate portal account or active role was not found.",
+  "HR Psyconnect reviewer assignment values are invalid.",
+  "HR Psyconnect reviewers cannot be assigned to an inactive pod.",
+  "HR Psyconnect reviewer was not found.",
+  "Target user does not have active HR_SITE_CONNECT access.",
+  "Pod already has an active HR Psyconnect reviewer. End the current membership before assigning another.",
+  "HR Psyconnect reviewer membership dates overlap an existing assignment in this pod.",
   "Membership and end date are required.",
   "Pod membership is already inactive.",
   "Membership end date cannot be earlier than its start date.",
@@ -287,6 +302,29 @@ function mapWaitingCandidate(row) {
   };
 }
 
+function mapHrPsyconnectReviewer(row) {
+  if (
+    !isRecord(row) ||
+    !hasCompleteShape(row, HR_REVIEWER_COLUMNS) ||
+    !isValidUuid(row.user_id) ||
+    !isNonEmptyString(row.full_name) ||
+    !isNonEmptyString(row.email) ||
+    !isNonNegativeInteger(row.active_pod_count) ||
+    !Array.isArray(row.active_pod_codes) ||
+    row.active_pod_codes.some((podCode) => !isNonEmptyString(podCode))
+  ) {
+    throw new Error(SAFE_READ_ERROR);
+  }
+
+  return {
+    userId: row.user_id,
+    fullName: row.full_name,
+    email: row.email,
+    activePodCount: row.active_pod_count,
+    activePodCodes: row.active_pod_codes,
+  };
+}
+
 async function callReadRpc(rpcName, args, mapper) {
   if (!supabase || typeof supabase.rpc !== "function") {
     throw new Error(SAFE_READ_ERROR);
@@ -337,6 +375,24 @@ export function fetchCandidatesWaitingForPod() {
     "get_candidates_waiting_for_pod",
     undefined,
     mapWaitingCandidate,
+  );
+}
+
+export function searchPodHrPsyconnectReviewers(searchTerm = "") {
+  const normalizedSearch = typeof searchTerm === "string"
+    ? searchTerm.trim()
+    : "";
+
+  if (normalizedSearch.length > 150) {
+    return Promise.reject(
+      new Error("HR Psyconnect reviewer search is too long."),
+    );
+  }
+
+  return callReadRpc(
+    "search_pod_management_hr_reviewers",
+    { p_search_term: normalizedSearch },
+    mapHrPsyconnectReviewer,
   );
 }
 
@@ -437,6 +493,22 @@ function validateWriteResponse(response, operation) {
       !["POD_LEAD", "TECH_LEAD"].includes(podOperation.membershipType) ||
       !isNonEmptyString(podOperation.effectiveFrom) ||
       podOperation.candidateRolePreserved !== true
+    )
+  ) {
+    throw new Error(SAFE_WRITE_ERROR);
+  }
+
+  if (
+    operation === "ASSIGN_HR_REVIEWER" &&
+    (
+      podOperation.operation !== "ASSIGN_HR_REVIEWER" ||
+      !isValidUuid(podOperation.userId) ||
+      !isValidUuid(podOperation.podId) ||
+      !isValidUuid(podOperation.membershipId) ||
+      podOperation.membershipType !== "HR_SITE_CONNECT" ||
+      !isNonEmptyString(podOperation.effectiveFrom) ||
+      (podOperation.changed !== undefined &&
+        typeof podOperation.changed !== "boolean")
     )
   ) {
     throw new Error(SAFE_WRITE_ERROR);
