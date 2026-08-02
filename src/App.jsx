@@ -23,6 +23,8 @@ import InternshipExtension from "./pages/InternshipExtension";
 import CandidatePortal from "./pages/CandidatePortal";
 import PerformanceDashboard from "./pages/PerformanceDashboard";
 import DailyPerformanceMarking from "./pages/DailyPerformanceMarking";
+import HrReviewQueue from "./pages/HrReviewQueue";
+import HrReviewDetail from "./pages/HrReviewDetail";
 import LeadReviews from "./pages/LeadReviews";
 import LeadReviewDetail from "./pages/LeadReviewDetail";
 import PodManagement from "./pages/PodManagement";
@@ -70,6 +72,14 @@ function App() {
           <Route
             path="/performance-dashboard/:candidateCycleId/daily"
             element={<DailyPerformanceMarking />}
+          />
+          <Route
+            path="/performance/hr-review"
+            element={<HrReviewQueue />}
+          />
+          <Route
+            path="/performance/hr-review/:candidateCycleId"
+            element={<HrReviewDetail />}
           />
         </Route>
         <Route path="*" element={<Navigate to="/login" replace />} />
