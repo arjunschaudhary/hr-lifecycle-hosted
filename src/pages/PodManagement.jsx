@@ -24,6 +24,7 @@ import {
   fetchPodManagementPods,
   fetchPodMemberships,
   searchPodCandidates,
+  searchPodHrPsyconnectReviewers,
 } from "../services/podManagementService";
 
 const EMPTY_FORM = {
@@ -32,6 +33,7 @@ const EMPTY_FORM = {
   description: "",
   isActive: true,
   candidateId: "",
+  userId: "",
   podId: "",
   leadType: "POD_LEAD",
   effectiveFrom: "",
@@ -86,6 +88,9 @@ function getToday() {
 }
 
 function getMemberKind(membership) {
+  if (membership.membershipType === "HR_SITE_CONNECT") {
+    return "HR Psyconnect reviewer";
+  }
   if (membership.membershipType === "CANDIDATE") {
     return "Candidate";
   }
@@ -115,6 +120,11 @@ export default function PodManagement() {
   const [selectedPodId, setSelectedPodId] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [hasSearchedCandidates, setHasSearchedCandidates] = useState(false);
+  const [reviewerSearchTerm, setReviewerSearchTerm] = useState("");
+  const [reviewerSearchResults, setReviewerSearchResults] = useState([]);
+  const [reviewerSearchLoading, setReviewerSearchLoading] = useState(false);
+  const [reviewerSearchError, setReviewerSearchError] = useState("");
+  const [hasSearchedReviewers, setHasSearchedReviewers] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [membershipsLoading, setMembershipsLoading] = useState(false);
   const [searchLoading, setSearchLoading] = useState(false);
@@ -129,6 +139,8 @@ export default function PodManagement() {
   const [selectedCandidateId, setSelectedCandidateId] = useState(null);
   const inFlightRef = useRef(false);
   const candidateSearchRequestRef = useRef(0);
+  const reviewerSearchRequestRef = useRef(0);
+  const reviewerSearchInFlightRef = useRef(false);
   const selectedPodDetailsRef = useRef(null);
 
   const selectedPod = useMemo(
@@ -163,6 +175,24 @@ export default function PodManagement() {
     ),
     [currentMemberships],
   );
+  const currentHrReviewers = useMemo(
+    () => currentMemberships.filter(
+      (membership) => membership.membershipType === "HR_SITE_CONNECT",
+    ),
+    [currentMemberships],
+  );
+  const currentHrReviewer = currentHrReviewers[0] || null;
+
+  const resetReviewerSearchState = useCallback(() => {
+    reviewerSearchRequestRef.current += 1;
+    reviewerSearchInFlightRef.current = false;
+    setReviewerSearchTerm("");
+    setReviewerSearchResults([]);
+    setReviewerSearchLoading(false);
+    setReviewerSearchError("");
+    setHasSearchedReviewers(false);
+    setForm((current) => ({ ...current, userId: "" }));
+  }, []);
 
   const metrics = useMemo(() => ({
     totalPods: pods.length,
@@ -259,6 +289,9 @@ export default function PodManagement() {
     document.body.style.overflow = "hidden";
     const handleEscape = (event) => {
       if (event.key === "Escape" && !inFlightRef.current) {
+        if (modalMode === "assignHrReviewer") {
+          resetReviewerSearchState();
+        }
         setModalMode("");
         setModalContext(null);
       }
@@ -268,7 +301,7 @@ export default function PodManagement() {
       document.removeEventListener("keydown", handleEscape);
       document.body.style.overflow = previousOverflow;
     };
-  }, [modalMode]);
+  }, [modalMode, resetReviewerSearchState]);
 
   const refreshAfterWrite = useCallback(async () => {
     await loadWorkspace();
@@ -288,6 +321,9 @@ export default function PodManagement() {
 
   const openModal = (mode, context = null) => {
     const today = getToday();
+    if (mode === "assignHrReviewer") {
+      resetReviewerSearchState();
+    }
     setModalMode(mode);
     setModalContext(context);
     setModalError("");
@@ -300,6 +336,7 @@ export default function PodManagement() {
       description: mode === "editPod" ? context.description || "" : "",
       isActive: mode === "editPod" ? context.isActive : true,
       candidateId: context?.candidateId || "",
+      userId: context?.userId || "",
       podId: context?.podId || selectedPodId || "",
       leadType: context?.leadType || "POD_LEAD",
       effectiveFrom:
@@ -312,6 +349,9 @@ export default function PodManagement() {
   const closeModal = () => {
     if (inFlightRef.current) {
       return;
+    }
+    if (modalMode === "assignHrReviewer") {
+      resetReviewerSearchState();
     }
     setModalMode("");
     setModalContext(null);
@@ -378,6 +418,58 @@ export default function PodManagement() {
     setSearchLoading(false);
   };
 
+  const handleReviewerSearch = async () => {
+    if (reviewerSearchInFlightRef.current) {
+      return;
+    }
+
+    const normalizedSearchTerm = reviewerSearchTerm.trim();
+    if (normalizedSearchTerm.length > 150) {
+      setReviewerSearchError("HR Psyconnect reviewer search is too long.");
+      return;
+    }
+
+    const requestId = reviewerSearchRequestRef.current + 1;
+    reviewerSearchRequestRef.current = requestId;
+    reviewerSearchInFlightRef.current = true;
+    setReviewerSearchLoading(true);
+    setReviewerSearchError("");
+    setReviewerSearchResults([]);
+    setHasSearchedReviewers(false);
+    setForm((current) => ({ ...current, userId: "" }));
+
+    try {
+      const results = await searchPodHrPsyconnectReviewers(
+        normalizedSearchTerm,
+      );
+      if (reviewerSearchRequestRef.current === requestId) {
+        setReviewerSearchResults(results);
+        setHasSearchedReviewers(true);
+      }
+    } catch (error) {
+      if (reviewerSearchRequestRef.current === requestId) {
+        setReviewerSearchError(error.message);
+        setHasSearchedReviewers(true);
+      }
+    } finally {
+      if (reviewerSearchRequestRef.current === requestId) {
+        reviewerSearchInFlightRef.current = false;
+        setReviewerSearchLoading(false);
+      }
+    }
+  };
+
+  const handleReviewerSearchTermChange = (event) => {
+    reviewerSearchRequestRef.current += 1;
+    reviewerSearchInFlightRef.current = false;
+    setReviewerSearchTerm(event.target.value);
+    setReviewerSearchResults([]);
+    setReviewerSearchLoading(false);
+    setReviewerSearchError("");
+    setHasSearchedReviewers(false);
+    setForm((current) => ({ ...current, userId: "" }));
+  };
+
   const handleSubmit = async (event) => {
     event.preventDefault();
     if (inFlightRef.current) {
@@ -421,6 +513,13 @@ export default function PodManagement() {
           leadType: form.leadType,
           effectiveFrom: form.effectiveFrom,
         };
+      } else if (modalMode === "assignHrReviewer") {
+        operation = "ASSIGN_HR_REVIEWER";
+        fields = {
+          userId: form.userId,
+          podId: modalContext.podId,
+          effectiveFrom: form.effectiveFrom,
+        };
       } else {
         operation = "END_MEMBERSHIP";
         fields = {
@@ -435,6 +534,9 @@ export default function PodManagement() {
       if (operation === "ASSIGN_CANDIDATE") {
         setSuccessMessage("Pod assignment completed successfully.");
         setPerformanceMessage(result.performanceRetry.message);
+        setSelectedPodId(podOperation.podId);
+      } else if (operation === "ASSIGN_HR_REVIEWER") {
+        setSuccessMessage("HR Psyconnect reviewer assigned successfully.");
         setSelectedPodId(podOperation.podId);
       } else {
         setSuccessMessage(
@@ -454,6 +556,9 @@ export default function PodManagement() {
       setModalMode("");
       setModalContext(null);
       setModalError("");
+      if (operation === "ASSIGN_HR_REVIEWER") {
+        resetReviewerSearchState();
+      }
       await refreshAfterWrite();
     } catch (error) {
       setModalError(error.message);
@@ -513,7 +618,11 @@ export default function PodManagement() {
                     </span>
                   )}
                 </td>
-                <td>{formatStatus(membership.membershipType)}</td>
+                <td>
+                  {membership.membershipType === "HR_SITE_CONNECT"
+                    ? "HR Psyconnect reviewer"
+                    : formatStatus(membership.membershipType)}
+                </td>
                 <td>{getMemberKind(membership)}</td>
                 <td>{formatDate(membership.effectiveFrom)}</td>
                 <td>{formatDate(membership.effectiveTo)}</td>
@@ -976,6 +1085,29 @@ export default function PodManagement() {
             ) : selectedPod ? (
               <div className="pod-membership-groups">
                 <section>
+                  <h3>HR Psyconnect Reviewer</h3>
+                  {currentHrReviewer ? (
+                    renderMembershipRows([currentHrReviewer], true)
+                  ) : (
+                    <>
+                      <p className="info-banner" role="status">
+                        No HR Psyconnect reviewer is assigned to this pod.
+                      </p>
+                      {selectedPod.isActive && (
+                        <button
+                          className="btn btn-primary"
+                          type="button"
+                          onClick={() =>
+                            openModal("assignHrReviewer", selectedPod)
+                          }
+                        >
+                          Assign HR Psyconnect Reviewer
+                        </button>
+                      )}
+                    </>
+                  )}
+                </section>
+                <section>
                   <h3>Current Candidate Members</h3>
                   {renderMembershipRows(currentCandidates, true)}
                 </section>
@@ -1026,6 +1158,8 @@ export default function PodManagement() {
                         ? "Assign Candidate to Pod"
                         : modalMode === "assignLead"
                           ? "Assign Candidate as Lead"
+                          : modalMode === "assignHrReviewer"
+                            ? "Assign HR Psyconnect Reviewer"
                           : "End Membership"}
                 </h2>
                 {modalContext?.fullName && <p>{modalContext.fullName}</p>}
@@ -1212,6 +1346,133 @@ export default function PodManagement() {
                 </>
               )}
 
+              {modalMode === "assignHrReviewer" && (
+                <>
+                  <div className="info-banner">
+                    <p>
+                      <strong>{modalContext.podCode}</strong>
+                      <br />
+                      {modalContext.podName}
+                    </p>
+                  </div>
+
+                  <div className="form-group">
+                    <label htmlFor="hr-reviewer-search">Reviewer search</label>
+                    <div className="pod-search-form">
+                      <input
+                        id="hr-reviewer-search"
+                        type="search"
+                        value={reviewerSearchTerm}
+                        maxLength={150}
+                        placeholder="Search by name or email"
+                        onChange={handleReviewerSearchTermChange}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") {
+                            event.preventDefault();
+                            void handleReviewerSearch();
+                          }
+                        }}
+                      />
+                      <button
+                        className="btn btn-primary"
+                        type="button"
+                        disabled={reviewerSearchLoading}
+                        onClick={() => void handleReviewerSearch()}
+                      >
+                        <Search size={18} aria-hidden="true" />
+                        {reviewerSearchLoading ? "Searching..." : "Search"}
+                      </button>
+                    </div>
+                  </div>
+
+                  {reviewerSearchLoading && (
+                    <p className="info-banner" role="status" aria-live="polite">
+                      Searching HR Psyconnect reviewers...
+                    </p>
+                  )}
+
+                  {reviewerSearchError && (
+                    <p className="auth-inline-error" role="alert">
+                      {reviewerSearchError}
+                    </p>
+                  )}
+
+                  {!reviewerSearchLoading &&
+                    !reviewerSearchError &&
+                    !hasSearchedReviewers && (
+                      <p className="info-banner" role="status">
+                        Search by name or email, or search with an empty field
+                        to view available reviewers.
+                      </p>
+                    )}
+
+                  {!reviewerSearchLoading &&
+                    !reviewerSearchError &&
+                    hasSearchedReviewers &&
+                    reviewerSearchResults.length === 0 && (
+                      <p className="info-banner" role="status">
+                        No HR Psyconnect reviewers match the search.
+                      </p>
+                    )}
+
+                  {reviewerSearchResults.length > 0 && (
+                    <fieldset className="pod-reviewer-results">
+                      <legend>Select reviewer</legend>
+                      {reviewerSearchResults.map((reviewer) => (
+                        <label
+                          className="checkbox-row"
+                          htmlFor={`hr-reviewer-${reviewer.userId}`}
+                          key={reviewer.userId}
+                        >
+                          <input
+                            id={`hr-reviewer-${reviewer.userId}`}
+                            type="radio"
+                            name="hr-reviewer"
+                            value={reviewer.userId}
+                            checked={form.userId === reviewer.userId}
+                            onChange={(event) => setForm((current) => ({
+                              ...current,
+                              userId: event.target.value,
+                            }))}
+                          />
+                          <span>
+                            <strong>{reviewer.fullName}</strong>
+                            <span className="pod-secondary-text">
+                              {reviewer.email}
+                            </span>
+                            <span className="pod-secondary-text">
+                              {reviewer.activePodCount > 0
+                                ? `Assigned to ${reviewer.activePodCount} ${
+                                    reviewer.activePodCount === 1
+                                      ? "pod"
+                                      : "pods"
+                                  }: ${reviewer.activePodCodes.join(", ")}`
+                                : "Not currently assigned to a pod"}
+                            </span>
+                          </span>
+                        </label>
+                      ))}
+                    </fieldset>
+                  )}
+
+                  <div className="form-group">
+                    <label htmlFor="hr-reviewer-effective-from">
+                      Effective from
+                    </label>
+                    <input
+                      id="hr-reviewer-effective-from"
+                      type="date"
+                      value={form.effectiveFrom}
+                      required
+                      onChange={(event) => setForm((current) => ({
+                        ...current,
+                        effectiveFrom: event.target.value,
+                      }))}
+                    />
+                  </div>
+                </>
+              )}
+
               {modalMode === "endMembership" && (
                 <>
                   <div className="info-banner">
@@ -1259,9 +1520,19 @@ export default function PodManagement() {
                       : "btn btn-primary"
                   }
                   type="submit"
-                  disabled={isSubmitting}
+                  disabled={
+                    isSubmitting ||
+                    (modalMode === "assignHrReviewer" &&
+                      (!form.userId ||
+                        !form.effectiveFrom ||
+                        reviewerSearchLoading))
+                  }
                 >
-                  {isSubmitting ? "Saving..." : "Confirm"}
+                  {isSubmitting
+                    ? "Saving..."
+                    : modalMode === "assignHrReviewer"
+                      ? "Assign Reviewer"
+                      : "Confirm"}
                 </button>
               </div>
             </form>
