@@ -79,6 +79,9 @@ const formatStatus = (value) => {
     .join(" ");
 };
 
+const formatActionOwner = (value) =>
+  value === "HR_SITE_CONNECT" ? "HR Psyconnect" : formatStatus(value);
+
 const formatNullableValue = (value) =>
   value === null || value === undefined || value === "" ? "—" : value;
 
@@ -597,7 +600,7 @@ const PerformanceDashboard = () => {
                 <option value="">All Action Owners</option>
                 {actionOwnerOptions.map((owner) => (
                   <option key={owner} value={owner}>
-                    {formatStatus(owner)}
+                    {formatActionOwner(owner)}
                   </option>
                 ))}
               </select>
@@ -627,7 +630,7 @@ const PerformanceDashboard = () => {
                         <td>{formatNullableValue(item.fullName)}</td>
                         <td>{getPodLabel(item)}</td>
                         <td>{formatNullableValue(item.actionLabel)}</td>
-                        <td>{formatStatus(item.actionOwnerScope)}</td>
+                        <td>{formatActionOwner(item.actionOwnerScope)}</td>
                         <td>{formatDate(item.dueDate)}</td>
                         <td>
                           <span
