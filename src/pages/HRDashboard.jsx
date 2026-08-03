@@ -155,7 +155,11 @@ return (
 
 export default function HRDashboard(){
 
-  const { hasPerformanceDashboardAccess, hasPodManagementAccess } = useAuth();
+  const {
+    hasPerformanceDashboardAccess,
+    hasHrReviewAccess,
+    hasPodManagementAccess,
+  } = useAuth();
 
 const fallbackCounts =
 useMemo(
@@ -386,6 +390,15 @@ const modules = [
           path: "/performance-dashboard",
           label: "Performance Dashboard",
           icon: <Gauge size={18} />,
+        },
+      ]
+    : []),
+  ...(hasHrReviewAccess
+    ? [
+        {
+          path: "/performance/hr-review",
+          label: "HR Review",
+          icon: <ClipboardCheck size={18} />,
         },
       ]
     : []),

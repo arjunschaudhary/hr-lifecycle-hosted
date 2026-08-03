@@ -34,6 +34,14 @@ const PERFORMANCE_MARKING_ROLE_SLUGS = [
   "HR_LEAD",
 ];
 
+const HR_REVIEW_ROLE_SLUGS = [
+  "ADMIN",
+  "HR_SITE_CONNECT",
+  "HR_SITE_CONNECT_LEAD",
+  "HR_EXECUTIVE_LEAD",
+  "HR_LEAD",
+];
+
 const LEAD_REVIEW_ROLE_SLUGS = [
   "POD_LEAD",
   "TECH_LEAD",
@@ -59,6 +67,7 @@ const INITIAL_AUTH_STATE = {
   hasStaffAccess: false,
   hasPerformanceDashboardAccess: false,
   hasPerformanceMarkingAccess: false,
+  hasHrReviewAccess: false,
   hasLeadReviewAccess: false,
   hasPodManagementAccess: false,
   hasCandidateRole: false,
@@ -114,6 +123,7 @@ export function AuthProvider({ children }) {
           hasStaffAccess: false,
           hasPerformanceDashboardAccess: false,
           hasPerformanceMarkingAccess: false,
+          hasHrReviewAccess: false,
           hasLeadReviewAccess: false,
           hasPodManagementAccess: false,
           hasCandidateRole: false,
@@ -141,6 +151,7 @@ export function AuthProvider({ children }) {
         hasStaffAccess: false,
         hasPerformanceDashboardAccess: false,
         hasPerformanceMarkingAccess: false,
+        hasHrReviewAccess: false,
         hasLeadReviewAccess: false,
         hasPodManagementAccess: false,
         hasCandidateRole: false,
@@ -157,6 +168,7 @@ export function AuthProvider({ children }) {
           staffRoleResult,
           performanceDashboardRoleResult,
           performanceMarkingRoleResult,
+          hrReviewRoleResult,
           leadReviewRoleResult,
           podManagementRoleResult,
           candidateRoleResult,
@@ -171,6 +183,9 @@ export function AuthProvider({ children }) {
           }),
           supabase.rpc("current_user_has_any_role", {
             p_role_slugs: PERFORMANCE_MARKING_ROLE_SLUGS,
+          }),
+          supabase.rpc("current_user_has_any_role", {
+            p_role_slugs: HR_REVIEW_ROLE_SLUGS,
           }),
           supabase.rpc("current_user_has_any_role", {
             p_role_slugs: LEAD_REVIEW_ROLE_SLUGS,
@@ -189,6 +204,7 @@ export function AuthProvider({ children }) {
           staffRoleResult.error ||
           performanceDashboardRoleResult.error ||
           performanceMarkingRoleResult.error ||
+          hrReviewRoleResult.error ||
           leadReviewRoleResult.error ||
           podManagementRoleResult.error ||
           candidateRoleResult.error ||
@@ -208,6 +224,8 @@ export function AuthProvider({ children }) {
             isActiveAppUser && performanceDashboardRoleResult.data === true,
           hasPerformanceMarkingAccess:
             isActiveAppUser && performanceMarkingRoleResult.data === true,
+          hasHrReviewAccess:
+            isActiveAppUser && hrReviewRoleResult.data === true,
           hasLeadReviewAccess:
             isActiveAppUser && leadReviewRoleResult.data === true,
           hasPodManagementAccess:
@@ -223,6 +241,7 @@ export function AuthProvider({ children }) {
           hasStaffAccess: false,
           hasPerformanceDashboardAccess: false,
           hasPerformanceMarkingAccess: false,
+          hasHrReviewAccess: false,
           hasLeadReviewAccess: false,
           hasPodManagementAccess: false,
           hasCandidateRole: false,
@@ -238,6 +257,7 @@ export function AuthProvider({ children }) {
           hasStaffAccess: false,
           hasPerformanceDashboardAccess: false,
           hasPerformanceMarkingAccess: false,
+          hasHrReviewAccess: false,
           hasLeadReviewAccess: false,
           hasPodManagementAccess: false,
           hasCandidateRole: false,
