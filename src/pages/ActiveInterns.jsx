@@ -241,8 +241,6 @@ export default function ActiveInterns() {
       nextIds.add(intern.candidateId);
       return nextIds;
     });
-  async function handleConfirmInitiateExit(payload) {
-    setIsInitiatingExit(true);
     setActionMessage("");
     setErrorMessage("");
 
@@ -310,6 +308,15 @@ export default function ActiveInterns() {
         nextIds.delete(intern.candidateId);
         return nextIds;
       });
+    }
+  }
+
+  async function handleConfirmInitiateExit(payload) {
+    setIsInitiatingExit(true);
+    setActionMessage("");
+    setErrorMessage("");
+
+    try {
       await initiateExitForCandidate({
         candidateId: payload.candidateId,
         exitType: payload.exitType,
@@ -424,10 +431,7 @@ export default function ActiveInterns() {
                   <div className="action-group">
                     {intern.lifecycleStatus === "ACTIVE" &&
                       isValidUuid(intern.candidateId) &&
-                      !(
-                        intern.portalAccountStatus === "ACTIVE" &&
-                        isValidUuid(intern.portalUserId)
-                      ) && (
+                      !hasActivePortalAccount(intern) && (
                         <button
                           type="button"
                           className="btn btn-primary"
@@ -439,10 +443,79 @@ export default function ActiveInterns() {
                             : "Create Portal Account"}
                         </button>
                       )}
-                    {intern.portalAccountStatus === "ACTIVE" &&
-                      isValidUuid(intern.portalUserId) && (
-                        <span className="badge badge-success">Portal Active</span>
+
+                    {hasActivePortalAccount(intern) && (
+                      <span className="badge badge-success">Portal Active</span>
+                    )}
+
+                    {isHrPsyconnectIntern(intern) &&
+                      !hasActivePortalAccount(intern) && (
+                        <span className="badge badge-primary">
+                          Portal Required
+                        </span>
                       )}
+
+                    {isHrPsyconnectIntern(intern) &&
+                      hasActivePortalAccount(intern) &&
+                      !intern.hrPsyconnectAccessActive && (
+                        <>
+                          <span className="badge badge-warning">
+                            HR Access Inactive
+                          </span>
+                          {hasPodManagementAccess && (
+                            <button
+                              type="button"
+                              className="btn btn-primary"
+                              disabled={accessActionCandidateIds.has(
+                                intern.candidateId,
+                              )}
+                              onClick={() =>
+                                handleGrantHrPsyconnectAccess(intern)
+                              }
+                            >
+                              {accessActionCandidateIds.has(intern.candidateId)
+                                ? "Granting Access..."
+                                : "Grant HR Psyconnect Access"}
+                            </button>
+                          )}
+                        </>
+                      )}
+
+                    {isHrPsyconnectIntern(intern) &&
+                      hasActivePortalAccount(intern) &&
+                      intern.hrPsyconnectAccessActive && (
+                        <>
+                          <span
+                            className="badge badge-success"
+                            title={
+                              intern.hrPsyconnectAccessGrantedAt
+                                ? `Granted ${new Date(
+                                    intern.hrPsyconnectAccessGrantedAt,
+                                  ).toLocaleDateString("en-IN")}`
+                                : undefined
+                            }
+                          >
+                            HR Access Active
+                          </span>
+                          {hasPodManagementAccess && (
+                            <button
+                              type="button"
+                              className="btn btn-warning"
+                              disabled={accessActionCandidateIds.has(
+                                intern.candidateId,
+                              )}
+                              onClick={() =>
+                                handleRevokeHrPsyconnectAccess(intern)
+                              }
+                            >
+                              {accessActionCandidateIds.has(intern.candidateId)
+                                ? "Revoking Access..."
+                                : "Revoke HR Psyconnect Access"}
+                            </button>
+                          )}
+                        </>
+                      )}
+
                     {intern.lifecycleStatus === "ACTIVE" && (
                       <button
                         type="button"
@@ -455,6 +528,7 @@ export default function ActiveInterns() {
                           : "Mark Signed Offer Submitted"}
                       </button>
                     )}
+
                     {intern.hasActiveExit ? (
                       <button
                         type="button"
@@ -474,89 +548,6 @@ export default function ActiveInterns() {
                         Initiate Exit
                       </button>
                     )}
-                  {isHrPsyconnectIntern(intern) &&
-                    !hasActivePortalAccount(intern) && (
-                      <span className="badge badge-primary">
-                        Portal Required
-                      </span>
-                    )}
-                  {isHrPsyconnectIntern(intern) &&
-                    hasActivePortalAccount(intern) &&
-                    !intern.hrPsyconnectAccessActive && (
-                      <>
-                        <span className="badge badge-warning">
-                          HR Access Inactive
-                        </span>
-                        {hasPodManagementAccess && (
-                          <button
-                            type="button"
-                            className="btn btn-primary"
-                            disabled={accessActionCandidateIds.has(
-                              intern.candidateId,
-                            )}
-                            onClick={() =>
-                              handleGrantHrPsyconnectAccess(intern)
-                            }
-                          >
-                            {accessActionCandidateIds.has(intern.candidateId)
-                              ? "Granting Access..."
-                              : "Grant HR Psyconnect Access"}
-                          </button>
-                        )}
-                      </>
-                    )}
-                  {isHrPsyconnectIntern(intern) &&
-                    hasActivePortalAccount(intern) &&
-                    intern.hrPsyconnectAccessActive && (
-                      <>
-                        <span
-                          className="badge badge-success"
-                          title={
-                            intern.hrPsyconnectAccessGrantedAt
-                              ? `Granted ${new Date(
-                                  intern.hrPsyconnectAccessGrantedAt,
-                                ).toLocaleDateString("en-IN")}`
-                              : undefined
-                          }
-                        >
-                          HR Access Active
-                        </span>
-                        {hasPodManagementAccess && (
-                          <button
-                            type="button"
-                            className="btn btn-warning"
-                            disabled={accessActionCandidateIds.has(
-                              intern.candidateId,
-                            )}
-                            onClick={() =>
-                              handleRevokeHrPsyconnectAccess(intern)
-                            }
-                          >
-                            {accessActionCandidateIds.has(intern.candidateId)
-                              ? "Revoking Access..."
-                              : "Revoke HR Psyconnect Access"}
-                          </button>
-                        )}
-                      </>
-                    )}
-                  {intern.lifecycleStatus === "ACTIVE" && (
-                    <button
-                      type="button"
-                      className="btn btn-primary"
-                      disabled={actionCandidateId === intern.candidateId}
-                      onClick={() => handleMarkSignedOfferSubmitted(intern)}
-                    >
-                      {actionCandidateId === intern.candidateId
-                        ? "Marking..."
-                        : "Mark Signed Offer Submitted"}
-                    </button>
-                  )}
-                </div>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
                   </div>
                 </td>
               </tr>
@@ -564,7 +555,6 @@ export default function ActiveInterns() {
           </tbody>
         </table>
       </div>
-      <br />
 
       <CandidateDetailModal
         candidateId={selectedCandidateId}
