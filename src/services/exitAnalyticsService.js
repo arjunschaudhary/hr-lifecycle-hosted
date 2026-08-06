@@ -502,53 +502,72 @@ export async function getExitAnalyticsData(filters = {}) {
   }));
 
   // ---------------------------------------------------------------------------
-  // 8. SECTION 7: KNOWLEDGE TRANSFER
+  // 8. SECTION 7: KNOWLEDGE TRANSFER (HR Evaluation Data ONLY)
   // ---------------------------------------------------------------------------
   const ktCounts = { YES: 0, PARTIAL: 0, NO: 0, NOT_APPLICABLE: 0 };
-  let totalTasksCount = 0;
-  let casesWithTasksCount = 0;
-  let briefedCount = 0;
-  let repoCount = 0;
-  let revokeCount = 0;
-  let timeSensitiveCount = 0;
+  const methodCounts = {
+    live_meeting: 0,
+    whatsapp: 0,
+    email: 0,
+    shared_document: 0,
+    not_done: 0,
+    other: 0,
+  };
+  let gapsIdentifiedCount = 0;
+  let verifiedByCount = 0;
+  let totalHrEvaluationsCount = 0;
+  let totalHrHandoverItems = 0;
 
   filteredCases.forEach((c) => {
     const ev = hrEvalMap[c.exit_case_id];
-    if (ev?.handover_complete) {
-      const hc = ev.handover_complete.toUpperCase();
-      if (ktCounts[hc] !== undefined) {
-        ktCounts[hc]++;
+    if (ev) {
+      totalHrEvaluationsCount++;
+
+      if (ev.handover_complete) {
+        const hc = ev.handover_complete.toUpperCase();
+        if (hc === "YES") ktCounts.YES++;
+        else if (hc === "PARTIALLY" || hc === "PARTIAL") ktCounts.PARTIAL++;
+        else if (hc === "NO") ktCounts.NO++;
+        else if (hc === "NOT_APPLICABLE") ktCounts.NOT_APPLICABLE++;
+      }
+
+      if (Array.isArray(ev.handover_method)) {
+        ev.handover_method.forEach((m) => {
+          const key = m.toLowerCase();
+          if (methodCounts[key] !== undefined) {
+            methodCounts[key]++;
+          } else {
+            methodCounts.other++;
+          }
+        });
+      }
+
+      if (ev.handover_gap && ev.handover_gap.trim()) {
+        gapsIdentifiedCount++;
+      }
+
+      if (ev.verified_by) {
+        verifiedByCount++;
       }
     }
 
     const items = handoverMap[c.exit_case_id] || [];
     if (items.length > 0) {
-      totalTasksCount += items.length;
-      casesWithTasksCount++;
-
-      if (items.some((i) => i.successor_name && i.successor_name.trim())) {
-        briefedCount++;
-      }
-      if (items.some((i) => i.repository_link && i.repository_link.trim())) {
-        repoCount++;
-      }
-      if (items.some((i) => i.access_to_revoke && i.access_to_revoke.trim())) {
-        revokeCount++;
-      }
-      if (items.some((i) => i.time_sensitive_notes && i.time_sensitive_notes.trim())) {
-        timeSensitiveCount++;
-      }
+      totalHrHandoverItems += items.length;
     }
   });
 
-  const totalCasesForKt = filteredCases.length || 1;
+  const totalEval = totalHrEvaluationsCount || 1;
   const knowledgeTransfer = {
     completeStatus: ktCounts,
-    avgOngoingTasks: (totalTasksCount / totalCasesForKt).toFixed(1),
-    peopleBriefedPct: Math.round((briefedCount / totalCasesForKt) * 100),
-    repoLinkPct: Math.round((repoCount / totalCasesForKt) * 100),
-    accessRevocationPct: Math.round((revokeCount / totalCasesForKt) * 100),
-    timeSensitivePct: Math.round((timeSensitiveCount / totalCasesForKt) * 100),
+    methodCounts,
+    gapsIdentifiedCount,
+    gapsIdentifiedPct: Math.round((gapsIdentifiedCount / totalEval) * 100),
+    verifiedByCount,
+    verificationPct: Math.round((verifiedByCount / totalEval) * 100),
+    totalHrEvaluationsCount,
+    totalHrHandoverItems,
+    avgHrItemsPerCase: (totalHrHandoverItems / totalEval).toFixed(1),
   };
 
   // ---------------------------------------------------------------------------
@@ -620,85 +639,7 @@ export async function getExitAnalyticsData(filters = {}) {
   }));
 
   // ---------------------------------------------------------------------------
-  // 10. SECTION 9: RECOMMENDATIONS
-  // ---------------------------------------------------------------------------
-  const certCounts = { YES: 0, CONDITIONAL: 0, NO: 0 };
-  const lorCounts = { YES: 0, CONDITIONAL: 0, NO: 0 };
-  const rehireCounts = { YES: 0, MAYBE: 0, NO: 0 };
-
-  filteredCases.forEach((c) => {
-    const ev = hrEvalMap[c.exit_case_id];
-    if (ev) {
-      if (ev.certificate_recommendation) {
-        const key = ev.certificate_recommendation.toUpperCase();
-        if (certCounts[key] !== undefined) certCounts[key]++;
-      }
-      if (ev.lor_recommendation) {
-        const key = ev.lor_recommendation.toUpperCase();
-        if (lorCounts[key] !== undefined) lorCounts[key]++;
-      }
-      if (ev.rehire_eligibility) {
-        const key = ev.rehire_eligibility.toUpperCase();
-        if (rehireCounts[key] !== undefined) rehireCounts[key]++;
-      }
-    }
-  });
-
-  const recommendations = {
-    certificate: certCounts,
-    lor: lorCounts,
-    rehire: rehireCounts,
-  };
-
-  // ---------------------------------------------------------------------------
-  // 11. SECTION 10: CANDIDATE VS HR COMPARISON
-  // ---------------------------------------------------------------------------
-  let totalCompared = 0;
-  let agreementCount = 0;
-  const mismatchPairs = {};
-
-  filteredCases.forEach((c) => {
-    const fb = feedbackMap[c.exit_case_id];
-    const ev = hrEvalMap[c.exit_case_id];
-
-    if (fb?.primary_exit_reason && ev?.hr_primary_reason) {
-      totalCompared++;
-      const candReason = fb.primary_exit_reason.toLowerCase();
-      const hrReason = ev.hr_primary_reason.toLowerCase();
-
-      if (candReason === hrReason) {
-        agreementCount++;
-      } else {
-        const pairKey = `${candReason} -> ${hrReason}`;
-        mismatchPairs[pairKey] = (mismatchPairs[pairKey] || 0) + 1;
-      }
-    }
-  });
-
-  const agreementPct = totalCompared > 0 ? Math.round((agreementCount / totalCompared) * 100) : 0;
-  const mismatchPct = totalCompared > 0 ? 100 - agreementPct : 0;
-
-  const topMismatches = Object.keys(mismatchPairs)
-    .map((pair) => {
-      const [cand, hr] = pair.split(" -> ");
-      return {
-        candidateReason: REASON_LABELS[cand] || cand,
-        hrReason: REASON_LABELS[hr] || hr,
-        count: mismatchPairs[pair],
-      };
-    })
-    .sort((a, b) => b.count - a.count)
-    .slice(0, 5);
-
-  const candidateVsHrComparison = {
-    totalCompared,
-    agreementPct,
-    mismatchPct,
-    topMismatches,
-  };
-
-  // ---------------------------------------------------------------------------
-  // 12. SECTION 11: PENDING WORKFLOW TABLE
+  // 10. SECTION 9: PENDING WORKFLOW TABLE
   // ---------------------------------------------------------------------------
   const pendingWorkflow = filteredCases
     .filter((c) => c.overall_status !== "COMPLETED")
@@ -714,39 +655,29 @@ export async function getExitAnalyticsData(filters = {}) {
     }));
 
   // ---------------------------------------------------------------------------
-  // 13. SECTION 12: RECENT COMPLETED EXITS TABLE
+  // 11. SECTION 10: COMPLETED EXIT CASE RECORDS TABLE
   // ---------------------------------------------------------------------------
-  const recentExits = filteredCases
+  const completedExitRecords = filteredCases
     .filter((c) => c.overall_status === "COMPLETED")
-    .slice(0, 10)
     .map((c) => {
-      const fb = feedbackMap[c.exit_case_id];
       const ev = hrEvalMap[c.exit_case_id];
-
-      let perfAvg = "N/A";
-      if (ev) {
-        const pRatings = [
-          ev.skill_rating, ev.communication_rating, ev.ownership_rating,
-          ev.reliability_rating, ev.collaboration_rating, ev.adaptability_rating,
-          ev.timeliness_rating, ev.independence_rating,
-        ].filter((r) => typeof r === "number" && r > 0);
-
-        if (pRatings.length > 0) {
-          perfAvg = (pRatings.reduce((a, b) => a + b, 0) / pRatings.length).toFixed(1);
-        }
-      }
+      const evalDate = ev?.submitted_at
+        ? ev.submitted_at.substring(0, 10)
+        : c.exit_completed_at
+        ? c.exit_completed_at.substring(0, 10)
+        : c.exit_date || "—";
 
       return {
         exitCaseId: c.exit_case_id,
         candidateName: c.master_candidates?.full_name || "Unknown Candidate",
         mid: c.mid || "N/A",
         department: c.pod_name_snapshot || c.master_candidates?.department || "N/A",
-        exitDate: c.exit_date,
-        experienceRating: fb?.overall_experience_rating ? `${fb.overall_experience_rating} / 5` : "N/A",
-        performanceAvg: perfAvg !== "N/A" ? `${perfAvg} / 5` : "N/A",
-        rehire: ev?.rehire_eligibility || "N/A",
-        certificate: ev?.certificate_recommendation || "N/A",
-        lor: ev?.lor_recommendation || "N/A",
+        exitType: c.exit_type ? c.exit_type.replaceAll("_", " ") : "N/A",
+        exitDate: c.exit_date || "N/A",
+        candidateFormCompleted: Boolean(c.candidate_form_completed),
+        hrFormCompleted: Boolean(c.hr_form_completed),
+        reviewedBy: ev?.reviewer_id ? "HR Reviewer" : "HR Evaluator",
+        evaluationDate: evalDate,
       };
     });
 
@@ -761,9 +692,149 @@ export async function getExitAnalyticsData(filters = {}) {
     performanceDimensions,
     knowledgeTransfer,
     departmentAnalytics,
-    recommendations,
-    candidateVsHrComparison,
     pendingWorkflow,
-    recentExits,
+    completedExitRecords,
+  };
+}
+
+/**
+ * Fetch complete historical record details (Candidate Questionnaire + HR Evaluation) for a completed exit case.
+ */
+export async function getCompletedExitCaseDetails(exitCaseId) {
+  if (!supabase || typeof supabase.from !== "function") {
+    throw new Error("Supabase client is not configured.");
+  }
+
+  // 1. Fetch Exit Case
+  const { data: caseRows, error: caseError } = await supabase
+    .from("exit_cases")
+    .select(`
+      exit_case_id,
+      candidate_id,
+      lifecycle_id,
+      mid,
+      pod_name_snapshot,
+      exit_date,
+      exit_type,
+      overall_status,
+      candidate_form_completed,
+      hr_form_completed,
+      exit_completed_at,
+      created_at,
+      master_candidates (
+        full_name,
+        email,
+        phone,
+        department,
+        applied_role
+      ),
+      hr_lifecycle (
+        probation_start_date,
+        current_end_date,
+        original_end_date,
+        internship_duration_months
+      )
+    `)
+    .eq("exit_case_id", exitCaseId)
+    .limit(1);
+
+  if (caseError || !caseRows || caseRows.length === 0) {
+    throw new Error("Exit case record not found.");
+  }
+
+  const exitCaseRaw = caseRows[0];
+
+  // 2. Fetch Candidate feedback, HR evaluation, and handover items in parallel
+  const [fbRes, hrRes, itemsRes] = await Promise.all([
+    supabase
+      .from("candidate_exit_feedback")
+      .select("*")
+      .eq("exit_case_id", exitCaseId)
+      .maybeSingle(),
+    supabase
+      .from("hr_exit_evaluations")
+      .select("*")
+      .eq("exit_case_id", exitCaseId)
+      .maybeSingle(),
+    supabase
+      .from("exit_handover_items")
+      .select("*")
+      .eq("exit_case_id", exitCaseId),
+  ]);
+
+  const candidateFeedback = fbRes.data || null;
+  const hrEvaluation = hrRes.data || null;
+  const handoverItems = itemsRes.data || [];
+
+  // 3. Fetch reviewer name if reviewer_id present
+  let reviewerName = "HR Evaluator";
+  let reviewerRole = "HR Executive";
+  if (hrEvaluation?.reviewer_id) {
+    try {
+      const { data: reviewerUser } = await supabase
+        .from("users")
+        .select("name, email, roles(label)")
+        .eq("id", hrEvaluation.reviewer_id)
+        .maybeSingle();
+
+      if (reviewerUser) {
+        reviewerName = reviewerUser.name || reviewerUser.email;
+        if (reviewerUser.roles?.label) {
+          reviewerRole = reviewerUser.roles.label;
+        }
+      }
+    } catch {
+      // Fallback reviewerName
+    }
+  }
+
+  // 4. Fetch verifier name if verified_by present
+  let verifierName = reviewerName;
+  if (hrEvaluation?.verified_by && hrEvaluation.verified_by !== hrEvaluation.reviewer_id) {
+    try {
+      const { data: verifierUser } = await supabase
+        .from("users")
+        .select("name, email")
+        .eq("id", hrEvaluation.verified_by)
+        .maybeSingle();
+
+      if (verifierUser) {
+        verifierName = verifierUser.name || verifierUser.email;
+      }
+    } catch {
+      // Fallback verifierName
+    }
+  }
+
+  const candidateProfile = exitCaseRaw.master_candidates || {};
+  const lifecycleInfo = exitCaseRaw.hr_lifecycle || {};
+
+  return {
+    exitCase: {
+      exitCaseId: exitCaseRaw.exit_case_id,
+      candidateId: exitCaseRaw.candidate_id,
+      mid: exitCaseRaw.mid || "—",
+      exitDate: exitCaseRaw.exit_date || "—",
+      exitType: exitCaseRaw.exit_type || "—",
+      overallStatus: exitCaseRaw.overall_status || "—",
+      candidateFormCompleted: Boolean(exitCaseRaw.candidate_form_completed),
+      hrFormCompleted: Boolean(exitCaseRaw.hr_form_completed),
+      exitCompletedAt: exitCaseRaw.exit_completed_at || exitCaseRaw.created_at,
+    },
+    profile: {
+      fullName: candidateProfile.full_name || "—",
+      email: candidateProfile.email || "—",
+      phone: candidateProfile.phone || "—",
+      department: exitCaseRaw.pod_name_snapshot || candidateProfile.department || "—",
+      mid: exitCaseRaw.mid || "—",
+      startDate: lifecycleInfo.probation_start_date || null,
+      endDate: lifecycleInfo.current_end_date || lifecycleInfo.original_end_date || null,
+      internshipDurationMonths: lifecycleInfo.internship_duration_months || null,
+    },
+    candidateFeedback,
+    hrEvaluation,
+    handoverItems,
+    reviewer: { name: reviewerName, role: reviewerRole },
+    verifier: { name: verifierName },
   };
 }

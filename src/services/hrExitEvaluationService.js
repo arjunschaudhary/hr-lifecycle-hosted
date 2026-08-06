@@ -280,13 +280,8 @@ export async function submitHRExitEvaluation({
     retention_notes: formData.retentionAttempt === "yes" ? formData.retentionNotes || null : null,
     extension_offer: formData.extensionOffer || null,
     lead_extension_recommendation: formData.leadExtensionRecommendation || null,
-
-    // Decision Fields
-    certificate_recommendation: formData.certificateRecommendation || null,
-    certificate_condition: formData.certificateRecommendation === "conditional" ? formData.certificateCondition || null : null,
-    lor_recommendation: formData.lorRecommendation || null,
-    lor_condition: formData.lorRecommendation === "conditional" ? formData.lorCondition || null : null,
     rehire_eligibility: formData.rehireEligibility || null,
+
     internal_notes: formData.internalNotes || null,
     candidate_summary: formData.candidateSummary || null,
 

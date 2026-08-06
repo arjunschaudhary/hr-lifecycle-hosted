@@ -35,7 +35,6 @@ import {
   RETENTION_ATTEMPT_OPTIONS,
   HR_EXTENSION_OFFER_OPTIONS,
   LEAD_EXTENSION_RECOMMENDATION_OPTIONS,
-  RECOMMENDATION_DECISION_OPTIONS,
   REHIRE_ELIGIBILITY_OPTIONS,
   HANDOVER_COMPLETE_OPTIONS,
   HANDOVER_METHOD_OPTIONS,
@@ -97,14 +96,7 @@ export default function HRExitEvaluation() {
     extensionOffer: "",
     leadExtensionRecommendation: "",
 
-    // Section D: Decision Fields
-    certificateRecommendation: "",
-    certificateCondition: "",
-    lorRecommendation: "",
-    lorCondition: "",
-    rehireEligibility: "",
-    internalNotes: "",
-    candidateSummary: "",
+
 
     // Section E: Knowledge Transfer
     handoverComplete: "",
@@ -370,14 +362,6 @@ export default function HRExitEvaluation() {
         errors.retentionNotes = "Please provide retention notes since retention was attempted.";
       }
     } else if (currentSection === 4) {
-      if (!formData.certificateRecommendation) errors.certificateRecommendation = "Please select Certificate recommendation.";
-      if (formData.certificateRecommendation === "conditional" && !formData.certificateCondition.trim()) {
-        errors.certificateCondition = "Please specify the condition for Certificate issuance.";
-      }
-      if (!formData.lorRecommendation) errors.lorRecommendation = "Please select LOR recommendation.";
-      if (formData.lorRecommendation === "conditional" && !formData.lorCondition.trim()) {
-        errors.lorCondition = "Please specify the condition for LOR issuance.";
-      }
       if (!formData.rehireEligibility) errors.rehireEligibility = "Please select Rehire eligibility.";
     }
 
@@ -490,7 +474,7 @@ export default function HRExitEvaluation() {
       </div>
 
       {/* Candidate Exit Feedback Reference Panel */}
-      <CandidateFeedbackPanel feedback={candidateFeedback} profile={profile} />
+      <CandidateFeedbackPanel feedback={candidateFeedback} profile={profile}  />
 
       <ExitProgressBar
         current={currentSection}
@@ -688,51 +672,6 @@ export default function HRExitEvaluation() {
         {/* SECTION 4: DECISION FIELDS */}
         {currentSection === 4 && (
           <ExitQuestionSection id="sec-d-title" title="Section D: Decision Fields">
-            <ExitQuestionField
-              id="field-cert-rec"
-              label="Certificate Recommendation"
-              type="dropdown"
-              required
-              options={RECOMMENDATION_DECISION_OPTIONS}
-              value={formData.certificateRecommendation}
-              onChange={(val) => updateField("certificateRecommendation", val)}
-              error={fieldErrors.certificateRecommendation}
-            />
-
-            {formData.certificateRecommendation === "conditional" && (
-              <ExitQuestionField
-                id="field-cert-condition"
-                label="Certificate Condition"
-                type="textarea"
-                required
-                value={formData.certificateCondition}
-                onChange={(val) => updateField("certificateCondition", val)}
-                error={fieldErrors.certificateCondition}
-              />
-            )}
-
-            <ExitQuestionField
-              id="field-lor-rec"
-              label="LOR Recommendation"
-              type="dropdown"
-              required
-              options={RECOMMENDATION_DECISION_OPTIONS}
-              value={formData.lorRecommendation}
-              onChange={(val) => updateField("lorRecommendation", val)}
-              error={fieldErrors.lorRecommendation}
-            />
-
-            {formData.lorRecommendation === "conditional" && (
-              <ExitQuestionField
-                id="field-lor-condition"
-                label="LOR Condition"
-                type="textarea"
-                required
-                value={formData.lorCondition}
-                onChange={(val) => updateField("lorCondition", val)}
-                error={fieldErrors.lorCondition}
-              />
-            )}
 
             <ExitQuestionField
               id="field-rehire"
