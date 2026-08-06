@@ -1,9 +1,23 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { BriefcaseBusiness } from "lucide-react";
 
 import { useAuth } from "../context/authContext";
+import {
+  CANDIDATE_LEAVE_TYPES,
+  fetchCurrentCandidateLeaveRequests,
+  submitCurrentCandidateLeaveRequest,
+} from "../services/candidateLeaveService";
 import { fetchCurrentCandidatePortalSummary } from "../services/candidatePortalService";
 import { submitCurrentCandidateSignedOffer } from "../services/candidateSignedOfferUploadService";
+import { calculateLeaveDays } from "../utils/leaveRules";
+
+const INITIAL_LEAVE_FORM = {
+  leaveType: "Casual Leave",
+  startDate: "",
+  endDate: "",
+  reason: "",
+  supportingDocument: "",
+};
 
 const formatValue = (value) => {
   if (value === null || value === undefined) {
@@ -102,6 +116,253 @@ function SummaryCard({ title, children }) {
   );
 }
 
+const getLeaveStatusBadgeClass = (status) => {
+  if (status === "APPROVED") {
+    return "badge-success";
+  }
+
+  if (status === "REJECTED") {
+    return "badge-warning";
+  }
+
+  return "badge-primary";
+};
+
+function CandidateLeaveSection({
+  form,
+  requestedLeaveDays,
+  exceedsRemainingLeave,
+  hasPendingRequest,
+  history,
+  historyLoading,
+  historyError,
+  submitting,
+  submissionError,
+  submissionSuccess,
+  onChange,
+  onSubmit,
+  onRetryHistory,
+}) {
+  const applicationDisabled =
+    submitting || historyLoading || hasPendingRequest;
+
+  return (
+    <>
+      <SummaryCard title="Leave Application">
+        {hasPendingRequest && (
+          <div className="info-banner" role="status" aria-live="polite">
+            You already have a pending leave request. Wait for HR to review it
+            before submitting another.
+          </div>
+        )}
+
+        <form onSubmit={onSubmit} noValidate>
+          <div className="form-group">
+            <label htmlFor="candidate-leave-type">Leave Type</label>
+            <select
+              id="candidate-leave-type"
+              className="form-select"
+              name="leaveType"
+              value={form.leaveType}
+              onChange={onChange}
+              disabled={applicationDisabled}
+              required
+            >
+              {CANDIDATE_LEAVE_TYPES.map((leaveType) => (
+                <option key={leaveType} value={leaveType}>
+                  {leaveType}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="candidate-leave-start-date">Start Date</label>
+            <input
+              id="candidate-leave-start-date"
+              name="startDate"
+              type="date"
+              value={form.startDate}
+              onChange={onChange}
+              disabled={applicationDisabled}
+              required
+            />
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="candidate-leave-end-date">End Date</label>
+            <input
+              id="candidate-leave-end-date"
+              name="endDate"
+              type="date"
+              value={form.endDate}
+              onChange={onChange}
+              disabled={applicationDisabled}
+              required
+            />
+          </div>
+
+          {requestedLeaveDays !== null && (
+            <p className="page-subtitle" role="status" aria-live="polite">
+              Requested leave days, excluding Sundays: {requestedLeaveDays}
+            </p>
+          )}
+
+          {exceedsRemainingLeave && (
+            <div className="info-banner" role="status" aria-live="polite">
+              This request exceeds your remaining leave balance. Add a
+              supporting document link before submitting.
+            </div>
+          )}
+
+          <div className="form-group">
+            <label htmlFor="candidate-leave-reason">Reason</label>
+            <textarea
+              id="candidate-leave-reason"
+              className="form-textarea"
+              name="reason"
+              rows="4"
+              value={form.reason}
+              onChange={onChange}
+              disabled={applicationDisabled}
+              required
+            />
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="candidate-leave-supporting-document">
+              Supporting Document Link
+              {exceedsRemainingLeave ? " (required)" : " (optional)"}
+            </label>
+            <input
+              id="candidate-leave-supporting-document"
+              name="supportingDocument"
+              type="url"
+              value={form.supportingDocument}
+              onChange={onChange}
+              disabled={applicationDisabled}
+              required={exceedsRemainingLeave}
+              aria-describedby="candidate-leave-supporting-document-help"
+              placeholder="https://example.com/document"
+            />
+            <p
+              id="candidate-leave-supporting-document-help"
+              className="page-subtitle"
+            >
+              Required when requested leave exceeds your remaining balance.
+            </p>
+          </div>
+
+          {submissionError && (
+            <p className="auth-inline-error" role="alert">
+              {submissionError}
+            </p>
+          )}
+
+          {submissionSuccess && (
+            <p className="auth-success-message" role="status" aria-live="polite">
+              {submissionSuccess}
+            </p>
+          )}
+
+          <button
+            className="btn btn-primary"
+            type="submit"
+            disabled={applicationDisabled}
+            aria-busy={submitting}
+          >
+            {submitting
+              ? "Submitting..."
+              : hasPendingRequest
+                ? "Pending HR Review"
+                : "Submit Leave Request"}
+          </button>
+        </form>
+      </SummaryCard>
+
+      <SummaryCard title="Leave Request History">
+        {historyLoading && (
+          <p role="status" aria-live="polite">
+            Loading leave-request history...
+          </p>
+        )}
+
+        {!historyLoading && historyError && (
+          <div role="alert">
+            <p className="auth-inline-error">{historyError}</p>
+            <button
+              className="btn btn-primary"
+              type="button"
+              onClick={onRetryHistory}
+            >
+              Retry
+            </button>
+          </div>
+        )}
+
+        {!historyLoading && !historyError && history.length === 0 && (
+          <p className="page-subtitle" role="status" aria-live="polite">
+            No leave requests submitted yet.
+          </p>
+        )}
+
+        {!historyLoading && !historyError && history.length > 0 && (
+          <div className="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>Leave Type</th>
+                  <th>Period</th>
+                  <th>Days</th>
+                  <th>Reason</th>
+                  <th>Document</th>
+                  <th>Submitted</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {history.map((request) => (
+                  <tr key={request.leaveRequestId}>
+                    <td>{request.leaveType}</td>
+                    <td>
+                      {formatDate(request.startDate)} - {formatDate(request.endDate)}
+                    </td>
+                    <td>{request.requestedLeaveDays}</td>
+                    <td>{formatValue(request.reason) || "-"}</td>
+                    <td>
+                      {request.supportingDocument ? (
+                        <a
+                          href={request.supportingDocument}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          View document
+                        </a>
+                      ) : (
+                        "-"
+                      )}
+                    </td>
+                    <td>{formatDate(request.createdAt) || "-"}</td>
+                    <td>
+                      <span
+                        className={`badge ${getLeaveStatusBadgeClass(
+                          request.leaveStatus,
+                        )}`}
+                      >
+                        {formatStatus(request.leaveStatus)}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </SummaryCard>
+    </>
+  );
+}
+
 function PortalSummary({
   summary,
   selectedFile,
@@ -109,6 +370,7 @@ function PortalSummary({
   fileInputRef,
   onFileChange,
   onSubmit,
+  children,
 }) {
   const profile = summary.profile;
   const internship = summary.internship;
@@ -176,6 +438,8 @@ function PortalSummary({
         )}
       </SummaryCard>
 
+      {children}
+
       <SummaryCard title="Signed Offer">
         <SummaryFields fields={signedOfferFields} />
         {signedOffer.canSubmit && (
@@ -229,7 +493,43 @@ export default function CandidatePortal() {
   const [uploadLoading, setUploadLoading] = useState(false);
   const [uploadError, setUploadError] = useState("");
   const [uploadSuccess, setUploadSuccess] = useState("");
+  const [leaveForm, setLeaveForm] = useState(INITIAL_LEAVE_FORM);
+  const [leaveRequests, setLeaveRequests] = useState([]);
+  const [leaveHistoryLoading, setLeaveHistoryLoading] = useState(true);
+  const [leaveHistoryError, setLeaveHistoryError] = useState("");
+  const [leaveSubmitting, setLeaveSubmitting] = useState(false);
+  const [leaveSubmissionError, setLeaveSubmissionError] = useState("");
+  const [leaveSubmissionSuccess, setLeaveSubmissionSuccess] = useState("");
+  const [leaveHistoryRetryKey, setLeaveHistoryRetryKey] = useState(0);
   const fileInputRef = useRef(null);
+
+  const requestedLeaveDays = useMemo(() => {
+    if (!leaveForm.startDate || !leaveForm.endDate) {
+      return null;
+    }
+
+    try {
+      return calculateLeaveDays(leaveForm.startDate, leaveForm.endDate);
+    } catch {
+      return null;
+    }
+  }, [leaveForm.endDate, leaveForm.startDate]);
+
+  const rawRemainingLeaveDays = summary?.leave?.remainingLeaveDays;
+  const remainingLeaveDays =
+    rawRemainingLeaveDays !== null &&
+    rawRemainingLeaveDays !== undefined &&
+    rawRemainingLeaveDays !== ""
+      ? Number(rawRemainingLeaveDays)
+      : null;
+  const exceedsRemainingLeave =
+    requestedLeaveDays !== null &&
+    remainingLeaveDays !== null &&
+    Number.isFinite(remainingLeaveDays) &&
+    requestedLeaveDays > remainingLeaveDays;
+  const hasPendingLeaveRequest = leaveRequests.some(
+    (request) => request.leaveStatus === "PENDING",
+  );
 
   useEffect(() => {
     let isMounted = true;
@@ -269,6 +569,44 @@ export default function CandidatePortal() {
     };
   }, [retryKey]);
 
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadLeaveHistory = async () => {
+      try {
+        const nextRequests = await fetchCurrentCandidateLeaveRequests();
+
+        if (!isMounted) {
+          return;
+        }
+
+        setLeaveRequests(nextRequests);
+        setLeaveHistoryError("");
+      } catch (loadError) {
+        if (!isMounted) {
+          return;
+        }
+
+        setLeaveRequests([]);
+        setLeaveHistoryError(
+          loadError instanceof Error
+            ? loadError.message
+            : "Unable to load your leave-request history.",
+        );
+      } finally {
+        if (isMounted) {
+          setLeaveHistoryLoading(false);
+        }
+      }
+    };
+
+    void loadLeaveHistory();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [leaveHistoryRetryKey]);
+
   const handleRetry = () => {
     setLoading(true);
     setError("");
@@ -286,6 +624,70 @@ export default function CandidatePortal() {
     setUploadError("");
     setUploadSuccess("");
     setSelectedFile(event.target.files?.[0] || null);
+  };
+
+  const handleLeaveFormChange = (event) => {
+    const { name, value } = event.target;
+
+    setLeaveForm((currentForm) => ({
+      ...currentForm,
+      [name]: value,
+    }));
+    setLeaveSubmissionError("");
+    setLeaveSubmissionSuccess("");
+  };
+
+  const handleRetryLeaveHistory = () => {
+    setLeaveHistoryLoading(true);
+    setLeaveHistoryError("");
+    setLeaveHistoryRetryKey((currentKey) => currentKey + 1);
+  };
+
+  const handleSubmitLeaveRequest = async (event) => {
+    event.preventDefault();
+
+    if (leaveSubmitting || hasPendingLeaveRequest) {
+      return;
+    }
+
+    setLeaveSubmitting(true);
+    setLeaveSubmissionError("");
+    setLeaveSubmissionSuccess("");
+
+    try {
+      const submittedRequest = await submitCurrentCandidateLeaveRequest({
+        ...leaveForm,
+        remainingLeaveDays: summary?.leave?.remainingLeaveDays,
+      });
+
+      setLeaveForm(INITIAL_LEAVE_FORM);
+      setLeaveRequests((currentRequests) => [
+        submittedRequest,
+        ...currentRequests.filter(
+          (request) => request.leaveRequestId !== submittedRequest.leaveRequestId,
+        ),
+      ]);
+      setLeaveSubmissionSuccess("Leave request submitted successfully.");
+      setLeaveHistoryLoading(true);
+      setLeaveHistoryRetryKey((currentKey) => currentKey + 1);
+
+      try {
+        const nextSummary = await fetchCurrentCandidatePortalSummary();
+        setSummary(nextSummary);
+      } catch {
+        setLeaveSubmissionError(
+          "Your leave request was submitted, but the refreshed leave balance could not be loaded.",
+        );
+      }
+    } catch (submitError) {
+      setLeaveSubmissionError(
+        submitError instanceof Error
+          ? submitError.message
+          : "Unable to submit your leave request.",
+      );
+    } finally {
+      setLeaveSubmitting(false);
+    }
   };
 
   const handleSubmitSignedOffer = async (event) => {
@@ -412,7 +814,23 @@ export default function CandidatePortal() {
           fileInputRef={fileInputRef}
           onFileChange={handleFileChange}
           onSubmit={handleSubmitSignedOffer}
-        />
+        >
+          <CandidateLeaveSection
+            form={leaveForm}
+            requestedLeaveDays={requestedLeaveDays}
+            exceedsRemainingLeave={exceedsRemainingLeave}
+            hasPendingRequest={hasPendingLeaveRequest}
+            history={leaveRequests}
+            historyLoading={leaveHistoryLoading}
+            historyError={leaveHistoryError}
+            submitting={leaveSubmitting}
+            submissionError={leaveSubmissionError}
+            submissionSuccess={leaveSubmissionSuccess}
+            onChange={handleLeaveFormChange}
+            onSubmit={handleSubmitLeaveRequest}
+            onRetryHistory={handleRetryLeaveHistory}
+          />
+        </PortalSummary>
       )}
 
       {uploadError && (
