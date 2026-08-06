@@ -4,8 +4,12 @@ import { BriefcaseBusiness } from "lucide-react";
 import { dummyActiveInterns } from "../data";
 import CandidateDetailModal from "../components/CandidateDetailModal";
 import { useAuth } from "../context/authContext";
+import InitiateExitModal from "../components/exit/InitiateExitModal";
 import { markSignedOfferSubmitted } from "../services/lifecycleActionService";
-import { fetchActiveInterns } from "../services/activeInternsService";
+import {
+  fetchActiveInterns,
+  initiateExitForCandidate,
+} from "../services/activeInternsService";
 import { createCandidatePortalAccount } from "../services/candidatePortalAccountService";
 import {
   grantHrPsyconnectAccess,
@@ -41,6 +45,8 @@ function buildFallbackActiveInternRecords() {
     hrPsyconnectAccessActive: false,
     hrPsyconnectAccessGrantedAt: null,
     hrPsyconnectUserRoleId: null,
+    hasActiveExit: false,
+    exitCaseStatus: null,
   }));
 }
 
@@ -68,6 +74,8 @@ function mapSupabaseActiveInternRecord(row) {
     hrPsyconnectAccessGrantedAt:
       row.hr_psyconnect_access_granted_at ?? null,
     hrPsyconnectUserRoleId: row.hr_psyconnect_user_role_id ?? null,
+    hasActiveExit: Boolean(row.has_active_exit),
+    exitCaseStatus: row.exit_case_status || null,
   };
 }
 
@@ -85,9 +93,7 @@ function hasActivePortalAccount(intern) {
 }
 
 function getStatusClass(status) {
-
   switch (status) {
-
     case "ACTIVE":
       return "badge-success";
 
@@ -112,6 +118,8 @@ export default function ActiveInterns() {
   );
   const [actionMessage, setActionMessage] = useState("");
   const [selectedCandidateId, setSelectedCandidateId] = useState(null);
+  const [initiateExitCandidate, setInitiateExitCandidate] = useState(null);
+  const [isInitiatingExit, setIsInitiatingExit] = useState(false);
 
   async function refreshActiveInterns() {
     try {
@@ -233,6 +241,8 @@ export default function ActiveInterns() {
       nextIds.add(intern.candidateId);
       return nextIds;
     });
+  async function handleConfirmInitiateExit(payload) {
+    setIsInitiatingExit(true);
     setActionMessage("");
     setErrorMessage("");
 
@@ -300,120 +310,169 @@ export default function ActiveInterns() {
         nextIds.delete(intern.candidateId);
         return nextIds;
       });
+      await initiateExitForCandidate({
+        candidateId: payload.candidateId,
+        exitType: payload.exitType,
+        exitDate: payload.exitDate,
+        notes: payload.notes,
+      });
+
+      setActionMessage(
+        `Exit process initiated successfully for ${initiateExitCandidate?.fullName || "candidate"}.`,
+      );
+      setInitiateExitCandidate(null);
+      await refreshActiveInterns();
+    } catch (error) {
+      console.error("Unable to initiate exit process:", error);
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "An exit process has already been initiated for this intern.",
+      );
+    } finally {
+      setIsInitiatingExit(false);
     }
   }
 
   return (
     <div className="app-page">
-      <Link
-  to="/"
-  className="back-link"
->
-  ← Back to Dashboard
-</Link>
+      <Link to="/" className="back-link">
+        ← Back to Dashboard
+      </Link>
 
-<div className="page-header-modern">
+      <div className="page-header-modern">
+        <div className="page-icon">
+          <BriefcaseBusiness size={28} />
+        </div>
 
-  <div className="page-icon">
-    <BriefcaseBusiness size={28} />
-  </div>
-
-  <div>
-    <h1 className="page-title-modern">
-      Active Interns
-    </h1>
-
-    <p className="page-subtitle">
-      Manage active interns and track signed offer submissions.
-    </p>
-  </div>
-
-</div>
+        <div>
+          <h1 className="page-title-modern">Active Interns</h1>
+          <p className="page-subtitle">
+            Manage active interns, initiate exits, and track signed offer submissions.
+          </p>
+        </div>
+      </div>
 
       {isLoading && <p>Loading active interns...</p>}
 
-      {errorMessage && <p>{errorMessage}</p>}
+      {errorMessage && (
+        <div className="card card-danger" style={{ marginBottom: 16, padding: 12 }}>
+          <p className="auth-inline-error" style={{ margin: 0 }}>
+            {errorMessage}
+          </p>
+        </div>
+      )}
 
-      {actionMessage && <p>{actionMessage}</p>}
+      {actionMessage && (
+        <div className="card card-success" style={{ marginBottom: 16, padding: 12 }}>
+          <p style={{ margin: 0, color: "#15803d", fontWeight: 600 }}>
+            {actionMessage}
+          </p>
+        </div>
+      )}
 
       <div className="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Email</th>
+              <th>Phone</th>
+              <th>MID</th>
+              <th>Role</th>
+              <th>Department</th>
+              <th>Team</th>
+              <th>Project</th>
+              <th>Lifecycle Status</th>
+              <th>Offer Status</th>
+              <th>Sent At</th>
+              <th>Signed Offer Status</th>
+              <th>Action</th>
+            </tr>
+          </thead>
 
-      <table>
-        <thead>
-          <tr>
-            <th>Name</th>
-            <th>Email</th>
-            <th>Phone</th>
-            <th>MID</th>
-            <th>Role</th>
-            <th>Department</th>
-            <th>Team</th>
-            <th>Project</th>
-            <th>Lifecycle Status</th>
-            <th>Offer Status</th>
-            <th>Sent At</th>
-            <th>Signed Offer Status</th>
-            <th>Action</th>
-          </tr>
-        </thead>
-
-        <tbody>
-          {activeInterns.map((intern) => (
-            <tr key={intern.id}>
-              <td>
-                <button
-                  type="button"
-                  className="candidate-link"
-                  onClick={() => setSelectedCandidateId(intern.candidateId)}
-                >
-                  {intern.fullName}
-                </button>
-              </td>
-              <td>{intern.email}</td>
-              <td>{intern.phone}</td>
-              <td>
-  <strong>{intern.mid}</strong>
-</td>
-              <td>{intern.appliedRole}</td>
-              <td>{intern.department}</td>
-              <td>{intern.team}</td>
-              <td>{intern.project}</td>
-              <td>
-  <span
-    className={`badge ${getStatusClass(intern.lifecycleStatus)}`}
-  >
-    {intern.lifecycleStatus.replaceAll("_", " ")}
-  </span>
-</td>
-              <td>{intern.offerStatus}</td>
-              <td>{intern.sentAt}</td>
-              <td>{intern.signedOfferStatus}</td>
-              <td>
-                <div className="action-group">
-                  {intern.lifecycleStatus === "ACTIVE" &&
-                    isValidUuid(intern.candidateId) &&
-                    !(
-                      intern.portalAccountStatus === "ACTIVE" &&
-                      isValidUuid(intern.portalUserId)
-                    ) && (
+          <tbody>
+            {activeInterns.map((intern) => (
+              <tr key={intern.id}>
+                <td>
+                  <button
+                    type="button"
+                    className="candidate-link"
+                    onClick={() => setSelectedCandidateId(intern.candidateId)}
+                  >
+                    {intern.fullName}
+                  </button>
+                </td>
+                <td>{intern.email}</td>
+                <td>{intern.phone}</td>
+                <td>
+                  <strong>{intern.mid}</strong>
+                </td>
+                <td>{intern.appliedRole}</td>
+                <td>{intern.department}</td>
+                <td>{intern.team}</td>
+                <td>{intern.project}</td>
+                <td>
+                  <span className={`badge ${getStatusClass(intern.lifecycleStatus)}`}>
+                    {intern.lifecycleStatus ? intern.lifecycleStatus.replaceAll("_", " ") : "—"}
+                  </span>
+                </td>
+                <td>{intern.offerStatus}</td>
+                <td>{intern.sentAt}</td>
+                <td>{intern.signedOfferStatus}</td>
+                <td>
+                  <div className="action-group">
+                    {intern.lifecycleStatus === "ACTIVE" &&
+                      isValidUuid(intern.candidateId) &&
+                      !(
+                        intern.portalAccountStatus === "ACTIVE" &&
+                        isValidUuid(intern.portalUserId)
+                      ) && (
+                        <button
+                          type="button"
+                          className="btn btn-primary"
+                          disabled={portalActionCandidateId === intern.candidateId}
+                          onClick={() => handleCreatePortalAccount(intern)}
+                        >
+                          {portalActionCandidateId === intern.candidateId
+                            ? "Creating Portal..."
+                            : "Create Portal Account"}
+                        </button>
+                      )}
+                    {intern.portalAccountStatus === "ACTIVE" &&
+                      isValidUuid(intern.portalUserId) && (
+                        <span className="badge badge-success">Portal Active</span>
+                      )}
+                    {intern.lifecycleStatus === "ACTIVE" && (
                       <button
                         type="button"
                         className="btn btn-primary"
-                        disabled={
-                          portalActionCandidateId === intern.candidateId
-                        }
-                        onClick={() => handleCreatePortalAccount(intern)}
+                        disabled={actionCandidateId === intern.candidateId}
+                        onClick={() => handleMarkSignedOfferSubmitted(intern)}
                       >
-                        {portalActionCandidateId === intern.candidateId
-                          ? "Creating Portal..."
-                          : "Create Portal Account"}
+                        {actionCandidateId === intern.candidateId
+                          ? "Marking..."
+                          : "Mark Signed Offer Submitted"}
                       </button>
                     )}
-                  {intern.portalAccountStatus === "ACTIVE" &&
-                    isValidUuid(intern.portalUserId) && (
-                      <span className="badge badge-success">
-                        Portal Active
-                      </span>
+                    {intern.hasActiveExit ? (
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        disabled
+                        style={{ cursor: "not-allowed", opacity: 0.7 }}
+                        title="Exit process has already been initiated for this intern"
+                      >
+                        Exit In Progress
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className="btn btn-warning"
+                        onClick={() => setInitiateExitCandidate(intern)}
+                      >
+                        Initiate Exit
+                      </button>
                     )}
                   {isHrPsyconnectIntern(intern) &&
                     !hasActivePortalAccount(intern) && (
@@ -498,14 +557,26 @@ export default function ActiveInterns() {
           ))}
         </tbody>
       </table>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
       <br />
-
-    
 
       <CandidateDetailModal
         candidateId={selectedCandidateId}
         onClose={() => setSelectedCandidateId(null)}
+      />
+
+      <InitiateExitModal
+        isOpen={Boolean(initiateExitCandidate)}
+        intern={initiateExitCandidate}
+        onClose={() => setInitiateExitCandidate(null)}
+        onConfirm={handleConfirmInitiateExit}
+        isSubmitting={isInitiatingExit}
       />
     </div>
   );
