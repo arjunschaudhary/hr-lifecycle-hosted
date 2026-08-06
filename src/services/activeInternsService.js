@@ -93,16 +93,20 @@ export async function initiateExitForCandidate({
   // 2. Fetch candidate's hr_lifecycle details
   const { data: lifecycleRows, error: lcError } = await supabase
     .from("hr_lifecycle")
-    .select("lifecycle_id, mid")
+    .select("lifecycle_id, mid, lifecycle_status, updated_at")
     .eq("candidate_id", candidateId)
-    .eq("lifecycle_status", "ACTIVE")
-    .single();
+    .order("updated_at", { ascending: false })
+    .limit(1);
 
-  if (lcError || !lifecycleRows ) {
-    throw new Error("Could not find active lifecycle record for this candidate.");
+  if (lcError) {
+    throw lcError;
   }
 
-  const lifecycle = lifecycleRows;
+  if (!lifecycleRows || lifecycleRows.length === 0) {
+    throw new Error("No lifecycle record found for this candidate.");
+  }
+
+  const lifecycle = lifecycleRows[0];
 
   // Fetch candidate profile for department/pod_name_snapshot
   const { data: candidateRows } = await supabase
