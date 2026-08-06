@@ -21,6 +21,7 @@ import {
   CalendarClock,
   Gauge,
   LogOut,
+  BarChart3,
 } from "lucide-react";
 
 import {
@@ -161,6 +162,11 @@ export default function HRDashboard() {
       path: "/hr-exit-evaluations",
       label: "Exit Evaluations",
       icon: <LogOut size={18} />,
+    },
+    {
+      path: "/exit-analytics",
+      label: "Exit Analytics",
+      icon: <BarChart3 size={18} />,
     },
     {
       path: "/offer-approval",

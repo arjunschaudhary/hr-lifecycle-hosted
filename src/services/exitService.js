@@ -267,7 +267,67 @@ export async function submitCandidateExitFeedback({ exitCaseId, candidateId, for
     throw new Error(EXIT_SUBMIT_ERROR);
   }
 
-  // STEP 2: Update exit_cases only after successful insert.
+  // STEP 2: Insert handover items into exit_handover_items if provided
+  const successorName =
+    formData.briefedSomeone === "yes" ? formData.personName?.trim() || null : null;
+  const repositoryLink = formData.repositoryLink?.trim() || null;
+  const transferDocuments = formData.transferDocuments?.trim() || null;
+  const accessToRevoke = formData.accessToRevoke?.trim() || null;
+  const timeSensitiveNotes = formData.timeSensitiveNotes?.trim() || null;
+
+  const validTasks = Array.isArray(formData.ongoingTasks)
+    ? formData.ongoingTasks.filter((t) => t && t.taskName && t.taskName.trim().length > 0)
+    : [];
+
+  let handoverRecords = [];
+
+  if (validTasks.length > 0) {
+    handoverRecords = validTasks.map((t) => ({
+      exit_case_id: exitCaseId,
+      task_name: t.taskName.trim(),
+      task_status: t.taskStatus || "IN_PROGRESS",
+      next_steps: t.nextSteps?.trim() || null,
+      successor_name: successorName,
+      repository_link: repositoryLink,
+      transfer_documents: transferDocuments,
+      access_to_revoke: accessToRevoke,
+      time_sensitive_notes: timeSensitiveNotes,
+    }));
+  } else if (
+    successorName ||
+    repositoryLink ||
+    transferDocuments ||
+    accessToRevoke ||
+    timeSensitiveNotes
+  ) {
+    handoverRecords.push({
+      exit_case_id: exitCaseId,
+      task_name: "General Handover Notes",
+      task_status: "COMPLETED",
+      next_steps: null,
+      successor_name: successorName,
+      repository_link: repositoryLink,
+      transfer_documents: transferDocuments,
+      access_to_revoke: accessToRevoke,
+      time_sensitive_notes: timeSensitiveNotes,
+    });
+  }
+
+  if (handoverRecords.length > 0) {
+    const { error: handoverError } = await supabase
+      .from("exit_handover_items")
+      .insert(handoverRecords);
+
+    if (handoverError) {
+      console.error(
+        "[exitService] exit_handover_items insert failed:",
+        handoverError
+      );
+      throw new Error(EXIT_SUBMIT_ERROR);
+    }
+  }
+
+  // STEP 3: Update exit_cases only after successful inserts.
   // Transition overall_status to 'HR_PENDING' since Candidate form is now completed.
   const { error: updateError } = await supabase
     .from("exit_cases")

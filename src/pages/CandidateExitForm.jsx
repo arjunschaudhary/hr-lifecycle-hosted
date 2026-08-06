@@ -5,6 +5,7 @@
 
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { Plus, Trash2 } from "lucide-react";
 
 import { useAuth } from "../context/authContext";
 import {
@@ -37,12 +38,13 @@ import {
   REJOIN_OPTIONS,
 } from "../constants/exitFormOptions";
 
-const TOTAL_SECTIONS = 4;
+const TOTAL_SECTIONS = 5;
 const SECTION_TITLES = [
   "Basic Information",
   "Learning, Growth & Overall Experience",
   "Mentorship & Team",
   "Final Open Feedback",
+  "Knowledge Transfer / Handover",
 ];
 
 export default function CandidateExitForm() {
@@ -96,9 +98,43 @@ export default function CandidateExitForm() {
     improvementSuggestions: [],
     improvementOther: "",
     rejoinInterest: "",
+
+    // Section G: Knowledge Transfer / Handover
+    ongoingTasks: [],
+    briefedSomeone: "",
+    personName: "",
+    transferDocuments: "",
+    accessToRevoke: "",
+    timeSensitiveNotes: "",
+    repositoryLink: "",
   });
 
   const [fieldErrors, setFieldErrors] = useState({});
+
+  const addOngoingTask = () => {
+    setFormData((prev) => ({
+      ...prev,
+      ongoingTasks: [
+        ...prev.ongoingTasks,
+        { taskName: "", taskStatus: "IN_PROGRESS", nextSteps: "" },
+      ],
+    }));
+  };
+
+  const updateOngoingTask = (index, field, val) => {
+    setFormData((prev) => {
+      const nextTasks = [...prev.ongoingTasks];
+      nextTasks[index] = { ...nextTasks[index], [field]: val };
+      return { ...prev, ongoingTasks: nextTasks };
+    });
+  };
+
+  const removeOngoingTask = (index) => {
+    setFormData((prev) => ({
+      ...prev,
+      ongoingTasks: prev.ongoingTasks.filter((_, i) => i !== index),
+    }));
+  };
 
   useEffect(() => {
     let isMounted = true;
@@ -195,6 +231,18 @@ export default function CandidateExitForm() {
     } else if (currentSection === 4) {
       if (formData.improvementSuggestions.includes("other") && !formData.improvementOther.trim()) {
         errors.improvementOther = "Please specify improvement suggestion.";
+      }
+    } else if (currentSection === 5) {
+      if (formData.briefedSomeone === "yes" && !formData.personName.trim()) {
+        errors.personName = "Please specify the person name you briefed.";
+      }
+      if (
+        formData.ongoingTasks.some(
+          (t) => t && (!t.taskName || !t.taskName.trim())
+        )
+      ) {
+        errors.ongoingTasks =
+          "Please fill out the task name for all added tasks, or remove empty task rows.";
       }
     }
 
@@ -594,6 +642,157 @@ export default function CandidateExitForm() {
               options={REJOIN_OPTIONS}
               value={formData.rejoinInterest}
               onChange={(val) => updateField("rejoinInterest", val)}
+            />
+          </ExitQuestionSection>
+        )}
+
+        {/* SECTION 5: KNOWLEDGE TRANSFER / HANDOVER */}
+        {currentSection === 5 && (
+          <ExitQuestionSection id="sec-5-title" title="5. Knowledge Transfer / Handover">
+            {/* 1. Ongoing Tasks / Projects */}
+            <div style={{ marginBottom: 24 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                <label style={{ fontWeight: 600, display: "block" }}>
+                  1. Ongoing Tasks / Projects
+                </label>
+                <button
+                  type="button"
+                  onClick={addOngoingTask}
+                  className="btn btn-secondary"
+                  style={{ fontSize: 13, padding: "6px 12px", display: "flex", alignItems: "center", gap: 4 }}
+                >
+                  <Plus size={14} /> Add Task
+                </button>
+              </div>
+
+              {formData.ongoingTasks.length === 0 ? (
+                <p style={{ fontSize: 13, color: "#64748b", fontStyle: "italic", margin: 0 }}>
+                  No ongoing tasks added. Click "+ Add Task" to add pending tasks or projects.
+                </p>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                  {formData.ongoingTasks.map((task, idx) => (
+                    <div
+                      key={idx}
+                      style={{
+                        padding: 14,
+                        border: "1px solid #cbd5e1",
+                        borderRadius: 8,
+                        background: "#f8fafc",
+                        position: "relative",
+                      }}
+                    >
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: "#475569" }}>Task #{idx + 1}</span>
+                        <button
+                          type="button"
+                          onClick={() => removeOngoingTask(idx)}
+                          style={{ background: "none", border: "none", color: "#dc2626", cursor: "pointer" }}
+                          aria-label="Remove task"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 10 }}>
+                        <ExitQuestionField
+                          id={`task-name-${idx}`}
+                          label="Task / Project Name"
+                          type="text"
+                          required
+                          value={task.taskName}
+                          onChange={(v) => updateOngoingTask(idx, "taskName", v)}
+                        />
+                        <ExitQuestionField
+                          id={`task-status-${idx}`}
+                          label="Current Status"
+                          type="dropdown"
+                          options={[
+                            { value: "IN_PROGRESS", label: "In Progress" },
+                            { value: "PENDING", label: "Pending" },
+                            { value: "HANDED_OVER", label: "Handed Over" },
+                            { value: "COMPLETED", label: "Completed" },
+                          ]}
+                          value={task.taskStatus}
+                          onChange={(v) => updateOngoingTask(idx, "taskStatus", v)}
+                        />
+                        <ExitQuestionField
+                          id={`task-next-${idx}`}
+                          label="Next Steps"
+                          type="text"
+                          value={task.nextSteps}
+                          onChange={(v) => updateOngoingTask(idx, "nextSteps", v)}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {fieldErrors.ongoingTasks && (
+                <p role="alert" style={{ margin: "6px 0 0", fontSize: 13, color: "#dc2626" }}>
+                  {fieldErrors.ongoingTasks}
+                </p>
+              )}
+            </div>
+
+            {/* 2. Briefed Someone */}
+            <ExitQuestionField
+              id="field-briefed-someone"
+              label="2. Is there a person you've briefed on your pending work?"
+              type="radio"
+              options={[
+                { value: "yes", label: "Yes" },
+                { value: "no", label: "No" },
+              ]}
+              value={formData.briefedSomeone}
+              onChange={(val) => updateField("briefedSomeone", val)}
+            />
+
+            {formData.briefedSomeone === "yes" && (
+              <ExitQuestionField
+                id="field-person-name"
+                label="Person Name"
+                type="text"
+                required
+                value={formData.personName}
+                onChange={(val) => updateField("personName", val)}
+                error={fieldErrors.personName}
+              />
+            )}
+
+            {/* 3. Documents / Files / Credentials */}
+            <ExitQuestionField
+              id="field-transfer-docs"
+              label="3. Any documents, files, or access/credentials that need to be transferred?"
+              type="textarea"
+              value={formData.transferDocuments}
+              onChange={(val) => updateField("transferDocuments", val)}
+            />
+
+            {/* 4. Accounts / Access */}
+            <ExitQuestionField
+              id="field-access-revoke"
+              label="4. Any tools/accounts that should be revoked or reassigned?"
+              type="textarea"
+              value={formData.accessToRevoke}
+              onChange={(val) => updateField("accessToRevoke", val)}
+            />
+
+            {/* 5. Time Sensitive Items */}
+            <ExitQuestionField
+              id="field-time-sensitive"
+              label="5. Anything time-sensitive needing immediate attention after you leave?"
+              type="textarea"
+              value={formData.timeSensitiveNotes}
+              onChange={(val) => updateField("timeSensitiveNotes", val)}
+            />
+
+            {/* 6. Repository / Drive */}
+            <ExitQuestionField
+              id="field-repo-link"
+              label="6. Where can your work/files be found? (GitHub / Drive / Repository Link)"
+              type="textarea"
+              value={formData.repositoryLink}
+              onChange={(val) => updateField("repositoryLink", val)}
             />
           </ExitQuestionSection>
         )}
