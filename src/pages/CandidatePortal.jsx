@@ -14,7 +14,7 @@ import {
   getSupportingDocumentUrl,
 } from "../services/candidateLeaveService";
 import { fetchCurrentCandidatePortalSummary } from "../services/candidatePortalService";
-import { submitCurrentCandidateSignedOffer } from "../services/candidateSignedOfferUploadService";
+import { submitCurrentCandidateSignedOffer, resubmitCurrentCandidateSignedOffer } from "../services/candidateSignedOfferUploadService";
 import { fetchCurrentCandidatePerformanceHistory } from "../services/candidatePerformanceService";
 import { calculateLeaveDays, getTodayKolkataString } from "../utils/leaveRules";
 
@@ -511,9 +511,14 @@ function PortalSummary({
   exitCase,
   selectedFile,
   uploadLoading,
+  resubmitLoading,
   fileInputRef,
+  resubmitFileInputRef,
+  selectedResubmitFile,
   onFileChange,
+  onResubmitFileChange,
   onSubmit,
+  onResubmit,
   performanceCycles,
   performanceLoading,
   performanceError,
@@ -551,14 +556,6 @@ function PortalSummary({
     { label: "Lifecycle Status", value: formatStatus(internship.lifecycleStatus) },
   ];
 
-  const signedOfferFields = [
-    {
-      label: "Current Status",
-      value: formatStatus(signedOffer.status) || "Not submitted",
-    },
-    { label: "Submitted Date", value: formatDate(signedOffer.submittedAt) },
-    { label: "Verified Date", value: formatDate(signedOffer.verifiedAt) },
-  ];
 
   return (
     <>
@@ -614,41 +611,19 @@ function PortalSummary({
 
       {children}
 
-      <SummaryCard title="Signed Offer">
-        <SummaryFields fields={signedOfferFields} />
-        {signedOffer.canSubmit && (
-          <form onSubmit={onSubmit} noValidate>
-            <div className="form-group">
-              <label htmlFor="signed-offer-file">Signed offer PDF</label>
-              <input
-                ref={fileInputRef}
-                id="signed-offer-file"
-                type="file"
-                accept=".pdf,application/pdf"
-                onChange={onFileChange}
-                disabled={signedOffer.canSubmit === false || uploadLoading}
-                aria-describedby="signed-offer-file-help"
-              />
-              <p id="signed-offer-file-help" className="page-subtitle">
-                PDF only, maximum 10 MB.
-              </p>
-              {selectedFile && (
-                <p className="page-subtitle">
-                  Selected file: <strong>{selectedFile.name}</strong> ({formatFileSize(selectedFile.size)})
-                </p>
-              )}
-            </div>
-            <button
-              className="btn btn-primary"
-              type="submit"
-              disabled={!signedOffer.canSubmit || !selectedFile || uploadLoading}
-              aria-busy={uploadLoading}
-            >
-              {uploadLoading ? "Uploading..." : "Submit Signed Offer"}
-            </button>
-          </form>
-        )}
-      </SummaryCard>
+      <CandidateSignedOfferSection
+        signedOffer={signedOffer}
+        selectedFile={selectedFile}
+        uploadLoading={uploadLoading}
+        resubmitLoading={resubmitLoading}
+        fileInputRef={fileInputRef}
+        resubmitFileInputRef={resubmitFileInputRef}
+        selectedResubmitFile={selectedResubmitFile}
+        onFileChange={onFileChange}
+        onResubmitFileChange={onResubmitFileChange}
+        onSubmit={onSubmit}
+        onResubmit={onResubmit}
+      />
 
       <CandidatePerformanceSection
         cycles={performanceCycles}
@@ -656,6 +631,177 @@ function PortalSummary({
         error={performanceError}
       />
     </>
+  );
+}
+
+function CandidateSignedOfferSection({
+  signedOffer,
+  selectedFile,
+  uploadLoading,
+  resubmitLoading,
+  fileInputRef,
+  resubmitFileInputRef,
+  selectedResubmitFile,
+  onFileChange,
+  onResubmitFileChange,
+  onSubmit,
+  onResubmit,
+}) {
+  const status = signedOffer?.status;
+  const canSubmit = signedOffer?.canSubmit;
+  const canResubmit = signedOffer?.canResubmit;
+  const verificationNotes = signedOffer?.verificationNotes;
+
+  const signedOfferFields = [
+    {
+      label: "Current Status",
+      value: formatStatus(status) || "Not submitted",
+    },
+    { label: "Submitted Date", value: formatDate(signedOffer?.submittedAt) },
+    { label: "Verified Date", value: formatDate(signedOffer?.verifiedAt) },
+  ];
+
+  return (
+    <SummaryCard title="Signed Offer">
+      <SummaryFields fields={signedOfferFields} />
+
+      {/* ── Verified (accepted) ─────────────────────────────── */}
+      {status === "SIGNED_OFFER_VERIFIED" && (
+        <div style={{ marginTop: 12 }}>
+          <span className="badge badge-success">Signed offer verified</span>
+        </div>
+      )}
+
+      {/* ── Pending review ───────────────────────────────────── */}
+      {status === "SIGNED_OFFER_SUBMITTED" && (
+        <div style={{ marginTop: 12 }}>
+          <span className="badge badge-info">Pending HR review</span>
+        </div>
+      )}
+
+      {/* ── Rejected / MISMATCH_REVIEW ───────────────────────── */}
+      {canResubmit && (
+        <div
+          style={{
+            marginTop: 16,
+            padding: "14px 16px",
+            borderRadius: 8,
+            border: "1.5px solid var(--color-danger, #e53e3e)",
+            background: "rgba(229,62,62,0.06)",
+          }}
+          role="alert"
+          aria-labelledby="signed-offer-rejected-title"
+        >
+          <h3
+            id="signed-offer-rejected-title"
+            style={{
+              margin: "0 0 6px",
+              fontSize: "0.97rem",
+              color: "var(--color-danger, #e53e3e)",
+            }}
+          >
+            Signed offer requires correction
+          </h3>
+          <p className="page-subtitle" style={{ margin: "0 0 10px" }}>
+            HR reviewed your signed offer and found a mismatch. Please
+            upload a corrected copy.
+          </p>
+          {verificationNotes && (
+            <div
+              style={{
+                padding: "8px 12px",
+                borderRadius: 6,
+                background: "rgba(229,62,62,0.08)",
+                marginBottom: 14,
+              }}
+            >
+              <p
+                className="page-subtitle"
+                style={{ margin: 0, fontWeight: 600, marginBottom: 2 }}
+              >
+                HR note:
+              </p>
+              <p className="page-subtitle" style={{ margin: 0 }}>
+                {verificationNotes}
+              </p>
+            </div>
+          )}
+          <form onSubmit={onResubmit} noValidate>
+            <div className="form-group">
+              <label htmlFor="signed-offer-resubmit-file">
+                Upload corrected signed offer PDF
+              </label>
+              <input
+                ref={resubmitFileInputRef}
+                id="signed-offer-resubmit-file"
+                type="file"
+                accept=".pdf,application/pdf"
+                onChange={onResubmitFileChange}
+                disabled={resubmitLoading}
+                aria-describedby="signed-offer-resubmit-file-help"
+              />
+              <p
+                id="signed-offer-resubmit-file-help"
+                className="page-subtitle"
+              >
+                PDF only, maximum 10 MB.
+              </p>
+              {selectedResubmitFile && (
+                <p className="page-subtitle">
+                  Selected file:{" "}
+                  <strong>{selectedResubmitFile.name}</strong>{" "}
+                  ({formatFileSize(selectedResubmitFile.size)})
+                </p>
+              )}
+            </div>
+            <button
+              className="btn btn-primary"
+              type="submit"
+              id="signed-offer-resubmit-btn"
+              disabled={!selectedResubmitFile || resubmitLoading}
+              aria-busy={resubmitLoading}
+            >
+              {resubmitLoading ? "Uploading..." : "Re-upload Signed Offer"}
+            </button>
+          </form>
+        </div>
+      )}
+
+      {/* ── First-time submission form ────────────────────────── */}
+      {canSubmit && (
+        <form onSubmit={onSubmit} noValidate style={{ marginTop: 12 }}>
+          <div className="form-group">
+            <label htmlFor="signed-offer-file">Signed offer PDF</label>
+            <input
+              ref={fileInputRef}
+              id="signed-offer-file"
+              type="file"
+              accept=".pdf,application/pdf"
+              onChange={onFileChange}
+              disabled={!canSubmit || uploadLoading}
+              aria-describedby="signed-offer-file-help"
+            />
+            <p id="signed-offer-file-help" className="page-subtitle">
+              PDF only, maximum 10 MB.
+            </p>
+            {selectedFile && (
+              <p className="page-subtitle">
+                Selected file: <strong>{selectedFile.name}</strong> (
+                {formatFileSize(selectedFile.size)})
+              </p>
+            )}
+          </div>
+          <button
+            className="btn btn-primary"
+            type="submit"
+            disabled={!canSubmit || !selectedFile || uploadLoading}
+            aria-busy={uploadLoading}
+          >
+            {uploadLoading ? "Uploading..." : "Submit Signed Offer"}
+          </button>
+        </form>
+      )}
+    </SummaryCard>
   );
 }
 
@@ -684,6 +830,11 @@ export default function CandidatePortal() {
   const [performanceCycles, setPerformanceCycles] = useState([]);
   const [performanceLoading, setPerformanceLoading] = useState(true);
   const [performanceError, setPerformanceError] = useState("");
+  const [selectedResubmitFile, setSelectedResubmitFile] = useState(null);
+  const [resubmitLoading, setResubmitLoading] = useState(false);
+  const [resubmitError, setResubmitError] = useState("");
+  const [resubmitSuccess, setResubmitSuccess] = useState("");
+  const resubmitFileInputRef = useRef(null);
 
   const handleLeaveFileChange = (event) => {
     setLeaveSubmissionError("");
@@ -891,6 +1042,85 @@ export default function CandidatePortal() {
     setUploadError("");
     setUploadSuccess("");
     setSelectedFile(event.target.files?.[0] || null);
+  };
+
+  const handleResubmitFileChange = (event) => {
+    setResubmitError("");
+    setResubmitSuccess("");
+    const file = event.target.files?.[0] || null;
+    if (file) {
+      if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
+        setResubmitError("Only PDF files are allowed.");
+        setSelectedResubmitFile(null);
+        if (resubmitFileInputRef.current) resubmitFileInputRef.current.value = "";
+        return;
+      }
+      if (file.size > 10 * 1024 * 1024) {
+        setResubmitError("PDF file size must be no larger than 10 MB.");
+        setSelectedResubmitFile(null);
+        if (resubmitFileInputRef.current) resubmitFileInputRef.current.value = "";
+        return;
+      }
+    }
+    setSelectedResubmitFile(file);
+  };
+
+  const handleResubmitSignedOffer = async (event) => {
+    event.preventDefault();
+
+    if (!summary?.signedOffer?.canResubmit || !selectedResubmitFile || resubmitLoading) {
+      return;
+    }
+
+    const authenticatedCandidateId = formatValue(candidateId);
+    const summaryCandidateId = formatValue(summary.profile?.candidateId);
+
+    if (
+      authenticatedCandidateId &&
+      summaryCandidateId &&
+      authenticatedCandidateId.toLowerCase() !== summaryCandidateId.toLowerCase()
+    ) {
+      setResubmitError("Candidate reference could not be verified.");
+      setResubmitSuccess("");
+      return;
+    }
+
+    const uploadCandidateId = authenticatedCandidateId || summaryCandidateId;
+
+    setResubmitLoading(true);
+    setResubmitError("");
+    setResubmitSuccess("");
+
+    try {
+      await resubmitCurrentCandidateSignedOffer({
+        candidateId: uploadCandidateId,
+        file: selectedResubmitFile,
+      });
+
+      setSelectedResubmitFile(null);
+      if (resubmitFileInputRef.current) resubmitFileInputRef.current.value = "";
+      setResubmitSuccess(
+        "Corrected signed offer submitted successfully. HR will review it shortly.",
+      );
+      setLoading(true);
+      setSummary(null);
+      setRetryKey((currentKey) => currentKey + 1);
+    } catch (submitError) {
+      const safeMessage =
+        submitError instanceof Error
+          ? submitError.message
+          : "Unable to complete the re-upload. Please try again.";
+
+      setResubmitError(safeMessage);
+      setResubmitSuccess("");
+
+      if (safeMessage.includes("clean up") || safeMessage.includes("contact HR")) {
+        setSelectedResubmitFile(null);
+        if (resubmitFileInputRef.current) resubmitFileInputRef.current.value = "";
+      }
+    } finally {
+      setResubmitLoading(false);
+    }
   };
 
   const handleLeaveFormChange = (event) => {
@@ -1119,9 +1349,14 @@ export default function CandidatePortal() {
           exitCase={exitCase}
           selectedFile={selectedFile}
           uploadLoading={uploadLoading}
+          resubmitLoading={resubmitLoading}
           fileInputRef={fileInputRef}
+          resubmitFileInputRef={resubmitFileInputRef}
+          selectedResubmitFile={selectedResubmitFile}
           onFileChange={handleFileChange}
+          onResubmitFileChange={handleResubmitFileChange}
           onSubmit={handleSubmitSignedOffer}
+          onResubmit={handleResubmitSignedOffer}
           performanceCycles={performanceCycles}
           performanceLoading={performanceLoading}
           performanceError={performanceError}
@@ -1158,6 +1393,18 @@ export default function CandidatePortal() {
       {uploadSuccess && (
         <section className="card card-success" role="status" aria-live="polite">
           <p className="auth-success-message">{uploadSuccess}</p>
+        </section>
+      )}
+
+      {resubmitError && (
+        <section className="card card-danger" role="alert">
+          <p className="auth-inline-error">{resubmitError}</p>
+        </section>
+      )}
+
+      {resubmitSuccess && (
+        <section className="card card-success" role="status" aria-live="polite">
+          <p className="auth-success-message">{resubmitSuccess}</p>
         </section>
       )}
     </main>

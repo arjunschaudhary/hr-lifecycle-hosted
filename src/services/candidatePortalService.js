@@ -37,7 +37,8 @@ export async function fetchCurrentCandidatePortalSummary() {
     !isRecord(signedOffer) ||
     !isValidUuid(profile.candidateId) ||
     typeof leave.available !== "boolean" ||
-    typeof signedOffer.canSubmit !== "boolean"
+    typeof signedOffer.canSubmit !== "boolean" ||
+    typeof signedOffer.canResubmit !== "boolean"
   ) {
     throw new Error(PORTAL_SUMMARY_ERROR);
   }
