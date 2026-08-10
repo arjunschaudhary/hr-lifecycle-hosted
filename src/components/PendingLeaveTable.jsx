@@ -4,6 +4,7 @@ import {
   getPendingLeaveRequests,
   approveLeave,
   rejectLeave,
+  getLeaveDocumentSignedUrl,
 } from "../services/leaveApprovalService";
 
 export default function PendingLeaveTable() {
@@ -83,6 +84,20 @@ export default function PendingLeaveTable() {
     }
   }
 
+  const handleViewDocument = async (docRef) => {
+    if (!docRef) return;
+    if (docRef.startsWith("http://") || docRef.startsWith("https://")) {
+      window.open(docRef, "_blank", "noopener,noreferrer");
+      return;
+    }
+    try {
+      const url = await getLeaveDocumentSignedUrl(docRef);
+      window.open(url, "_blank", "noopener,noreferrer");
+    } catch (err) {
+      alert("Unable to view document: " + err.message);
+    }
+  };
+
   if (loading) {
     return <p>Loading pending leave requests...</p>;
   }
@@ -101,6 +116,7 @@ export default function PendingLeaveTable() {
               <th>To</th>
               <th>Days</th>
               <th>Reason</th>
+              <th>Document</th>
               <th>Status</th>
               <th>Action</th>
             </tr>
@@ -110,7 +126,7 @@ export default function PendingLeaveTable() {
             {leaveRequests.length === 0 ? (
               <tr>
                 <td
-                  colSpan={10}
+                  colSpan={11}
                   style={{
                     textAlign: "center",
                     padding: "20px",
@@ -149,6 +165,20 @@ export default function PendingLeaveTable() {
                   <td>{leave.requested_leave_days}</td>
 
                   <td>{leave.reason}</td>
+
+                  <td>
+                    {leave.supporting_document ? (
+                      <button
+                        type="button"
+                        className="candidate-link"
+                        onClick={() => handleViewDocument(leave.supporting_document)}
+                      >
+                        View Document
+                      </button>
+                    ) : (
+                      "-"
+                    )}
+                  </td>
 
                   <td>
                     <span className="badge badge-warning">

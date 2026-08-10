@@ -23,6 +23,8 @@ const SAFE_RPC_MESSAGES = new Set([
   "Leave entitlement is defined only for 3 or 4 month internships.",
   "A supporting document link is required when requested leave exceeds the remaining balance.",
   "Supporting document link must use HTTP or HTTPS.",
+  "Supporting document must be a valid URL or candidate storage path.",
+  "Supporting document must be a valid URL or storage path.",
   "You already have a pending leave request. Wait for HR to review it before submitting another.",
   "This leave request overlaps with an existing leave request.",
 ]);
@@ -91,7 +93,7 @@ function mapLeaveRequest(row) {
     endDate: row.end_date,
     requestedLeaveDays: row.requested_leave_days,
     reason: row.reason,
-    supportingDocument: getSafeHttpUrl(row.supporting_document),
+    supportingDocument: row.supporting_document || null,
     leaveStatus: row.leave_status,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -184,11 +186,16 @@ export async function submitCurrentCandidateLeaveRequest({
     throw new Error("Selected dates do not include an eligible leave day.");
   }
 
+  const isStoragePath = (val) => {
+    return typeof val === "string" && val.startsWith("candidate/") && val.endsWith(".pdf");
+  };
+
   if (
     normalizedSupportingDocument &&
-    !getSafeHttpUrl(normalizedSupportingDocument)
+    !getSafeHttpUrl(normalizedSupportingDocument) &&
+    !isStoragePath(normalizedSupportingDocument)
   ) {
-    throw new Error("Supporting document link must use HTTP or HTTPS.");
+    throw new Error("Supporting document must be a valid URL or storage path.");
   }
 
   const hasKnownRemainingLeaveDays =
@@ -238,4 +245,62 @@ export async function submitCurrentCandidateLeaveRequest({
 
     throw new Error(SAFE_SUBMISSION_ERROR, { cause: error });
   }
+}
+
+export async function uploadLeaveDocument(candidateId, file) {
+  if (
+    !supabase ||
+    !supabase.storage ||
+    typeof supabase.storage.from !== "function"
+  ) {
+    throw new Error("Storage is not configured.");
+  }
+
+  const uploadUuid = globalThis.crypto.randomUUID();
+  const objectPath = `candidate/${candidateId}/leave-documents/${uploadUuid}.pdf`;
+
+  const { error } = await supabase.storage
+    .from("candidate-leave-documents")
+    .upload(objectPath, file, {
+      upsert: false,
+      contentType: "application/pdf",
+    });
+
+  if (error) {
+    throw error;
+  }
+
+  return objectPath;
+}
+
+export async function deleteLeaveDocument(objectPath) {
+  if (
+    !supabase ||
+    !supabase.storage ||
+    typeof supabase.storage.from !== "function"
+  ) {
+    return;
+  }
+
+  await supabase.storage.from("candidate-leave-documents").remove([objectPath]);
+}
+
+export async function getSupportingDocumentUrl(objectPath) {
+  if (
+    !supabase ||
+    !supabase.storage ||
+    typeof supabase.storage.from !== "function"
+  ) {
+    throw new Error("Storage is not configured.");
+  }
+
+  const { data, error } = await supabase.storage
+    .from("candidate-leave-documents")
+    .createSignedUrl(objectPath, 60);
+
+  if (error) {
+    throw error;
+  }
+
+  return data.signedUrl;
 }

@@ -9,6 +9,9 @@ import {
   CANDIDATE_LEAVE_TYPES,
   fetchCurrentCandidateLeaveRequests,
   submitCurrentCandidateLeaveRequest,
+  uploadLeaveDocument,
+  deleteLeaveDocument,
+  getSupportingDocumentUrl,
 } from "../services/candidateLeaveService";
 import { fetchCurrentCandidatePortalSummary } from "../services/candidatePortalService";
 import { submitCurrentCandidateSignedOffer } from "../services/candidateSignedOfferUploadService";
@@ -146,6 +149,11 @@ function CandidateLeaveSection({
   onChange,
   onSubmit,
   onRetryHistory,
+  selectedFile,
+  fileInputRef,
+  onFileChange,
+  onRemoveFile,
+  onViewDocument,
 }) {
   const applicationDisabled =
     submitting || historyLoading || hasPendingRequest;
@@ -215,7 +223,7 @@ function CandidateLeaveSection({
           {exceedsRemainingLeave && (
             <div className="info-banner" role="status" aria-live="polite">
               This request exceeds your remaining leave balance. Add a
-              supporting document link before submitting.
+              supporting document PDF before submitting.
             </div>
           )}
 
@@ -235,26 +243,42 @@ function CandidateLeaveSection({
 
           <div className="form-group">
             <label htmlFor="candidate-leave-supporting-document">
-              Supporting Document Link
+              Supporting Document
               {exceedsRemainingLeave ? " (required)" : " (optional)"}
             </label>
             <input
+              ref={fileInputRef}
               id="candidate-leave-supporting-document"
-              name="supportingDocument"
-              type="url"
-              value={form.supportingDocument}
-              onChange={onChange}
+              name="supportingDocumentFile"
+              type="file"
+              accept=".pdf,application/pdf"
+              onChange={onFileChange}
               disabled={applicationDisabled}
               required={exceedsRemainingLeave}
               aria-describedby="candidate-leave-supporting-document-help"
-              placeholder="https://example.com/document"
             />
             <p
               id="candidate-leave-supporting-document-help"
               className="page-subtitle"
             >
-              Required when requested leave exceeds your remaining balance.
+              PDF only, maximum 10 MB. Required when requested leave exceeds your remaining balance.
             </p>
+            {selectedFile && (
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "8px" }}>
+                <span className="page-subtitle" style={{ margin: 0 }}>
+                  Selected file: <strong>{selectedFile.name}</strong> ({formatFileSize(selectedFile.size)})
+                </span>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  style={{ padding: "2px 8px", fontSize: "12px" }}
+                  onClick={onRemoveFile}
+                  disabled={applicationDisabled}
+                >
+                  Remove
+                </button>
+              </div>
+            )}
           </div>
 
           {submissionError && (
@@ -335,13 +359,13 @@ function CandidateLeaveSection({
                     <td>{formatValue(request.reason) || "-"}</td>
                     <td>
                       {request.supportingDocument ? (
-                        <a
-                          href={request.supportingDocument}
-                          target="_blank"
-                          rel="noreferrer"
+                        <button
+                          type="button"
+                          className="candidate-link"
+                          onClick={() => onViewDocument(request.supportingDocument)}
                         >
                           View document
-                        </a>
+                        </button>
                       ) : (
                         "-"
                       )}
@@ -535,6 +559,54 @@ export default function CandidatePortal() {
   const [leaveSubmissionSuccess, setLeaveSubmissionSuccess] = useState("");
   const [leaveHistoryRetryKey, setLeaveHistoryRetryKey] = useState(0);
   const fileInputRef = useRef(null);
+  const [selectedLeaveFile, setSelectedLeaveFile] = useState(null);
+  const leaveFileInputRef = useRef(null);
+
+  const handleLeaveFileChange = (event) => {
+    setLeaveSubmissionError("");
+    setLeaveSubmissionSuccess("");
+    const file = event.target.files?.[0] || null;
+    if (file) {
+      if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
+        setLeaveSubmissionError("Only PDF files are allowed.");
+        setSelectedLeaveFile(null);
+        if (leaveFileInputRef.current) {
+          leaveFileInputRef.current.value = "";
+        }
+        return;
+      }
+      if (file.size > 10 * 1024 * 1024) {
+        setLeaveSubmissionError("PDF file size must be no larger than 10 MB.");
+        setSelectedLeaveFile(null);
+        if (leaveFileInputRef.current) {
+          leaveFileInputRef.current.value = "";
+        }
+        return;
+      }
+    }
+    setSelectedLeaveFile(file);
+  };
+
+  const handleRemoveLeaveFile = () => {
+    setSelectedLeaveFile(null);
+    if (leaveFileInputRef.current) {
+      leaveFileInputRef.current.value = "";
+    }
+  };
+
+  const handleViewLeaveDocument = async (docRef) => {
+    if (!docRef) return;
+    if (docRef.startsWith("http://") || docRef.startsWith("https://")) {
+      window.open(docRef, "_blank", "noopener,noreferrer");
+      return;
+    }
+    try {
+      const url = await getSupportingDocumentUrl(docRef);
+      window.open(url, "_blank", "noopener,noreferrer");
+    } catch (err) {
+      alert("Unable to view document: " + err.message);
+    }
+  };
 
   const requestedLeaveDays = useMemo(() => {
     if (!leaveForm.startDate || !leaveForm.endDate) {
@@ -688,17 +760,43 @@ export default function CandidatePortal() {
       return;
     }
 
+    if (exceedsRemainingLeave && !selectedLeaveFile) {
+      setLeaveSubmissionError("A supporting document PDF is required when requested leave exceeds the remaining balance.");
+      return;
+    }
+
     setLeaveSubmitting(true);
     setLeaveSubmissionError("");
     setLeaveSubmissionSuccess("");
 
+    const authenticatedCandidateId = formatValue(candidateId);
+    const summaryCandidateId = formatValue(summary.profile?.candidateId);
+    const uploadCandidateId = authenticatedCandidateId || summaryCandidateId;
+
+    if (!uploadCandidateId) {
+      setLeaveSubmissionError("Candidate reference is invalid.");
+      setLeaveSubmitting(false);
+      return;
+    }
+
+    let uploadedPath = null;
+
     try {
+      if (selectedLeaveFile) {
+        uploadedPath = await uploadLeaveDocument(uploadCandidateId, selectedLeaveFile);
+      }
+
       const submittedRequest = await submitCurrentCandidateLeaveRequest({
         ...leaveForm,
+        supportingDocument: uploadedPath || "",
         remainingLeaveDays: summary?.leave?.remainingLeaveDays,
       });
 
       setLeaveForm(INITIAL_LEAVE_FORM);
+      setSelectedLeaveFile(null);
+      if (leaveFileInputRef.current) {
+        leaveFileInputRef.current.value = "";
+      }
       setLeaveRequests((currentRequests) => [
         submittedRequest,
         ...currentRequests.filter(
@@ -718,6 +816,9 @@ export default function CandidatePortal() {
         );
       }
     } catch (submitError) {
+      if (uploadedPath) {
+        await deleteLeaveDocument(uploadedPath);
+      }
       setLeaveSubmissionError(
         submitError instanceof Error
           ? submitError.message
@@ -868,6 +969,11 @@ export default function CandidatePortal() {
             onChange={handleLeaveFormChange}
             onSubmit={handleSubmitLeaveRequest}
             onRetryHistory={handleRetryLeaveHistory}
+            selectedFile={selectedLeaveFile}
+            fileInputRef={leaveFileInputRef}
+            onFileChange={handleLeaveFileChange}
+            onRemoveFile={handleRemoveLeaveFile}
+            onViewDocument={handleViewLeaveDocument}
           />
         </PortalSummary>
       )}

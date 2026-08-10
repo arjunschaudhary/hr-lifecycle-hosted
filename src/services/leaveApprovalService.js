@@ -206,3 +206,24 @@ export async function rejectLeave(leaveRequestId) {
 
   return true;
 }
+
+export async function getLeaveDocumentSignedUrl(objectPath) {
+  if (
+    !supabase ||
+    !supabase.storage ||
+    typeof supabase.storage.from !== "function"
+  ) {
+    throw new Error("Storage is not configured.");
+  }
+
+  const { data, error } = await supabase.storage
+    .from("candidate-leave-documents")
+    .createSignedUrl(objectPath, 60);
+
+  if (error) {
+    throw error;
+  }
+
+  return data.signedUrl;
+}
+
