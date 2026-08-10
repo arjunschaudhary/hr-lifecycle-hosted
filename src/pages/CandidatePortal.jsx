@@ -15,6 +15,7 @@ import {
 } from "../services/candidateLeaveService";
 import { fetchCurrentCandidatePortalSummary } from "../services/candidatePortalService";
 import { submitCurrentCandidateSignedOffer } from "../services/candidateSignedOfferUploadService";
+import { fetchCurrentCandidatePerformanceHistory } from "../services/candidatePerformanceService";
 import { calculateLeaveDays, getTodayKolkataString } from "../utils/leaveRules";
 
 const INITIAL_LEAVE_FORM = {
@@ -121,6 +122,95 @@ function SummaryCard({ title, children }) {
       <h2 id={`${title.toLowerCase().replaceAll(" ", "-")}-title`}>{title}</h2>
       {children}
     </section>
+  );
+}
+
+const getPerformanceBandBadgeClass = (band) => {
+  if (band === "OUTSTANDING" || band === "EXCELLENT") return "badge-success";
+  if (band === "GOOD") return "badge-info";
+  if (band === "SATISFACTORY") return "badge-warning";
+  return "badge-secondary";
+};
+
+function CandidatePerformanceSection({ cycles, loading, error }) {
+  if (loading) {
+    return (
+      <SummaryCard title="Performance History">
+        <p role="status" aria-live="polite">Loading performance history...</p>
+      </SummaryCard>
+    );
+  }
+
+  if (error) {
+    return (
+      <SummaryCard title="Performance History">
+        <p className="auth-inline-error" role="alert">{error}</p>
+      </SummaryCard>
+    );
+  }
+
+  return (
+    <SummaryCard title="Performance History">
+      {cycles.length === 0 ? (
+        <p className="page-subtitle">No performance cycles available yet.</p>
+      ) : (
+        <div className="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>Cycle</th>
+                <th>Period</th>
+                <th>Your Evaluation Period</th>
+                <th>Status</th>
+                <th>Band</th>
+                <th>Final Score</th>
+              </tr>
+            </thead>
+            <tbody>
+              {cycles.map((cycle) => (
+                <tr key={cycle.candidateCycleId}>
+                  <td>
+                    <strong>{cycle.cycleCode}</strong>
+                    {cycle.isPartialCycle && (
+                      <> <span className="badge badge-secondary" style={{ fontSize: "11px" }}>Partial</span></>
+                    )}
+                  </td>
+                  <td>
+                    {formatDate(cycle.cycleStartDate)}
+                    {" – "}
+                    {formatDate(cycle.cycleEndDate)}
+                  </td>
+                  <td>
+                    {formatDate(cycle.evaluationStartDate)}
+                    {" – "}
+                    {formatDate(cycle.evaluationEndDate)}
+                  </td>
+                  <td>
+                    <span className={`badge ${cycle.cycleStatus === "LOCKED" || cycle.cycleStatus === "COMPLETED" ? "badge-success" : "badge-warning"}`}>
+                      {formatStatus(cycle.cycleStatus)}
+                    </span>
+                  </td>
+                  <td>
+                    {cycle.performanceBand ? (
+                      <span className={`badge ${getPerformanceBandBadgeClass(cycle.performanceBand)}`}>
+                        {formatStatus(cycle.performanceBand)}
+                      </span>
+                    ) : (
+                      <span className="page-subtitle">—</span>
+                    )}
+                  </td>
+                  <td>
+                    {cycle.finalResultReady && cycle.finalScore !== null
+                      ? `${cycle.finalScore}`
+                      : <span className="page-subtitle">—</span>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </SummaryCard>
   );
 }
 
@@ -424,6 +514,9 @@ function PortalSummary({
   fileInputRef,
   onFileChange,
   onSubmit,
+  performanceCycles,
+  performanceLoading,
+  performanceError,
   children,
 }) {
   const profile = summary.profile;
@@ -557,9 +650,11 @@ function PortalSummary({
         )}
       </SummaryCard>
 
-      <SummaryCard title="Performance">
-        <span className="badge badge-info">Coming next</span>
-      </SummaryCard>
+      <CandidatePerformanceSection
+        cycles={performanceCycles}
+        loading={performanceLoading}
+        error={performanceError}
+      />
     </>
   );
 }
@@ -586,6 +681,9 @@ export default function CandidatePortal() {
   const fileInputRef = useRef(null);
   const [selectedLeaveFile, setSelectedLeaveFile] = useState(null);
   const leaveFileInputRef = useRef(null);
+  const [performanceCycles, setPerformanceCycles] = useState([]);
+  const [performanceLoading, setPerformanceLoading] = useState(true);
+  const [performanceError, setPerformanceError] = useState("");
 
   const handleLeaveFileChange = (event) => {
     setLeaveSubmissionError("");
@@ -741,6 +839,40 @@ export default function CandidatePortal() {
       isMounted = false;
     };
   }, [leaveHistoryRetryKey]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadPerformanceHistory = async () => {
+      try {
+        const cycles = await fetchCurrentCandidatePerformanceHistory();
+
+        if (!isMounted) return;
+
+        setPerformanceCycles(cycles);
+        setPerformanceError("");
+      } catch (loadError) {
+        if (!isMounted) return;
+
+        setPerformanceCycles([]);
+        setPerformanceError(
+          loadError instanceof Error
+            ? loadError.message
+            : "Unable to load your performance history.",
+        );
+      } finally {
+        if (isMounted) {
+          setPerformanceLoading(false);
+        }
+      }
+    };
+
+    void loadPerformanceHistory();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const handleRetry = () => {
     setLoading(true);
@@ -990,6 +1122,9 @@ export default function CandidatePortal() {
           fileInputRef={fileInputRef}
           onFileChange={handleFileChange}
           onSubmit={handleSubmitSignedOffer}
+          performanceCycles={performanceCycles}
+          performanceLoading={performanceLoading}
+          performanceError={performanceError}
         >
           <CandidateLeaveSection
             form={leaveForm}
