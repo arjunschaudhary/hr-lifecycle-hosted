@@ -15,7 +15,7 @@ import {
 } from "../services/candidateLeaveService";
 import { fetchCurrentCandidatePortalSummary } from "../services/candidatePortalService";
 import { submitCurrentCandidateSignedOffer } from "../services/candidateSignedOfferUploadService";
-import { calculateLeaveDays } from "../utils/leaveRules";
+import { calculateLeaveDays, getTodayKolkataString } from "../utils/leaveRules";
 
 const INITIAL_LEAVE_FORM = {
   leaveType: "Casual Leave",
@@ -23,6 +23,7 @@ const INITIAL_LEAVE_FORM = {
   endDate: "",
   reason: "",
   supportingDocument: "",
+  otherLeaveTypeReason: "",
 };
 import { getCandidateExitCase } from "../services/exitService";
 
@@ -188,6 +189,24 @@ function CandidateLeaveSection({
             </select>
           </div>
 
+          {form.leaveType === "Other" && (
+            <div className="form-group">
+              <label htmlFor="candidate-leave-other-reason">
+                Specify Reason *
+              </label>
+              <input
+                id="candidate-leave-other-reason"
+                name="otherLeaveTypeReason"
+                type="text"
+                value={form.otherLeaveTypeReason || ""}
+                onChange={onChange}
+                disabled={applicationDisabled}
+                required
+                placeholder="e.g. Personal work at bank"
+              />
+            </div>
+          )}
+
           <div className="form-group">
             <label htmlFor="candidate-leave-start-date">Start Date</label>
             <input
@@ -197,6 +216,7 @@ function CandidateLeaveSection({
               value={form.startDate}
               onChange={onChange}
               disabled={applicationDisabled}
+              min={getTodayKolkataString()}
               required
             />
           </div>
@@ -210,6 +230,7 @@ function CandidateLeaveSection({
               value={form.endDate}
               onChange={onChange}
               disabled={applicationDisabled}
+              min={form.startDate || getTodayKolkataString()}
               required
             />
           </div>
@@ -351,7 +372,11 @@ function CandidateLeaveSection({
               <tbody>
                 {history.map((request) => (
                   <tr key={request.leaveRequestId}>
-                    <td>{request.leaveType}</td>
+                    <td>
+                      {request.leaveType === "Other" && request.otherLeaveTypeReason
+                        ? `Other (${request.otherLeaveTypeReason})`
+                        : request.leaveType}
+                    </td>
                     <td>
                       {formatDate(request.startDate)} - {formatDate(request.endDate)}
                     </td>
@@ -739,10 +764,16 @@ export default function CandidatePortal() {
   const handleLeaveFormChange = (event) => {
     const { name, value } = event.target;
 
-    setLeaveForm((currentForm) => ({
-      ...currentForm,
-      [name]: value,
-    }));
+    setLeaveForm((currentForm) => {
+      const nextForm = {
+        ...currentForm,
+        [name]: value,
+      };
+      if (name === "leaveType" && value !== "Other") {
+        nextForm.otherLeaveTypeReason = "";
+      }
+      return nextForm;
+    });
     setLeaveSubmissionError("");
     setLeaveSubmissionSuccess("");
   };
@@ -757,6 +788,11 @@ export default function CandidatePortal() {
     event.preventDefault();
 
     if (leaveSubmitting || hasPendingLeaveRequest) {
+      return;
+    }
+
+    if (leaveForm.leaveType === "Other" && !String(leaveForm.otherLeaveTypeReason || "").trim()) {
+      setLeaveSubmissionError("Specify reason is required for other leave type.");
       return;
     }
 

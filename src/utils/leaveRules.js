@@ -155,3 +155,10 @@ export function calculateCurrentEndDate({
 
   return addDaysSkippingSundays(baseEndDate, leaveImpact);
 }
+
+export function getTodayKolkataString() {
+  const options = { timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit", day: "2-digit" };
+  const formatter = new Intl.DateTimeFormat("en-CA", options);
+  return formatter.format(new Date());
+}
+

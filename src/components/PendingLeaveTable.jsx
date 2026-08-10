@@ -156,7 +156,11 @@ export default function PendingLeaveTable() {
 
                   <td>{leave.applied_role}</td>
 
-                  <td>{leave.leave_type}</td>
+                  <td>
+                    {leave.leave_type === "Other" && leave.other_leave_type_reason
+                      ? `Other (${leave.other_leave_type_reason})`
+                      : leave.leave_type}
+                  </td>
 
                   <td>{leave.start_date}</td>
 

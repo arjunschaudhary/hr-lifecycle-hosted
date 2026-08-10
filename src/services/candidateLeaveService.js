@@ -1,10 +1,21 @@
-import { calculateLeaveDays } from "../utils/leaveRules";
+import { calculateLeaveDays, getTodayKolkataString } from "../utils/leaveRules";
 import { supabase } from "./supabaseClient";
 
 export const CANDIDATE_LEAVE_TYPES = [
   "Casual Leave",
   "Sick Leave",
-  "Emergency Leave",
+  "Medical / Health",
+  "Family Emergency",
+  "Personal Work",
+  "Family / Personal Event",
+  "Bereavement",
+  "Academic / Examination",
+  "College / University Requirement",
+  "Travel",
+  "Religious / Cultural Event",
+  "Mental Wellbeing / Personal Wellbeing",
+  "Emergency",
+  "Other",
 ];
 
 const SAFE_HISTORY_ERROR = "Unable to load your leave-request history.";
@@ -17,8 +28,11 @@ const SAFE_RPC_MESSAGES = new Set([
   "Candidate is not eligible to apply for leave.",
   "Start date and end date are required.",
   "Start date cannot be after end date.",
+  "Start date cannot be in the past.",
+  "End date cannot be in the past.",
   "Leave type is not available.",
   "Reason is required.",
+  "Specify reason is required for other leave type.",
   "Selected dates do not include an eligible leave day.",
   "Leave entitlement is defined only for 3 or 4 month internships.",
   "A supporting document link is required when requested leave exceeds the remaining balance.",
@@ -157,11 +171,15 @@ export async function submitCurrentCandidateLeaveRequest({
   reason,
   supportingDocument,
   remainingLeaveDays,
+  otherLeaveTypeReason,
 }) {
   const normalizedLeaveType = String(leaveType || "").trim();
   const normalizedReason = String(reason || "").trim();
   const normalizedSupportingDocument = String(
     supportingDocument || "",
+  ).trim();
+  const normalizedOtherLeaveTypeReason = String(
+    otherLeaveTypeReason || "",
   ).trim();
 
   if (!CANDIDATE_LEAVE_TYPES.includes(normalizedLeaveType)) {
@@ -174,6 +192,18 @@ export async function submitCurrentCandidateLeaveRequest({
 
   if (!DATE_PATTERN.test(startDate) || !DATE_PATTERN.test(endDate)) {
     throw new Error("Start date and end date are required.");
+  }
+
+  const todayStr = getTodayKolkataString();
+  if (startDate < todayStr) {
+    throw new Error("Start date cannot be in the past.");
+  }
+  if (endDate < todayStr) {
+    throw new Error("End date cannot be in the past.");
+  }
+
+  if (normalizedLeaveType === "Other" && !normalizedOtherLeaveTypeReason) {
+    throw new Error("Specify reason is required for other leave type.");
   }
 
   if (!normalizedReason) {
@@ -230,6 +260,7 @@ export async function submitCurrentCandidateLeaveRequest({
         p_end_date: endDate,
         p_reason: normalizedReason,
         p_supporting_document: normalizedSupportingDocument || null,
+        p_other_leave_type_reason: normalizedOtherLeaveTypeReason || null,
       },
     );
 
