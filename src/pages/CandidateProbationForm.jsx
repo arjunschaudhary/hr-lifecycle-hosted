@@ -95,7 +95,7 @@ export default function CandidateProbationForm() {
 </div>
 
 
-      <form onSubmit={handleSubmit}>
+      <form className="candidate-form" onSubmit={handleSubmit}>
 
 
         <div className="form-grid">
@@ -154,58 +154,62 @@ export default function CandidateProbationForm() {
 
 
 
-          <div className="form-group">
-          <h3 className="form-section-title">
-  Position Details
-</h3>
-            <label>Department</label>
+          <section
+            className="candidate-position-details"
+            aria-labelledby="position-details-heading"
+          >
+            <h3
+              id="position-details-heading"
+              className="form-section-title"
+            >
+              Position Details
+            </h3>
 
-            <input
-              name="department"
-              placeholder="Department"
-              value={formData.department}
-              onChange={handleChange}
-            />
-          </div>
+            <div className="candidate-role-grid">
+              <div className="form-group">
+                <label htmlFor="candidate-applied-role">
+                  Applied Role
+                  <span className="required">*</span>
+                </label>
 
+                <select
+                  id="candidate-applied-role"
+                  name="applied_role"
+                  value={formData.applied_role}
+                  onChange={handleRoleChange}
+                  required
+                >
+                  <option value="">Select Applied Role</option>
 
+                  {ROLE_OPTIONS.map((role) => (
+                    <option key={role.code} value={role.name}>
+                      {role.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-        <div className="form-group">
-  <label>
-    Applied Role
-    <span className="required">*</span>
-  </label>
+              <div className="form-group">
+                <label htmlFor="candidate-role-code">
+                  Role Code
+                  <span className="field-label-note">Auto-filled</span>
+                </label>
 
-  <select
-    name="applied_role"
-    value={formData.applied_role}
-    onChange={handleRoleChange}
-    required
-  >
-    <option value="">Select Applied Role</option>
-
-    {ROLE_OPTIONS.map((role) => (
-      <option key={role.code} value={role.name}>
-        {role.name}
-      </option>
-    ))}
-  </select>
-</div>
-          
-
-
-
-
-          <div className="form-group">
-            <label>Role Code</label>
-
-            <input
-              name="role_code"
-              placeholder="Role code"
-              value={formData.role_code}
-              readOnly
-            />
-          </div>
+                <input
+                  id="candidate-role-code"
+                  className="candidate-role-code"
+                  name="role_code"
+                  placeholder="Select a role"
+                  value={formData.role_code}
+                  aria-describedby="candidate-role-code-help"
+                  readOnly
+                />
+                <p id="candidate-role-code-help" className="field-help-text">
+                  Set automatically from the selected applied role.
+                </p>
+              </div>
+            </div>
+          </section>
 
 
         </div>
