@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { BriefcaseBusiness } from "lucide-react";
-import { dummyActiveInterns } from "../data";
 import CandidateDetailModal from "../components/CandidateDetailModal";
 import { useAuth } from "../context/authContext";
 import InitiateExitModal from "../components/exit/InitiateExitModal";
@@ -21,33 +20,6 @@ const UUID_PATTERN =
 
 function isValidUuid(value) {
   return typeof value === "string" && UUID_PATTERN.test(value);
-}
-
-function buildFallbackActiveInternRecords() {
-  return dummyActiveInterns.map((intern) => ({
-    id: intern.id,
-    candidateId: intern.candidateId,
-    fullName: intern.fullName,
-    email: "",
-    phone: "",
-    appliedRole: intern.role,
-    department: intern.department,
-    team: intern.team,
-    project: intern.project,
-    lifecycleStatus: intern.status,
-    mid: intern.mid,
-    offerStatus: "",
-    sentAt: intern.activeStartDate,
-    signedOfferStatus: "",
-    portalAccountStatus: null,
-    portalUserId: null,
-    roleCode: null,
-    hrPsyconnectAccessActive: false,
-    hrPsyconnectAccessGrantedAt: null,
-    hrPsyconnectUserRoleId: null,
-    hasActiveExit: false,
-    exitCaseStatus: null,
-  }));
 }
 
 function mapSupabaseActiveInternRecord(row) {
@@ -135,8 +107,7 @@ function applyInternsSort(arr, sortKey) {
 
 export default function ActiveInterns() {
   const { hasPodManagementAccess } = useAuth();
-  const fallbackRecords = useMemo(() => buildFallbackActiveInternRecords(), []);
-  const [activeInterns, setActiveInterns] = useState(fallbackRecords);
+  const [activeInterns, setActiveInterns] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
   const [actionCandidateId, setActionCandidateId] = useState(null);
@@ -189,17 +160,12 @@ export default function ActiveInterns() {
     try {
       const records = await fetchActiveInterns();
 
-      if (records?.length) {
-        setActiveInterns(records.map(mapSupabaseActiveInternRecord));
-        setErrorMessage("");
-      } else {
-        setActiveInterns(fallbackRecords);
-        setErrorMessage("No Supabase active interns data found. Showing dummy data.");
-      }
+      setActiveInterns((records ?? []).map(mapSupabaseActiveInternRecord));
+      setErrorMessage("");
     } catch (error) {
       console.error("Unable to load active interns:", error);
-      setActiveInterns(fallbackRecords);
-      setErrorMessage("Unable to load Supabase active interns data. Showing dummy data.");
+      setActiveInterns([]);
+      setErrorMessage("Unable to load active interns data.");
     } finally {
       setIsLoading(false);
     }
@@ -214,19 +180,14 @@ export default function ActiveInterns() {
 
         if (!isMounted) return;
 
-        if (records?.length) {
-          setActiveInterns(records.map(mapSupabaseActiveInternRecord));
-          setErrorMessage("");
-        } else {
-          setActiveInterns(fallbackRecords);
-          setErrorMessage("No Supabase active interns data found. Showing dummy data.");
-        }
+        setActiveInterns((records ?? []).map(mapSupabaseActiveInternRecord));
+        setErrorMessage("");
       } catch (error) {
         if (!isMounted) return;
 
         console.error("Unable to load active interns:", error);
-        setActiveInterns(fallbackRecords);
-        setErrorMessage("Unable to load Supabase active interns data. Showing dummy data.");
+        setActiveInterns([]);
+        setErrorMessage("Unable to load active interns data.");
       } finally {
         if (isMounted) {
           setIsLoading(false);
@@ -239,7 +200,7 @@ export default function ActiveInterns() {
     return () => {
       isMounted = false;
     };
-  }, [fallbackRecords]);
+  }, []);
 
   async function handleMarkSignedOfferSubmitted(intern) {
     setActionCandidateId(intern.candidateId);
@@ -513,6 +474,10 @@ export default function ActiveInterns() {
         <div className="info-banner" role="status">
           No interns match the current search or filters.
         </div>
+      )}
+
+      {!isLoading && !errorMessage && activeInterns.length === 0 && (
+        <div className="info-banner" role="status">No active interns found.</div>
       )}
 
       <div className="table-container">

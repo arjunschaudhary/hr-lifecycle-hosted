@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   Menu,
@@ -25,46 +25,15 @@ import {
   BarChart3,
 } from "lucide-react";
 
-import {
-  dummyCandidates,
-  dummyProbationAttempts,
-  dummyOffers,
-  dummyActiveInterns,
-  dummySignedOffers,
-} from "../data";
-
-import { getDashboardCounts } from "../utils/dashboardCounts";
 import { fetchDashboardCounts, fetchPendingExitCases } from "../services/hrDashboardService";
 import { useAuth } from "../context/authContext";
 
-function buildFallbackDashboardCounts() {
-  const dummyCounts = getDashboardCounts({
-    candidates: dummyCandidates,
-    probationAttempts: dummyProbationAttempts,
-    offers: dummyOffers,
-    activeInterns: dummyActiveInterns,
-    signedOffers: dummySignedOffers,
-  });
-
-  return {
-    totalCandidates: dummyCounts.totalCandidates,
-    hrReviewPending: dummyCandidates.filter((c) => c.currentStatus === "HR_REVIEW_PENDING").length,
-    inProbation: dummyCounts.inProbation,
-    probationReview: dummyProbationAttempts.filter((a) => a.status === "PROBATION_REVIEW").length,
-    probationPassed: dummyCounts.probationPassed,
-    probationRejected: dummyCounts.probationRejected,
-    probationExtended: dummyCounts.probationExtended,
-    offerLetterProcess: dummyOffers.filter((offer) =>
-      ["MID_GENERATED", "OFFER_LETTER_GENERATED"].includes(offer.offerStatus)
-    ).length,
-    activeInterns: dummyCounts.activeInterns,
-    signedOfferSubmitted: dummyCounts.signedOfferSubmitted,
-    signedOfferVerified: dummySignedOffers.filter((offer) =>
-      ["SIGNED_OFFER_VERIFIED", "VERIFIED"].includes(offer.status)
-    ).length,
-    mismatchReview: dummyCounts.signedOfferMismatch,
-  };
-}
+const EMPTY_DASHBOARD_COUNTS = Object.freeze({
+  totalCandidates: 0, hrReviewPending: 0, inProbation: 0, probationReview: 0,
+  probationPassed: 0, probationRejected: 0, probationExtended: 0,
+  offerLetterProcess: 0, activeInterns: 0, signedOfferSubmitted: 0,
+  signedOfferVerified: 0, mismatchReview: 0,
+});
 
 function MetricCard({ title, value, icon }) {
   return (
@@ -85,9 +54,7 @@ export default function HRDashboard() {
     hasPodManagementAccess,
   } = useAuth();
 
-  const fallbackCounts = useMemo(() => buildFallbackDashboardCounts(), []);
-
-  const [counts, setCounts] = useState(fallbackCounts);
+  const [counts, setCounts] = useState(EMPTY_DASHBOARD_COUNTS);
   const [pendingExitCases, setPendingExitCases] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
@@ -98,30 +65,32 @@ export default function HRDashboard() {
 
     async function load() {
       try {
-        const [countsResult, pendingCasesResult] = await Promise.all([
-          fetchDashboardCounts().catch(() => null),
-          fetchPendingExitCases().catch(() => []),
+        const [countsResult, pendingCasesResult] = await Promise.allSettled([
+          fetchDashboardCounts(),
+          fetchPendingExitCases(),
         ]);
 
         if (!mounted) return;
 
-        if (countsResult) {
-          setCounts({
-            ...fallbackCounts,
-            ...countsResult,
-          });
-          setErrorMessage("");
+        const errors = [];
+        if (countsResult.status === "fulfilled" && countsResult.value) {
+          setCounts(countsResult.value);
         } else {
-          setCounts(fallbackCounts);
-          setErrorMessage("No dashboard data found. Showing demo data.");
+          setCounts(EMPTY_DASHBOARD_COUNTS);
+          errors.push("Unable to load dashboard metrics.");
         }
 
-        if (pendingCasesResult) {
-          setPendingExitCases(pendingCasesResult);
+        if (pendingCasesResult.status === "fulfilled") {
+          setPendingExitCases(pendingCasesResult.value);
+        } else {
+          setPendingExitCases([]);
+          errors.push("Unable to load pending exit evaluations.");
         }
+        setErrorMessage(errors.join(" "));
       } catch (err) {
         console.error(err);
-        setCounts(fallbackCounts);
+        setCounts(EMPTY_DASHBOARD_COUNTS);
+        setPendingExitCases([]);
         setErrorMessage("Unable to load dashboard data.");
       } finally {
         if (mounted) setIsLoading(false);
@@ -131,7 +100,7 @@ export default function HRDashboard() {
     load();
 
     return () => (mounted = false);
-  }, [fallbackCounts]);
+  }, []);
 
   const cards = [
     ["Total Candidates", counts.totalCandidates, <Users size={22} />],
@@ -270,6 +239,7 @@ export default function HRDashboard() {
         {isLoading && <div className="alert-card">Loading dashboard...</div>}
         {errorMessage && <div className="alert-card">{errorMessage}</div>}
 
+        {!isLoading && <>
         <h2 className="section-title">Lifecycle Overview</h2>
 
         <div className="metric-grid">
@@ -285,6 +255,7 @@ export default function HRDashboard() {
             <MetricCard key={item[0]} title={item[0]} value={item[1]} icon={item[2]} />
           ))}
         </div>
+        </>}
       </main>
     </div>
   );

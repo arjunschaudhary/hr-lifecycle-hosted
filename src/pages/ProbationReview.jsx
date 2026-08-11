@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { ClipboardCheck } from "lucide-react";
-import { dummyCandidates, dummyProbationAttempts } from "../data";
 import CandidateDetailModal from "../components/CandidateDetailModal";
 import {
   extendCandidateProbation,
@@ -13,51 +12,8 @@ import { fetchProbationReviewCandidates } from "../services/probationReviewServi
 import { sendCandidateWelcomeEmail } from "../services/welcomeMailService";
 import { markCandidateInProbation } from "../services/inProbationActionService";
 import ApproveProbationModal from "../components/ApproveProbationModal";
-const reviewStatuses = [
-  "HR_REVIEW_PENDING",
-  "HR_APPROVED_FOR_PROBATION",
-  "WELCOME_MAIL_SENT",
-  "IN_PROBATION",
-  "PROBATION_REVIEW",
-  "PROBATION_PASSED",
-  "PROBATION_REJECTED",
-  "PROBATION_EXTENDED",
-  "UNDER_REVIEW",
-  "RECONSIDERATION",
-];
-
 function requiresWelcomeMailManualCheck(message) {
   return message.includes("Check the sender Sent folder before retrying.");
-}
-
-function buildFallbackProbationRecords() {
-  return dummyProbationAttempts
-    .filter((attempt) => reviewStatuses.includes(attempt.status))
-    .map((attempt) => {
-      const candidate = dummyCandidates.find(
-        (candidate) => candidate.id === attempt.candidateId
-      );
-
-      return {
-        id: attempt.id,
-        candidateId: attempt.candidateId,
-        fullName: candidate?.fullName,
-        email: candidate?.email,
-        phone: candidate?.phone,
-        appliedRole: candidate?.roleAppliedFor,
-        roleCode: null,
-        department: candidate?.department,
-        source: candidate?.createdSource,
-        attemptNo: attempt.attemptNo,
-        probationStartDate: attempt.probationStartDate,
-        probationEndDate: attempt.probationEndDate,
-        probationExtensionCount: attempt.probationExtensionCount || 0,
-        probationStatus: attempt.status,
-        probationReviewNotes: attempt.hrRemarks,
-        hrDecision: reviewStatuses.includes(attempt.status) ? attempt.status : null,
-        mid: null,
-      };
-    });
 }
 
 function mapSupabaseProbationRecord(row) {
@@ -135,8 +91,7 @@ function applyProbationSort(arr, sortKey) {
 }
 
 export default function ProbationReview() {
-  const fallbackRecords = useMemo(() => buildFallbackProbationRecords(), []);
-  const [probationRecords, setProbationRecords] = useState(fallbackRecords);
+  const [probationRecords, setProbationRecords] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
   const [actionCandidateId, setActionCandidateId] = useState(null);
@@ -188,17 +143,12 @@ export default function ProbationReview() {
     try {
       const records = await fetchProbationReviewCandidates();
 
-      if (records?.length) {
-        setProbationRecords(records.map(mapSupabaseProbationRecord));
-        setErrorMessage("");
-      } else {
-        setProbationRecords(fallbackRecords);
-        setErrorMessage("No Supabase probation review data found. Showing dummy data.");
-      }
+      setProbationRecords((records ?? []).map(mapSupabaseProbationRecord));
+      setErrorMessage("");
     } catch (error) {
       console.error("Unable to load probation review candidates:", error);
-      setProbationRecords(fallbackRecords);
-      setErrorMessage("Unable to load Supabase probation review data. Showing dummy data.");
+      setProbationRecords([]);
+      setErrorMessage("Unable to load probation review data.");
     } finally {
       setIsLoading(false);
     }
@@ -213,19 +163,14 @@ export default function ProbationReview() {
 
         if (!isMounted) return;
 
-        if (records?.length) {
-          setProbationRecords(records.map(mapSupabaseProbationRecord));
-          setErrorMessage("");
-        } else {
-          setProbationRecords(fallbackRecords);
-          setErrorMessage("No Supabase probation review data found. Showing dummy data.");
-        }
+        setProbationRecords((records ?? []).map(mapSupabaseProbationRecord));
+        setErrorMessage("");
       } catch (error) {
         if (!isMounted) return;
 
         console.error("Unable to load probation review candidates:", error);
-        setProbationRecords(fallbackRecords);
-        setErrorMessage("Unable to load Supabase probation review data. Showing dummy data.");
+        setProbationRecords([]);
+        setErrorMessage("Unable to load probation review data.");
       } finally {
         if (isMounted) {
           setIsLoading(false);
@@ -238,7 +183,7 @@ export default function ProbationReview() {
     return () => {
       isMounted = false;
     };
-  }, [fallbackRecords]);
+  }, []);
 
   
     function openApproveModal(record) {
@@ -589,6 +534,10 @@ export default function ProbationReview() {
         <div className="info-banner" role="status">
           No probation records match the current search or filters.
         </div>
+      )}
+
+      {!isLoading && !errorMessage && probationRecords.length === 0 && (
+        <div className="info-banner" role="status">No probation records found.</div>
       )}
 
       <div className="table-container">
