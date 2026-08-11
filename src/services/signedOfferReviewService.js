@@ -2,7 +2,7 @@ import { supabase } from "./supabaseClient";
 
 const BUCKET_NAME = "candidate-signed-offers";
 const SAFE_LOAD_ERROR = "Unable to load signed-offer review records.";
-const SAFE_DOWNLOAD_ERROR = "Unable to download the signed-offer PDF.";
+const SAFE_VIEW_ERROR = "Unable to view the signed-offer PDF.";
 const SAFE_ACTION_ERROR =
   "Unable to complete the signed-offer review. Refresh the page and try again.";
 
@@ -30,22 +30,6 @@ const isNonEmptyValue = (value) => {
   }
 
   return value !== null && value !== undefined;
-};
-
-const isSafeFilename = (value) => {
-  if (typeof value !== "string") {
-    return false;
-  }
-
-  const filename = value.trim();
-
-  return (
-    filename.length > 0 &&
-    filename.length <= 255 &&
-    filename.toLowerCase().endsWith(".pdf") &&
-    !filename.includes("/") &&
-    !filename.includes("\\")
-  );
 };
 
 const mapReviewRecord = (row) => {
@@ -102,31 +86,27 @@ export async function fetchSignedOfferReviewQueue() {
   }
 }
 
-export async function downloadSignedOfferFile({ objectPath, originalFilename } = {}) {
+export async function getSignedOfferViewUrl({ objectPath } = {}) {
   if (
     typeof objectPath !== "string" ||
     !OBJECT_PATH_PATTERN.test(objectPath) ||
-    !isSafeFilename(originalFilename) ||
     !supabase?.storage ||
     typeof supabase.storage.from !== "function"
   ) {
-    throw new Error(SAFE_DOWNLOAD_ERROR);
+    throw new Error(SAFE_VIEW_ERROR);
   }
 
   try {
     const storageBucket = supabase.storage.from(BUCKET_NAME);
-    const { data, error } = await storageBucket.download(objectPath);
+    const { data, error } = await storageBucket.createSignedUrl(objectPath, 60);
 
-    if (error || typeof Blob === "undefined" || !(data instanceof Blob)) {
-      throw new Error(SAFE_DOWNLOAD_ERROR);
+    if (error || !data?.signedUrl) {
+      throw new Error(SAFE_VIEW_ERROR);
     }
 
-    return {
-      blob: data,
-      filename: originalFilename.trim(),
-    };
+    return data.signedUrl;
   } catch {
-    throw new Error(SAFE_DOWNLOAD_ERROR);
+    throw new Error(SAFE_VIEW_ERROR);
   }
 }
 

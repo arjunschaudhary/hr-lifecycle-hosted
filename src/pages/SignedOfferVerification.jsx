@@ -4,13 +4,13 @@ import { BadgeCheck } from "lucide-react";
 
 import CandidateDetailModal from "../components/CandidateDetailModal";
 import {
-  downloadSignedOfferFile,
+  getSignedOfferViewUrl,
   fetchSignedOfferReviewQueue,
   reviewSignedOffer,
 } from "../services/signedOfferReviewService";
 
 const SAFE_LOAD_ERROR = "Unable to load signed-offer review records.";
-const SAFE_DOWNLOAD_ERROR = "Unable to download the signed-offer PDF.";
+const SAFE_VIEW_ERROR = "Unable to view the signed-offer PDF.";
 const SAFE_ACTION_ERROR =
   "Unable to complete the signed-offer review. Refresh the page and try again.";
 
@@ -134,7 +134,7 @@ export default function SignedOfferVerification() {
   const [isLoading, setIsLoading] = useState(true);
   const [pageError, setPageError] = useState("");
   const [actionVerificationId, setActionVerificationId] = useState(null);
-  const [downloadingFileId, setDownloadingFileId] = useState(null);
+  const [viewingFileId, setViewingFileId] = useState(null);
   const [actionError, setActionError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
   const [reviewNotes, setReviewNotes] = useState({});
@@ -237,42 +237,25 @@ export default function SignedOfferVerification() {
     void loadReviewQueue();
   };
 
-  const handleDownload = async (record) => {
+  const handleView = async (record) => {
     if (!hasLinkedFile(record)) {
       return;
     }
 
-    setDownloadingFileId(record.fileId);
+    setViewingFileId(record.fileId);
     setActionError("");
     setSuccessMessage("");
 
-    let objectUrl = "";
-    let downloadLink = null;
-
     try {
-      const { blob, filename } = await downloadSignedOfferFile({
+      const url = await getSignedOfferViewUrl({
         objectPath: record.objectPath,
-        originalFilename: record.originalFilename,
       });
 
-      objectUrl = URL.createObjectURL(blob);
-      downloadLink = document.createElement("a");
-      downloadLink.href = objectUrl;
-      downloadLink.download = filename;
-      document.body.appendChild(downloadLink);
-      downloadLink.click();
+      window.open(url, "_blank", "noopener,noreferrer");
     } catch {
-      setActionError(SAFE_DOWNLOAD_ERROR);
+      setActionError(SAFE_VIEW_ERROR);
     } finally {
-      if (objectUrl) {
-        URL.revokeObjectURL(objectUrl);
-      }
-
-      if (downloadLink) {
-        downloadLink.remove();
-      }
-
-      setDownloadingFileId(null);
+      setViewingFileId(null);
     }
   };
 
@@ -330,8 +313,8 @@ export default function SignedOfferVerification() {
   const selectedReviewActionIsRunning = selectedReviewRecord
     ? actionVerificationId === selectedReviewRecord.verificationId
     : false;
-  const selectedReviewDownloadIsRunning = selectedReviewRecord
-    ? downloadingFileId === selectedReviewRecord.fileId
+  const selectedReviewViewIsRunning = selectedReviewRecord
+    ? viewingFileId === selectedReviewRecord.fileId
     : false;
 
   return (
@@ -608,16 +591,16 @@ export default function SignedOfferVerification() {
                 <strong>{formatDate(selectedReviewRecord.uploadedAt)}</strong>
               </div>
             </div>
-            <div className="action-group">
+             <div className="action-group">
               <button
                 type="button"
                 className="btn btn-secondary"
-                disabled={selectedReviewDownloadIsRunning}
-                onClick={() => handleDownload(selectedReviewRecord)}
+                disabled={selectedReviewViewIsRunning}
+                onClick={() => handleView(selectedReviewRecord)}
               >
-                {selectedReviewDownloadIsRunning
-                  ? "Downloading..."
-                  : "Download PDF"}
+                {selectedReviewViewIsRunning
+                  ? "Opening PDF..."
+                  : "View Signed Offer"}
               </button>
             </div>
 
