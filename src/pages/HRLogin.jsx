@@ -12,6 +12,7 @@ export default function HRLogin() {
     loading,
     isActiveAppUser,
     hasStaffAccess,
+    hasPerformanceDashboardAccess,
     hasLeadReviewAccess,
     hasCandidateAccess,
     authorizationError,
@@ -27,6 +28,7 @@ export default function HRLogin() {
   const requestedPath = location.state?.from?.pathname || "/";
   const isCandidatePath = requestedPath.startsWith("/portal");
   const isLeadReviewPath = requestedPath.startsWith("/lead-reviews");
+  const isPerformancePath = requestedPath.startsWith("/performance-dashboard");
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -37,6 +39,12 @@ export default function HRLogin() {
       const result = await signIn(email, password);
 
       if (
+        isPerformancePath &&
+        result.isActiveAppUser &&
+        result.hasPerformanceDashboardAccess
+      ) {
+        navigate(requestedPath, { replace: true });
+      } else if (
         isLeadReviewPath &&
         result.isActiveAppUser &&
         result.hasLeadReviewAccess
@@ -47,12 +55,18 @@ export default function HRLogin() {
       } else if (
         !isCandidatePath &&
         !isLeadReviewPath &&
+        !isPerformancePath &&
         result.isActiveAppUser &&
         result.hasStaffAccess
       ) {
         navigate(requestedPath, { replace: true });
       } else if (result.isActiveAppUser && result.hasStaffAccess) {
         navigate("/", { replace: true });
+      } else if (
+        result.isActiveAppUser &&
+        result.hasPerformanceDashboardAccess
+      ) {
+        navigate("/performance-dashboard", { replace: true });
       } else if (
         result.isActiveAppUser &&
         result.hasLeadReviewAccess
@@ -93,6 +107,14 @@ export default function HRLogin() {
 
   if (session) {
     if (
+      isPerformancePath &&
+      isActiveAppUser &&
+      hasPerformanceDashboardAccess
+    ) {
+      return <Navigate to={requestedPath} replace />;
+    }
+
+    if (
       isLeadReviewPath &&
       isActiveAppUser &&
       hasLeadReviewAccess
@@ -107,6 +129,7 @@ export default function HRLogin() {
     if (
       !isCandidatePath &&
       !isLeadReviewPath &&
+      !isPerformancePath &&
       isActiveAppUser &&
       hasStaffAccess
     ) {
@@ -115,6 +138,10 @@ export default function HRLogin() {
 
     if (isActiveAppUser && hasStaffAccess) {
       return <Navigate to="/" replace />;
+    }
+
+    if (isActiveAppUser && hasPerformanceDashboardAccess) {
+      return <Navigate to="/performance-dashboard" replace />;
     }
 
     if (isActiveAppUser && hasLeadReviewAccess) {

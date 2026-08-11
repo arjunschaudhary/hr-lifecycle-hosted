@@ -4,6 +4,7 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import ProtectedRoute from "./components/ProtectedRoute";
 import CandidateProtectedRoute from "./components/CandidateProtectedRoute";
 import LeadReviewProtectedRoute from "./components/LeadReviewProtectedRoute";
+import PerformanceProtectedRoute from "./components/PerformanceProtectedRoute";
 import PodManagementProtectedRoute from "./components/PodManagementProtectedRoute";
 import HRDashboard from "./pages/HRDashboard";
 import HRLogin from "./pages/HRLogin";
@@ -55,6 +56,16 @@ function App() {
         <Route element={<PodManagementProtectedRoute />}>
           <Route path="/pod-management" element={<PodManagement />} />
         </Route>
+        <Route element={<PerformanceProtectedRoute />}>
+          <Route
+            path="/performance-dashboard"
+            element={<PerformanceDashboard />}
+          />
+          <Route
+            path="/performance-dashboard/:candidateCycleId/daily"
+            element={<DailyPerformanceMarking />}
+          />
+        </Route>
         <Route element={<ProtectedRoute />}>
           <Route path="/" element={<HRDashboard />} />
           <Route path="/probation-review" element={<ProbationReview />} />
@@ -73,14 +84,6 @@ function App() {
           <Route path="/leave-dashboard" element={<LeaveDashboard />} />
           <Route path="/leave-application" element={<LeaveApplication />} />
           <Route path="/internship-extension" element={<InternshipExtension />} />
-          <Route
-            path="/performance-dashboard"
-            element={<PerformanceDashboard />}
-          />
-          <Route
-            path="/performance-dashboard/:candidateCycleId/daily"
-            element={<DailyPerformanceMarking />}
-          />
           <Route
             path="/performance/hr-review"
             element={<HrReviewQueue />}
