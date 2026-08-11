@@ -737,7 +737,9 @@ export default function PodManagement() {
             <div className="metric-card">
               <Users className="metric-card__icon" aria-hidden="true" />
               <div>
-                <p className="metric-title">Current Pod/Tech Leads</p>
+                <p className="metric-title">
+                  Current Pod Leads / Project Managers
+                </p>
                 <p className="metric-value">{metrics.currentLeads}</p>
               </div>
             </div>
@@ -762,7 +764,7 @@ export default function PodManagement() {
                       <th>Status</th>
                       <th>Candidates</th>
                       <th>Pod Leads</th>
-                      <th>Tech Leads</th>
+                      <th>Project Managers</th>
                       <th>Action</th>
                     </tr>
                   </thead>
@@ -1025,7 +1027,7 @@ export default function PodManagement() {
                                   leadType: "TECH_LEAD",
                                 })}
                               >
-                                Assign Tech Lead
+                                Assign Project Manager
                               </button>
                             </div>
                             {!hasActivePortalAccount && (
@@ -1116,7 +1118,7 @@ export default function PodManagement() {
                   {renderMembershipRows(currentPodLeads, true)}
                 </section>
                 <section>
-                  <h3>Current Tech Leads</h3>
+                  <h3>Current Project Managers</h3>
                   {renderMembershipRows(currentTechLeads, true)}
                 </section>
                 <section>
@@ -1331,7 +1333,7 @@ export default function PodManagement() {
                       }))}
                     >
                       <option value="POD_LEAD">Pod Lead</option>
-                      <option value="TECH_LEAD">Tech Lead</option>
+                      <option value="TECH_LEAD">Project Manager</option>
                     </select>
                   </div>
                   <div className="info-banner">
@@ -1339,8 +1341,8 @@ export default function PodManagement() {
                     <p>
                       Candidate portal access and the Candidate role are
                       preserved. An active portal account is required, and
-                      overlapping Pod Lead and Tech Lead assignments in the same
-                      pod are blocked.
+                      overlapping Pod Lead and Project Manager assignments in the
+                      same pod are blocked.
                     </p>
                   </div>
                 </>
