@@ -335,3 +335,66 @@ export async function getSupportingDocumentUrl(objectPath) {
 
   return data.signedUrl;
 }
+
+const SAFE_POD_LEAVE_ERROR = "Unable to load pod leave information.";
+
+const DATE_PATTERN_POD = /^\d{4}-\d{2}-\d{2}$/;
+
+function mapPodLeaveRow(row) {
+  if (
+    !isRecord(row) ||
+    !isNonEmptyString(row.full_name) ||
+    !DATE_PATTERN_POD.test(String(row.start_date || "")) ||
+    !DATE_PATTERN_POD.test(String(row.end_date || "")) ||
+    !Number.isInteger(row.requested_leave_days) ||
+    row.requested_leave_days <= 0
+  ) {
+    throw new Error(SAFE_POD_LEAVE_ERROR);
+  }
+
+  return {
+    candidateId: row.candidate_id || null,
+    fullName: row.full_name,
+    startDate: String(row.start_date),
+    endDate: String(row.end_date),
+    leaveType: isNonEmptyString(row.leave_type) ? row.leave_type : null,
+    requestedLeaveDays: row.requested_leave_days,
+  };
+}
+
+/**
+ * Fetches candidates from the current candidate's own pod who are on
+ * approved leave today. The pod is resolved server-side — no pod_id is
+ * ever supplied from the frontend.
+ *
+ * Returns an empty array when the candidate has no pod or nobody is on
+ * leave today. Throws a safe user-facing error on network or RPC failure.
+ */
+export async function fetchPodOnLeaveToday() {
+  if (!supabase || typeof supabase.rpc !== "function") {
+    throw new Error(SAFE_POD_LEAVE_ERROR);
+  }
+
+  try {
+    const { data, error } = await supabase.rpc("get_pod_on_leave_today");
+
+    if (error) {
+      throw new Error(SAFE_POD_LEAVE_ERROR);
+    }
+
+    if (!Array.isArray(data)) {
+      throw new Error(SAFE_POD_LEAVE_ERROR);
+    }
+
+    return data.map(mapPodLeaveRow);
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      error.message === SAFE_POD_LEAVE_ERROR
+    ) {
+      throw error;
+    }
+
+    throw new Error(SAFE_POD_LEAVE_ERROR, { cause: error });
+  }
+}
