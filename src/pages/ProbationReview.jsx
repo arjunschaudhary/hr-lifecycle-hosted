@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { ClipboardCheck } from "lucide-react";
 import { dummyCandidates, dummyProbationAttempts } from "../data";
@@ -100,6 +100,40 @@ function getStatusClass(status) {
   }
 }
 
+const PROBATION_STATUS_OPTIONS = [
+  { value: "", label: "All Statuses" },
+  { value: "HR_REVIEW_PENDING", label: "HR Review Pending" },
+  { value: "HR_APPROVED_FOR_PROBATION", label: "HR Approved for Probation" },
+  { value: "WELCOME_MAIL_SENT", label: "Welcome Mail Sent" },
+  { value: "IN_PROBATION", label: "In Probation" },
+  { value: "PROBATION_REVIEW", label: "Probation Review" },
+  { value: "PROBATION_PASSED", label: "Probation Passed" },
+  { value: "PROBATION_REJECTED", label: "Probation Rejected" },
+  { value: "PROBATION_EXTENDED", label: "Probation Extended" },
+  { value: "UNDER_REVIEW", label: "Under Review" },
+  { value: "RECONSIDERATION", label: "Reconsideration" },
+];
+
+const SORT_OPTIONS = [
+  { value: "name_asc", label: "Name A \u2192 Z" },
+  { value: "name_desc", label: "Name Z \u2192 A" },
+  { value: "date_asc", label: "Start Date Oldest \u2192 Newest" },
+  { value: "date_desc", label: "Start Date Newest \u2192 Oldest" },
+];
+
+function applyProbationSort(arr, sortKey) {
+  return [...arr].sort((a, b) => {
+    if (sortKey === "name_asc" || sortKey === "name_desc") {
+      const cmp = (a.fullName || "").localeCompare(b.fullName || "");
+      return sortKey === "name_asc" ? cmp : -cmp;
+    }
+    const aMs = a.probationStartDate ? new Date(a.probationStartDate).getTime() : -Infinity;
+    const bMs = b.probationStartDate ? new Date(b.probationStartDate).getTime() : -Infinity;
+    if (aMs !== bMs) return sortKey === "date_asc" ? aMs - bMs : bMs - aMs;
+    return (a.fullName || "").localeCompare(b.fullName || "");
+  });
+}
+
 export default function ProbationReview() {
   const fallbackRecords = useMemo(() => buildFallbackProbationRecords(), []);
   const [probationRecords, setProbationRecords] = useState(fallbackRecords);
@@ -127,6 +161,29 @@ export default function ProbationReview() {
   const [selectedCandidateId, setSelectedCandidateId] = useState(null);
   const [showApproveModal, setShowApproveModal] = useState(false);
   const [approveCandidate, setApproveCandidate] = useState(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterStatus, setFilterStatus] = useState("");
+  const [sortKey, setSortKey] = useState("name_asc");
+
+  const hasActiveControls = searchTerm.trim() !== "" || filterStatus !== "" || sortKey !== "name_asc";
+
+  const handleResetControls = useCallback(() => {
+    setSearchTerm("");
+    setFilterStatus("");
+    setSortKey("name_asc");
+  }, []);
+
+  const displayedRecords = useMemo(() => {
+    const q = searchTerm.trim().toLowerCase();
+    const filtered = probationRecords.filter((r) => {
+      if (q && ![
+        r.fullName, r.email, r.appliedRole,
+      ].some((v) => (v || "").toLowerCase().includes(q))) return false;
+      if (filterStatus && r.probationStatus !== filterStatus) return false;
+      return true;
+    });
+    return applyProbationSort(filtered, sortKey);
+  }, [probationRecords, searchTerm, filterStatus, sortKey]);
   async function refreshProbationRecords() {
     try {
       const records = await fetchProbationReviewCandidates();
@@ -477,6 +534,63 @@ export default function ProbationReview() {
         <p role="status">{performanceAssignmentMessage}</p>
       )}
 
+      <div className="dashboard-controls">
+        <div className="dashboard-controls__group">
+          <label htmlFor="probation-search">Search</label>
+          <input
+            id="probation-search"
+            type="search"
+            className="form-input"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Search name, email or role"
+          />
+        </div>
+        <div className="dashboard-controls__group">
+          <label htmlFor="probation-status-filter">Status</label>
+          <select
+            id="probation-status-filter"
+            className="form-select"
+            value={filterStatus}
+            onChange={(e) => setFilterStatus(e.target.value)}
+          >
+            {PROBATION_STATUS_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
+        </div>
+        <div className="dashboard-controls__group">
+          <label htmlFor="probation-sort">Sort By</label>
+          <select
+            id="probation-sort"
+            className="form-select"
+            value={sortKey}
+            onChange={(e) => setSortKey(e.target.value)}
+          >
+            {SORT_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
+        </div>
+        {hasActiveControls && (
+          <div className="dashboard-controls__reset">
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={handleResetControls}
+            >
+              Reset
+            </button>
+          </div>
+        )}
+      </div>
+
+      {!isLoading && !errorMessage && displayedRecords.length === 0 && probationRecords.length > 0 && (
+        <div className="info-banner" role="status">
+          No probation records match the current search or filters.
+        </div>
+      )}
+
       <div className="table-container">
 
       <table>
@@ -500,7 +614,7 @@ export default function ProbationReview() {
         </thead>
 
         <tbody>
-          {probationRecords.map((record) => (
+          {displayedRecords.map((record) => (
             <tr key={record.id}>
               <td>
                 <button

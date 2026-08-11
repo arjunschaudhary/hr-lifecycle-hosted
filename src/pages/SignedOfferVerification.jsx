@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { BadgeCheck } from "lucide-react";
 
@@ -129,6 +129,40 @@ const isCompletedReviewRecord = (record) =>
   record.signedOfferStatus === "SIGNED_OFFER_VERIFIED" ||
   record.signedOfferStatus === "MISMATCH_REVIEW";
 
+const SIGNED_OFFER_STATUS_OPTIONS = [
+  { value: "", label: "All Statuses" },
+  { value: "SIGNED_OFFER_SUBMITTED", label: "Signed Offer Submitted" },
+  { value: "SIGNED_OFFER_VERIFIED", label: "Signed Offer Verified" },
+  { value: "MISMATCH_REVIEW", label: "Mismatch Review" },
+];
+
+const MATCH_STATUS_OPTIONS = [
+  { value: "", label: "All Match Statuses" },
+  { value: "MATCH", label: "Match" },
+  { value: "MISMATCH", label: "Mismatch" },
+  { value: "PENDING", label: "Pending" },
+];
+
+const SORT_OPTIONS = [
+  { value: "name_asc", label: "Name A \u2192 Z" },
+  { value: "name_desc", label: "Name Z \u2192 A" },
+  { value: "date_asc", label: "Submitted Date Oldest \u2192 Newest" },
+  { value: "date_desc", label: "Submitted Date Newest \u2192 Oldest" },
+];
+
+function applyVerificationSort(arr, sortKey) {
+  return [...arr].sort((a, b) => {
+    if (sortKey === "name_asc" || sortKey === "name_desc") {
+      const cmp = (a.fullName || "").localeCompare(b.fullName || "");
+      return sortKey === "name_asc" ? cmp : -cmp;
+    }
+    const aMs = a.signedOfferSubmittedAt ? new Date(a.signedOfferSubmittedAt).getTime() : -Infinity;
+    const bMs = b.signedOfferSubmittedAt ? new Date(b.signedOfferSubmittedAt).getTime() : -Infinity;
+    if (aMs !== bMs) return sortKey === "date_asc" ? aMs - bMs : bMs - aMs;
+    return (a.fullName || "").localeCompare(b.fullName || "");
+  });
+}
+
 export default function SignedOfferVerification() {
   const [records, setRecords] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -140,6 +174,32 @@ export default function SignedOfferVerification() {
   const [reviewNotes, setReviewNotes] = useState({});
   const [selectedCandidateId, setSelectedCandidateId] = useState(null);
   const [selectedReviewRecord, setSelectedReviewRecord] = useState(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterStatus, setFilterStatus] = useState("");
+  const [filterMatchStatus, setFilterMatchStatus] = useState("");
+  const [sortKey, setSortKey] = useState("name_asc");
+
+  const hasActiveControls = searchTerm.trim() !== "" || filterStatus !== "" || filterMatchStatus !== "" || sortKey !== "name_asc";
+
+  const handleResetControls = useCallback(() => {
+    setSearchTerm("");
+    setFilterStatus("");
+    setFilterMatchStatus("");
+    setSortKey("name_asc");
+  }, []);
+
+  const displayedRecords = useMemo(() => {
+    const q = searchTerm.trim().toLowerCase();
+    const filtered = records.filter((r) => {
+      if (q && ![
+        r.fullName, r.email,
+      ].some((v) => (v || "").toLowerCase().includes(q))) return false;
+      if (filterStatus && r.signedOfferStatus !== filterStatus) return false;
+      if (filterMatchStatus && getOverallMatchStatus(r) !== filterMatchStatus) return false;
+      return true;
+    });
+    return applyVerificationSort(filtered, sortKey);
+  }, [records, searchTerm, filterStatus, filterMatchStatus, sortKey]);
 
   const loadReviewQueue = useCallback(async (isActive = () => true) => {
     if (!isActive()) {
@@ -369,6 +429,76 @@ export default function SignedOfferVerification() {
       )}
 
       {!isLoading && !pageError && records.length > 0 && (
+        <>
+          <div className="dashboard-controls">
+            <div className="dashboard-controls__group">
+              <label htmlFor="sov-search">Search</label>
+              <input
+                id="sov-search"
+                type="search"
+                className="form-input"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Search name or email"
+              />
+            </div>
+            <div className="dashboard-controls__group">
+              <label htmlFor="sov-status-filter">Signed-off Status</label>
+              <select
+                id="sov-status-filter"
+                className="form-select"
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value)}
+              >
+                {SIGNED_OFFER_STATUS_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </div>
+            <div className="dashboard-controls__group">
+              <label htmlFor="sov-match-filter">Overall Match</label>
+              <select
+                id="sov-match-filter"
+                className="form-select"
+                value={filterMatchStatus}
+                onChange={(e) => setFilterMatchStatus(e.target.value)}
+              >
+                {MATCH_STATUS_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </div>
+            <div className="dashboard-controls__group">
+              <label htmlFor="sov-sort">Sort By</label>
+              <select
+                id="sov-sort"
+                className="form-select"
+                value={sortKey}
+                onChange={(e) => setSortKey(e.target.value)}
+              >
+                {SORT_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </div>
+            {hasActiveControls && (
+              <div className="dashboard-controls__reset">
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={handleResetControls}
+                >
+                  Reset
+                </button>
+              </div>
+            )}
+          </div>
+
+          {displayedRecords.length === 0 ? (
+            <div className="info-banner" role="status">
+              No signed-offer records match the current search or filters.
+            </div>
+          ) : (
         <div className="table-container">
           <table>
             <thead>
@@ -384,7 +514,7 @@ export default function SignedOfferVerification() {
               </tr>
             </thead>
             <tbody>
-              {records.map((record) => {
+              {displayedRecords.map((record) => {
                 const isPendingReview = canReviewRecord(record);
                 const isCompleted = isCompletedReviewRecord(record);
                 const overallMatchStatus = getOverallMatchStatus(record);
@@ -458,6 +588,8 @@ export default function SignedOfferVerification() {
             </tbody>
           </table>
         </div>
+          )}
+        </>
       )}
 
       {selectedReviewRecord && (

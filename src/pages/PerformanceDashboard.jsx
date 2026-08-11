@@ -128,6 +128,7 @@ const PerformanceDashboard = () => {
   const [selectedPod, setSelectedPod] = useState("");
   const [selectedResultStatus, setSelectedResultStatus] = useState("");
   const [selectedActionOwner, setSelectedActionOwner] = useState("");
+  const [sortKey, setSortKey] = useState("name_asc");
   const [retryRequestId, setRetryRequestId] = useState(0);
   const selectedCycleIdRef = useRef("");
 
@@ -298,6 +299,20 @@ const PerformanceDashboard = () => {
     selectedResultStatus,
   ]);
 
+  const sortedFilteredCandidateRecords = useMemo(() => {
+    return [...filteredCandidateRecords].sort((a, b) => {
+      if (sortKey === "name_asc" || sortKey === "name_desc") {
+        const cmp = (a.fullName || "").localeCompare(b.fullName || "");
+        return sortKey === "name_asc" ? cmp : -cmp;
+      }
+      // date sort: use evaluationStartDate
+      const aMs = a.evaluationStartDate ? new Date(a.evaluationStartDate).getTime() : -Infinity;
+      const bMs = b.evaluationStartDate ? new Date(b.evaluationStartDate).getTime() : -Infinity;
+      if (aMs !== bMs) return sortKey === "date_asc" ? aMs - bMs : bMs - aMs;
+      return (a.fullName || "").localeCompare(b.fullName || "");
+    });
+  }, [filteredCandidateRecords, sortKey]);
+
   const filteredActionItems = useMemo(
     () =>
       selectedCycleActionItems.filter(
@@ -314,6 +329,7 @@ const PerformanceDashboard = () => {
     setSelectedPod("");
     setSelectedResultStatus("");
     setSelectedActionOwner("");
+    setSortKey("name_asc");
   };
 
   const handleMonthChange = (event) => {
@@ -333,6 +349,17 @@ const PerformanceDashboard = () => {
     setSelectedPod("");
     setSelectedResultStatus("");
     setSelectedActionOwner("");
+    setSortKey("name_asc");
+  };
+
+  const hasActiveCandidateControls =
+    searchTerm.trim() !== "" || selectedPod !== "" || selectedResultStatus !== "" || sortKey !== "name_asc";
+
+  const handleResetCandidateControls = () => {
+    setSearchTerm("");
+    setSelectedPod("");
+    setSelectedResultStatus("");
+    setSortKey("name_asc");
   };
 
   const handleRetry = () => {
