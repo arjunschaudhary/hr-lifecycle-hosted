@@ -1658,3 +1658,52 @@ grid-template-columns:1fr;
     flex: 1 1 140px;
   }
 }
+
+/* =====================
+   DASHBOARD CONTROLS
+   Search / Filter / Sort bar shared across HR dashboards
+===================== */
+
+.dashboard-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+  margin-bottom: 20px;
+  padding: 14px 16px;
+  background: #fff;
+  border-radius: 14px;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 2px 8px rgba(15,23,42,.05);
+}
+
+.dashboard-controls__group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 150px;
+  flex: 1;
+}
+
+.dashboard-controls__group label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  color: #64748b;
+  margin-bottom: 0;
+}
+
+.dashboard-controls__reset {
+  align-self: flex-end;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* form-grid: used for multi-column form control rows */
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 14px;
+  margin-bottom: 16px;
+}

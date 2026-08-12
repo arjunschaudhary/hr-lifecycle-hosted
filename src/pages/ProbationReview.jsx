@@ -1,7 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { ClipboardCheck } from "lucide-react";
-import { dummyCandidates, dummyProbationAttempts } from "../data";
 import CandidateDetailModal from "../components/CandidateDetailModal";
 import {
   extendCandidateProbation,
@@ -13,51 +12,8 @@ import { fetchProbationReviewCandidates } from "../services/probationReviewServi
 import { sendCandidateWelcomeEmail } from "../services/welcomeMailService";
 import { markCandidateInProbation } from "../services/inProbationActionService";
 import ApproveProbationModal from "../components/ApproveProbationModal";
-const reviewStatuses = [
-  "HR_REVIEW_PENDING",
-  "HR_APPROVED_FOR_PROBATION",
-  "WELCOME_MAIL_SENT",
-  "IN_PROBATION",
-  "PROBATION_REVIEW",
-  "PROBATION_PASSED",
-  "PROBATION_REJECTED",
-  "PROBATION_EXTENDED",
-  "UNDER_REVIEW",
-  "RECONSIDERATION",
-];
-
 function requiresWelcomeMailManualCheck(message) {
   return message.includes("Check the sender Sent folder before retrying.");
-}
-
-function buildFallbackProbationRecords() {
-  return dummyProbationAttempts
-    .filter((attempt) => reviewStatuses.includes(attempt.status))
-    .map((attempt) => {
-      const candidate = dummyCandidates.find(
-        (candidate) => candidate.id === attempt.candidateId
-      );
-
-      return {
-        id: attempt.id,
-        candidateId: attempt.candidateId,
-        fullName: candidate?.fullName,
-        email: candidate?.email,
-        phone: candidate?.phone,
-        appliedRole: candidate?.roleAppliedFor,
-        roleCode: null,
-        department: candidate?.department,
-        source: candidate?.createdSource,
-        attemptNo: attempt.attemptNo,
-        probationStartDate: attempt.probationStartDate,
-        probationEndDate: attempt.probationEndDate,
-        probationExtensionCount: attempt.probationExtensionCount || 0,
-        probationStatus: attempt.status,
-        probationReviewNotes: attempt.hrRemarks,
-        hrDecision: reviewStatuses.includes(attempt.status) ? attempt.status : null,
-        mid: null,
-      };
-    });
 }
 
 function mapSupabaseProbationRecord(row) {
@@ -100,9 +56,42 @@ function getStatusClass(status) {
   }
 }
 
+const PROBATION_STATUS_OPTIONS = [
+  { value: "", label: "All Statuses" },
+  { value: "HR_REVIEW_PENDING", label: "HR Review Pending" },
+  { value: "HR_APPROVED_FOR_PROBATION", label: "HR Approved for Probation" },
+  { value: "WELCOME_MAIL_SENT", label: "Welcome Mail Sent" },
+  { value: "IN_PROBATION", label: "In Probation" },
+  { value: "PROBATION_REVIEW", label: "Probation Review" },
+  { value: "PROBATION_PASSED", label: "Probation Passed" },
+  { value: "PROBATION_REJECTED", label: "Probation Rejected" },
+  { value: "PROBATION_EXTENDED", label: "Probation Extended" },
+  { value: "UNDER_REVIEW", label: "Under Review" },
+  { value: "RECONSIDERATION", label: "Reconsideration" },
+];
+
+const SORT_OPTIONS = [
+  { value: "name_asc", label: "Name A \u2192 Z" },
+  { value: "name_desc", label: "Name Z \u2192 A" },
+  { value: "date_asc", label: "Start Date Oldest \u2192 Newest" },
+  { value: "date_desc", label: "Start Date Newest \u2192 Oldest" },
+];
+
+function applyProbationSort(arr, sortKey) {
+  return [...arr].sort((a, b) => {
+    if (sortKey === "name_asc" || sortKey === "name_desc") {
+      const cmp = (a.fullName || "").localeCompare(b.fullName || "");
+      return sortKey === "name_asc" ? cmp : -cmp;
+    }
+    const aMs = a.probationStartDate ? new Date(a.probationStartDate).getTime() : -Infinity;
+    const bMs = b.probationStartDate ? new Date(b.probationStartDate).getTime() : -Infinity;
+    if (aMs !== bMs) return sortKey === "date_asc" ? aMs - bMs : bMs - aMs;
+    return (a.fullName || "").localeCompare(b.fullName || "");
+  });
+}
+
 export default function ProbationReview() {
-  const fallbackRecords = useMemo(() => buildFallbackProbationRecords(), []);
-  const [probationRecords, setProbationRecords] = useState(fallbackRecords);
+  const [probationRecords, setProbationRecords] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
   const [actionCandidateId, setActionCandidateId] = useState(null);
@@ -127,21 +116,39 @@ export default function ProbationReview() {
   const [selectedCandidateId, setSelectedCandidateId] = useState(null);
   const [showApproveModal, setShowApproveModal] = useState(false);
   const [approveCandidate, setApproveCandidate] = useState(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterStatus, setFilterStatus] = useState("");
+  const [sortKey, setSortKey] = useState("name_asc");
+
+  const hasActiveControls = searchTerm.trim() !== "" || filterStatus !== "" || sortKey !== "name_asc";
+
+  const handleResetControls = useCallback(() => {
+    setSearchTerm("");
+    setFilterStatus("");
+    setSortKey("name_asc");
+  }, []);
+
+  const displayedRecords = useMemo(() => {
+    const q = searchTerm.trim().toLowerCase();
+    const filtered = probationRecords.filter((r) => {
+      if (q && ![
+        r.fullName, r.email, r.appliedRole,
+      ].some((v) => (v || "").toLowerCase().includes(q))) return false;
+      if (filterStatus && r.probationStatus !== filterStatus) return false;
+      return true;
+    });
+    return applyProbationSort(filtered, sortKey);
+  }, [probationRecords, searchTerm, filterStatus, sortKey]);
   async function refreshProbationRecords() {
     try {
       const records = await fetchProbationReviewCandidates();
 
-      if (records?.length) {
-        setProbationRecords(records.map(mapSupabaseProbationRecord));
-        setErrorMessage("");
-      } else {
-        setProbationRecords(fallbackRecords);
-        setErrorMessage("No Supabase probation review data found. Showing dummy data.");
-      }
+      setProbationRecords((records ?? []).map(mapSupabaseProbationRecord));
+      setErrorMessage("");
     } catch (error) {
       console.error("Unable to load probation review candidates:", error);
-      setProbationRecords(fallbackRecords);
-      setErrorMessage("Unable to load Supabase probation review data. Showing dummy data.");
+      setProbationRecords([]);
+      setErrorMessage("Unable to load probation review data.");
     } finally {
       setIsLoading(false);
     }
@@ -156,19 +163,14 @@ export default function ProbationReview() {
 
         if (!isMounted) return;
 
-        if (records?.length) {
-          setProbationRecords(records.map(mapSupabaseProbationRecord));
-          setErrorMessage("");
-        } else {
-          setProbationRecords(fallbackRecords);
-          setErrorMessage("No Supabase probation review data found. Showing dummy data.");
-        }
+        setProbationRecords((records ?? []).map(mapSupabaseProbationRecord));
+        setErrorMessage("");
       } catch (error) {
         if (!isMounted) return;
 
         console.error("Unable to load probation review candidates:", error);
-        setProbationRecords(fallbackRecords);
-        setErrorMessage("Unable to load Supabase probation review data. Showing dummy data.");
+        setProbationRecords([]);
+        setErrorMessage("Unable to load probation review data.");
       } finally {
         if (isMounted) {
           setIsLoading(false);
@@ -181,7 +183,7 @@ export default function ProbationReview() {
     return () => {
       isMounted = false;
     };
-  }, [fallbackRecords]);
+  }, []);
 
   
     function openApproveModal(record) {
@@ -477,6 +479,67 @@ export default function ProbationReview() {
         <p role="status">{performanceAssignmentMessage}</p>
       )}
 
+      <div className="dashboard-controls">
+        <div className="dashboard-controls__group">
+          <label htmlFor="probation-search">Search</label>
+          <input
+            id="probation-search"
+            type="search"
+            className="form-input"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Search name, email or role"
+          />
+        </div>
+        <div className="dashboard-controls__group">
+          <label htmlFor="probation-status-filter">Status</label>
+          <select
+            id="probation-status-filter"
+            className="form-select"
+            value={filterStatus}
+            onChange={(e) => setFilterStatus(e.target.value)}
+          >
+            {PROBATION_STATUS_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
+        </div>
+        <div className="dashboard-controls__group">
+          <label htmlFor="probation-sort">Sort By</label>
+          <select
+            id="probation-sort"
+            className="form-select"
+            value={sortKey}
+            onChange={(e) => setSortKey(e.target.value)}
+          >
+            {SORT_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
+        </div>
+        {hasActiveControls && (
+          <div className="dashboard-controls__reset">
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={handleResetControls}
+            >
+              Reset
+            </button>
+          </div>
+        )}
+      </div>
+
+      {!isLoading && !errorMessage && displayedRecords.length === 0 && probationRecords.length > 0 && (
+        <div className="info-banner" role="status">
+          No probation records match the current search or filters.
+        </div>
+      )}
+
+      {!isLoading && !errorMessage && probationRecords.length === 0 && (
+        <div className="info-banner" role="status">No probation records found.</div>
+      )}
+
       <div className="table-container">
 
       <table>
@@ -500,7 +563,7 @@ export default function ProbationReview() {
         </thead>
 
         <tbody>
-          {probationRecords.map((record) => (
+          {displayedRecords.map((record) => (
             <tr key={record.id}>
               <td>
                 <button

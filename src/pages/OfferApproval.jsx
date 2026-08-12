@@ -1,7 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { FileSignature } from "lucide-react";
-import { dummyCandidates, dummyOffers } from "../data";
 import CandidateDetailModal from "../components/CandidateDetailModal";
 import {
   generateOfferLetterRecordAfterMid,
@@ -9,32 +8,6 @@ import {
   markOfferLetterSent,
 } from "../services/lifecycleActionService";
 import { fetchOfferLetterProcessCandidates } from "../services/offerLetterProcessService";
-
-function buildFallbackOfferRecords() {
-  return dummyOffers.map((offer) => {
-    const candidate = dummyCandidates.find(
-      (candidate) => candidate.id === offer.candidateId
-    );
-
-    return {
-      id: offer.id,
-      candidateId: offer.candidateId,
-      fullName: candidate?.fullName,
-      email: candidate?.email,
-      phone: candidate?.phone,
-      mid: offer.mid,
-      appliedRole: candidate?.roleAppliedFor ?? offer.role,
-      department: candidate?.department,
-      lifecycleStatus: candidate?.currentStatus,
-      offerStatus: offer.offerStatus,
-      offerLetterNumber: offer.id,
-      generatedAt: offer.offerLetterGeneratedAt,
-      sentAt: offer.offerLetterSentAt,
-      startDate: offer.startDate,
-      endDate: offer.endDate,
-    };
-  });
-}
 
 function mapSupabaseOfferRecord(row) {
   return {
@@ -71,8 +44,7 @@ function getStatusClass(status) {
 }
 
 export default function OfferApproval() {
-  const fallbackRecords = useMemo(() => buildFallbackOfferRecords(), []);
-  const [offerRecords, setOfferRecords] = useState(fallbackRecords);
+  const [offerRecords, setOfferRecords] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
   const [actionCandidateId, setActionCandidateId] = useState(null);
@@ -83,17 +55,12 @@ export default function OfferApproval() {
     try {
       const records = await fetchOfferLetterProcessCandidates();
 
-      if (records?.length) {
-        setOfferRecords(records.map(mapSupabaseOfferRecord));
-        setErrorMessage("");
-      } else {
-        setOfferRecords(fallbackRecords);
-        setErrorMessage("No Supabase offer letter process data found. Showing dummy data.");
-      }
+      setOfferRecords((records ?? []).map(mapSupabaseOfferRecord));
+      setErrorMessage("");
     } catch (error) {
       console.error("Unable to load offer letter process candidates:", error);
-      setOfferRecords(fallbackRecords);
-      setErrorMessage("Unable to load Supabase offer letter process data. Showing dummy data.");
+      setOfferRecords([]);
+      setErrorMessage("Unable to load offer letter process data.");
     } finally {
       setIsLoading(false);
     }
@@ -108,19 +75,14 @@ export default function OfferApproval() {
 
         if (!isMounted) return;
 
-        if (records?.length) {
-          setOfferRecords(records.map(mapSupabaseOfferRecord));
-          setErrorMessage("");
-        } else {
-          setOfferRecords(fallbackRecords);
-          setErrorMessage("No Supabase offer letter process data found. Showing dummy data.");
-        }
+        setOfferRecords((records ?? []).map(mapSupabaseOfferRecord));
+        setErrorMessage("");
       } catch (error) {
         if (!isMounted) return;
 
         console.error("Unable to load offer letter process candidates:", error);
-        setOfferRecords(fallbackRecords);
-        setErrorMessage("Unable to load Supabase offer letter process data. Showing dummy data.");
+        setOfferRecords([]);
+        setErrorMessage("Unable to load offer letter process data.");
       } finally {
         if (isMounted) {
           setIsLoading(false);
@@ -133,7 +95,7 @@ export default function OfferApproval() {
     return () => {
       isMounted = false;
     };
-  }, [fallbackRecords]);
+  }, []);
 
   async function handleGenerateOfferLetterRecord(record) {
     setActionCandidateId(record.candidateId);
@@ -230,6 +192,10 @@ export default function OfferApproval() {
       {errorMessage && <p>{errorMessage}</p>}
 
       {actionMessage && <p>{actionMessage}</p>}
+
+      {!isLoading && !errorMessage && offerRecords.length === 0 && (
+        <div className="info-banner" role="status">No offer letter process records found.</div>
+      )}
 
       <div className="table-container">
 

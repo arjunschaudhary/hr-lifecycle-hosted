@@ -12,6 +12,7 @@ import {
   uploadLeaveDocument,
   deleteLeaveDocument,
   getSupportingDocumentUrl,
+  fetchPodOnLeaveToday,
 } from "../services/candidateLeaveService";
 import { fetchCurrentCandidatePortalSummary } from "../services/candidatePortalService";
 import { submitCurrentCandidateSignedOffer, resubmitCurrentCandidateSignedOffer } from "../services/candidateSignedOfferUploadService";
@@ -506,6 +507,58 @@ function CandidateLeaveSection({
   );
 }
 
+function PodOnLeaveTodaySection({ podLeave, podLeaveLoading, podLeaveError }) {
+  return (
+    <SummaryCard title="On Leave Today">
+      {podLeaveLoading && (
+        <p role="status" aria-live="polite">Loading pod leave information...</p>
+      )}
+
+      {!podLeaveLoading && podLeaveError && (
+        <p className="page-subtitle" role="status" aria-live="polite">
+          Pod leave information is temporarily unavailable.
+        </p>
+      )}
+
+      {!podLeaveLoading && !podLeaveError && podLeave.length === 0 && (
+        <p className="page-subtitle" role="status" aria-live="polite">
+          No one from your pod is on leave today.
+        </p>
+      )}
+
+      {!podLeaveLoading && !podLeaveError && podLeave.length > 0 && (
+        <div className="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Leave Type</th>
+                <th>Period</th>
+                <th>Days</th>
+              </tr>
+            </thead>
+            <tbody>
+              {podLeave.map((entry, idx) => (
+                <tr key={entry.candidateId || idx}>
+                  <td><strong>{entry.fullName}</strong></td>
+                  <td>{entry.leaveType || "-"}</td>
+                  <td>
+                    {formatDate(entry.startDate)}
+                    {entry.startDate !== entry.endDate && (
+                      <> &ndash; {formatDate(entry.endDate)}</>
+                    )}
+                  </td>
+                  <td>{entry.requestedLeaveDays}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </SummaryCard>
+  );
+}
+
 function PortalSummary({
   summary,
   exitCase,
@@ -522,6 +575,9 @@ function PortalSummary({
   performanceCycles,
   performanceLoading,
   performanceError,
+  podLeave,
+  podLeaveLoading,
+  podLeaveError,
   children,
 }) {
   const profile = summary.profile;
@@ -605,11 +661,20 @@ function PortalSummary({
             ]}
           />
         ) : (
-          <p>Leave balance not available.</p>
+          <p className="page-subtitle">
+            Leave balance is not yet available. It will appear once your
+            internship details are configured.
+          </p>
         )}
       </SummaryCard>
 
       {children}
+
+      <PodOnLeaveTodaySection
+        podLeave={podLeave}
+        podLeaveLoading={podLeaveLoading}
+        podLeaveError={podLeaveError}
+      />
 
       <CandidateSignedOfferSection
         signedOffer={signedOffer}
@@ -835,6 +900,9 @@ export default function CandidatePortal() {
   const [resubmitError, setResubmitError] = useState("");
   const [resubmitSuccess, setResubmitSuccess] = useState("");
   const resubmitFileInputRef = useRef(null);
+  const [podLeave, setPodLeave] = useState([]);
+  const [podLeaveLoading, setPodLeaveLoading] = useState(true);
+  const [podLeaveError, setPodLeaveError] = useState("");
 
   const handleLeaveFileChange = (event) => {
     setLeaveSubmissionError("");
@@ -1019,6 +1087,36 @@ export default function CandidatePortal() {
     };
 
     void loadPerformanceHistory();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadPodLeave = async () => {
+      try {
+        const entries = await fetchPodOnLeaveToday();
+
+        if (!isMounted) return;
+
+        setPodLeave(entries);
+        setPodLeaveError("");
+      } catch {
+        if (!isMounted) return;
+
+        setPodLeave([]);
+        setPodLeaveError("Unable to load pod leave information.");
+      } finally {
+        if (isMounted) {
+          setPodLeaveLoading(false);
+        }
+      }
+    };
+
+    void loadPodLeave();
 
     return () => {
       isMounted = false;
@@ -1360,6 +1458,9 @@ export default function CandidatePortal() {
           performanceCycles={performanceCycles}
           performanceLoading={performanceLoading}
           performanceError={performanceError}
+          podLeave={podLeave}
+          podLeaveLoading={podLeaveLoading}
+          podLeaveError={podLeaveError}
         >
           <CandidateLeaveSection
             form={leaveForm}

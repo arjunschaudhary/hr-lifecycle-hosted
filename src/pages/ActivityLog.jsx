@@ -1,32 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { History } from "lucide-react";
-import { dummyCandidates, dummyActivityLogs } from "../data";
 import CandidateDetailModal from "../components/CandidateDetailModal";
 import { fetchActivityLogs } from "../services/activityLogService";
-
-function buildFallbackActivityLogs() {
-  return dummyActivityLogs.map((log) => {
-    const candidate = dummyCandidates.find(
-      (candidate) => candidate.id === log.candidateId
-    );
-
-    return {
-      id: log.id,
-      candidateId: log.candidateId,
-      fullName: candidate?.fullName,
-      email: candidate?.email,
-      activityType: log.actionType,
-      fromStatus: log.oldStatus,
-      toStatus: log.newStatus,
-      remarks: log.remarks,
-      activityStatus: "SUCCESS",
-      errorMessage: "",
-      performedBy: log.performedBy,
-      performedAt: log.createdAt,
-    };
-  });
-}
 
 function mapSupabaseActivityLog(row) {
   return {
@@ -46,8 +22,7 @@ function mapSupabaseActivityLog(row) {
 }
 
 export default function ActivityLog() {
-  const fallbackLogs = useMemo(() => buildFallbackActivityLogs(), []);
-  const [activityLogs, setActivityLogs] = useState(fallbackLogs);
+  const [activityLogs, setActivityLogs] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
   const [selectedCandidateId, setSelectedCandidateId] = useState(null);
@@ -61,19 +36,14 @@ export default function ActivityLog() {
 
         if (!isMounted) return;
 
-        if (records?.length) {
-          setActivityLogs(records.map(mapSupabaseActivityLog));
-          setErrorMessage("");
-        } else {
-          setActivityLogs(fallbackLogs);
-          setErrorMessage("No Supabase activity log data found. Showing dummy data.");
-        }
+        setActivityLogs((records ?? []).map(mapSupabaseActivityLog));
+        setErrorMessage("");
       } catch (error) {
         if (!isMounted) return;
 
         console.error("Unable to load activity logs:", error);
-        setActivityLogs(fallbackLogs);
-        setErrorMessage("Unable to load Supabase activity log data. Showing dummy data.");
+        setActivityLogs([]);
+        setErrorMessage("Unable to load activity log data.");
       } finally {
         if (isMounted) {
           setIsLoading(false);
@@ -86,7 +56,7 @@ export default function ActivityLog() {
     return () => {
       isMounted = false;
     };
-  }, [fallbackLogs]);
+  }, []);
 
   return (
     <div className="app-page">
@@ -132,6 +102,10 @@ Track candidate lifecycle actions and HR workflow history.
       {isLoading && <p>Loading activity logs...</p>}
 
       {errorMessage && <p>{errorMessage}</p>}
+
+      {!isLoading && !errorMessage && activityLogs.length === 0 && (
+        <div className="info-banner" role="status">No activity logs found.</div>
+      )}
 
       <div className="table-container">
 

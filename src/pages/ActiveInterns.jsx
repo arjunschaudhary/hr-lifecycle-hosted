@@ -1,7 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { BriefcaseBusiness } from "lucide-react";
-import { dummyActiveInterns } from "../data";
 import CandidateDetailModal from "../components/CandidateDetailModal";
 import { useAuth } from "../context/authContext";
 import InitiateExitModal from "../components/exit/InitiateExitModal";
@@ -21,33 +20,6 @@ const UUID_PATTERN =
 
 function isValidUuid(value) {
   return typeof value === "string" && UUID_PATTERN.test(value);
-}
-
-function buildFallbackActiveInternRecords() {
-  return dummyActiveInterns.map((intern) => ({
-    id: intern.id,
-    candidateId: intern.candidateId,
-    fullName: intern.fullName,
-    email: "",
-    phone: "",
-    appliedRole: intern.role,
-    department: intern.department,
-    team: intern.team,
-    project: intern.project,
-    lifecycleStatus: intern.status,
-    mid: intern.mid,
-    offerStatus: "",
-    sentAt: intern.activeStartDate,
-    signedOfferStatus: "",
-    portalAccountStatus: null,
-    portalUserId: null,
-    roleCode: null,
-    hrPsyconnectAccessActive: false,
-    hrPsyconnectAccessGrantedAt: null,
-    hrPsyconnectUserRoleId: null,
-    hasActiveExit: false,
-    exitCaseStatus: null,
-  }));
 }
 
 function mapSupabaseActiveInternRecord(row) {
@@ -105,10 +77,37 @@ function getStatusClass(status) {
   }
 }
 
+const LIFECYCLE_STATUS_OPTIONS = [
+  { value: "", label: "All Statuses" },
+  { value: "ACTIVE", label: "Active" },
+  { value: "SIGNED_OFFER_SUBMITTED", label: "Signed Offer Submitted" },
+  { value: "SIGNED_OFFER_VERIFIED", label: "Signed Offer Verified" },
+  { value: "MISMATCH_REVIEW", label: "Mismatch Review" },
+];
+
+const SORT_OPTIONS = [
+  { value: "name_asc", label: "Name A \u2192 Z" },
+  { value: "name_desc", label: "Name Z \u2192 A" },
+  { value: "date_asc", label: "Sent Date Oldest \u2192 Newest" },
+  { value: "date_desc", label: "Sent Date Newest \u2192 Oldest" },
+];
+
+function applyInternsSort(arr, sortKey) {
+  return [...arr].sort((a, b) => {
+    if (sortKey === "name_asc" || sortKey === "name_desc") {
+      const cmp = (a.fullName || "").localeCompare(b.fullName || "");
+      return sortKey === "name_asc" ? cmp : -cmp;
+    }
+    const aMs = a.sentAt ? new Date(a.sentAt).getTime() : -Infinity;
+    const bMs = b.sentAt ? new Date(b.sentAt).getTime() : -Infinity;
+    if (aMs !== bMs) return sortKey === "date_asc" ? aMs - bMs : bMs - aMs;
+    return (a.fullName || "").localeCompare(b.fullName || "");
+  });
+}
+
 export default function ActiveInterns() {
   const { hasPodManagementAccess } = useAuth();
-  const fallbackRecords = useMemo(() => buildFallbackActiveInternRecords(), []);
-  const [activeInterns, setActiveInterns] = useState(fallbackRecords);
+  const [activeInterns, setActiveInterns] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
   const [actionCandidateId, setActionCandidateId] = useState(null);
@@ -120,22 +119,53 @@ export default function ActiveInterns() {
   const [selectedCandidateId, setSelectedCandidateId] = useState(null);
   const [initiateExitCandidate, setInitiateExitCandidate] = useState(null);
   const [isInitiatingExit, setIsInitiatingExit] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterStatus, setFilterStatus] = useState("");
+  const [filterDepartment, setFilterDepartment] = useState("");
+  const [sortKey, setSortKey] = useState("name_asc");
+
+  const departmentOptions = useMemo(() => {
+    const depts = new Set();
+    activeInterns.forEach((i) => { if (i.department) depts.add(i.department); });
+    return Array.from(depts).sort();
+  }, [activeInterns]);
+
+  const hasActiveControls =
+    searchTerm.trim() !== "" || filterStatus !== "" || filterDepartment !== "" || sortKey !== "name_asc";
+
+  const handleResetControls = useCallback(() => {
+    setSearchTerm("");
+    setFilterStatus("");
+    setFilterDepartment("");
+    setSortKey("name_asc");
+  }, []);
+
+  // STABLE ORDERING FIX: displayedInterns is derived purely from raw data + control state.
+  // Action state (actionCandidateId, portalActionCandidateId, etc.) is NOT a dependency,
+  // so clicking action buttons never reorders rows.
+  const displayedInterns = useMemo(() => {
+    const q = searchTerm.trim().toLowerCase();
+    const filtered = activeInterns.filter((i) => {
+      if (q && ![
+        i.fullName, i.email, i.appliedRole,
+      ].some((v) => (v || "").toLowerCase().includes(q))) return false;
+      if (filterStatus && i.lifecycleStatus !== filterStatus) return false;
+      if (filterDepartment && i.department !== filterDepartment) return false;
+      return true;
+    });
+    return applyInternsSort(filtered, sortKey);
+  }, [activeInterns, searchTerm, filterStatus, filterDepartment, sortKey]);
 
   async function refreshActiveInterns() {
     try {
       const records = await fetchActiveInterns();
 
-      if (records?.length) {
-        setActiveInterns(records.map(mapSupabaseActiveInternRecord));
-        setErrorMessage("");
-      } else {
-        setActiveInterns(fallbackRecords);
-        setErrorMessage("No Supabase active interns data found. Showing dummy data.");
-      }
+      setActiveInterns((records ?? []).map(mapSupabaseActiveInternRecord));
+      setErrorMessage("");
     } catch (error) {
       console.error("Unable to load active interns:", error);
-      setActiveInterns(fallbackRecords);
-      setErrorMessage("Unable to load Supabase active interns data. Showing dummy data.");
+      setActiveInterns([]);
+      setErrorMessage("Unable to load active interns data.");
     } finally {
       setIsLoading(false);
     }
@@ -150,19 +180,14 @@ export default function ActiveInterns() {
 
         if (!isMounted) return;
 
-        if (records?.length) {
-          setActiveInterns(records.map(mapSupabaseActiveInternRecord));
-          setErrorMessage("");
-        } else {
-          setActiveInterns(fallbackRecords);
-          setErrorMessage("No Supabase active interns data found. Showing dummy data.");
-        }
+        setActiveInterns((records ?? []).map(mapSupabaseActiveInternRecord));
+        setErrorMessage("");
       } catch (error) {
         if (!isMounted) return;
 
         console.error("Unable to load active interns:", error);
-        setActiveInterns(fallbackRecords);
-        setErrorMessage("Unable to load Supabase active interns data. Showing dummy data.");
+        setActiveInterns([]);
+        setErrorMessage("Unable to load active interns data.");
       } finally {
         if (isMounted) {
           setIsLoading(false);
@@ -175,7 +200,7 @@ export default function ActiveInterns() {
     return () => {
       isMounted = false;
     };
-  }, [fallbackRecords]);
+  }, []);
 
   async function handleMarkSignedOfferSubmitted(intern) {
     setActionCandidateId(intern.candidateId);
@@ -378,6 +403,83 @@ export default function ActiveInterns() {
         </div>
       )}
 
+      <div className="dashboard-controls">
+        <div className="dashboard-controls__group">
+          <label htmlFor="interns-search">Search</label>
+          <input
+            id="interns-search"
+            type="search"
+            className="form-input"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Search name, email or role"
+          />
+        </div>
+        <div className="dashboard-controls__group">
+          <label htmlFor="interns-status-filter">Status</label>
+          <select
+            id="interns-status-filter"
+            className="form-select"
+            value={filterStatus}
+            onChange={(e) => setFilterStatus(e.target.value)}
+          >
+            {LIFECYCLE_STATUS_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
+        </div>
+        {departmentOptions.length > 0 && (
+          <div className="dashboard-controls__group">
+            <label htmlFor="interns-dept-filter">Department</label>
+            <select
+              id="interns-dept-filter"
+              className="form-select"
+              value={filterDepartment}
+              onChange={(e) => setFilterDepartment(e.target.value)}
+            >
+              <option value="">All Departments</option>
+              {departmentOptions.map((dept) => (
+                <option key={dept} value={dept}>{dept}</option>
+              ))}
+            </select>
+          </div>
+        )}
+        <div className="dashboard-controls__group">
+          <label htmlFor="interns-sort">Sort By</label>
+          <select
+            id="interns-sort"
+            className="form-select"
+            value={sortKey}
+            onChange={(e) => setSortKey(e.target.value)}
+          >
+            {SORT_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
+        </div>
+        {hasActiveControls && (
+          <div className="dashboard-controls__reset">
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={handleResetControls}
+            >
+              Reset
+            </button>
+          </div>
+        )}
+      </div>
+
+      {!isLoading && displayedInterns.length === 0 && activeInterns.length > 0 && (
+        <div className="info-banner" role="status">
+          No interns match the current search or filters.
+        </div>
+      )}
+
+      {!isLoading && !errorMessage && activeInterns.length === 0 && (
+        <div className="info-banner" role="status">No active interns found.</div>
+      )}
+
       <div className="table-container">
         <table>
           <thead>
@@ -399,7 +501,7 @@ export default function ActiveInterns() {
           </thead>
 
           <tbody>
-            {activeInterns.map((intern) => (
+            {displayedInterns.map((intern) => (
               <tr key={intern.id}>
                 <td>
                   <button

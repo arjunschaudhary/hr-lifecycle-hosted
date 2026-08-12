@@ -132,6 +132,7 @@ const PerformanceDashboard = () => {
   const [selectedPod, setSelectedPod] = useState("");
   const [selectedResultStatus, setSelectedResultStatus] = useState("");
   const [selectedActionOwner, setSelectedActionOwner] = useState("");
+  const [sortKey, setSortKey] = useState("name_asc");
   const [retryRequestId, setRetryRequestId] = useState(0);
   const selectedCycleIdRef = useRef("");
 
@@ -302,6 +303,20 @@ const PerformanceDashboard = () => {
     selectedResultStatus,
   ]);
 
+  const sortedFilteredCandidateRecords = useMemo(() => {
+    return [...filteredCandidateRecords].sort((a, b) => {
+      if (sortKey === "name_asc" || sortKey === "name_desc") {
+        const cmp = (a.fullName || "").localeCompare(b.fullName || "");
+        return sortKey === "name_asc" ? cmp : -cmp;
+      }
+      // date sort: use evaluationStartDate
+      const aMs = a.evaluationStartDate ? new Date(a.evaluationStartDate).getTime() : -Infinity;
+      const bMs = b.evaluationStartDate ? new Date(b.evaluationStartDate).getTime() : -Infinity;
+      if (aMs !== bMs) return sortKey === "date_asc" ? aMs - bMs : bMs - aMs;
+      return (a.fullName || "").localeCompare(b.fullName || "");
+    });
+  }, [filteredCandidateRecords, sortKey]);
+
   const filteredActionItems = useMemo(
     () =>
       selectedCycleActionItems.filter(
@@ -318,6 +333,7 @@ const PerformanceDashboard = () => {
     setSelectedPod("");
     setSelectedResultStatus("");
     setSelectedActionOwner("");
+    setSortKey("name_asc");
   };
 
   const handleMonthChange = (event) => {
@@ -337,6 +353,17 @@ const PerformanceDashboard = () => {
     setSelectedPod("");
     setSelectedResultStatus("");
     setSelectedActionOwner("");
+    setSortKey("name_asc");
+  };
+
+  const hasActiveCandidateControls =
+    searchTerm.trim() !== "" || selectedPod !== "" || selectedResultStatus !== "" || sortKey !== "name_asc";
+
+  const handleResetCandidateControls = () => {
+    setSearchTerm("");
+    setSelectedPod("");
+    setSelectedResultStatus("");
+    setSortKey("name_asc");
   };
 
   const handleRetry = () => {
@@ -519,7 +546,31 @@ const PerformanceDashboard = () => {
                   ))}
                 </select>
               </div>
+              <div className="form-group">
+                <label htmlFor="candidate-sort">Sort Candidates</label>
+                <select
+                  id="candidate-sort"
+                  className="form-select"
+                  value={sortKey}
+                  onChange={(event) => setSortKey(event.target.value)}
+                >
+                  <option value="name_asc">Name (A–Z)</option>
+                  <option value="name_desc">Name (Z–A)</option>
+                  <option value="date_asc">Start Date (Oldest)</option>
+                  <option value="date_desc">Start Date (Newest)</option>
+                </select>
+              </div>
             </div>
+
+            {hasActiveCandidateControls && (
+              <button
+                className="btn btn-secondary dashboard-controls__reset"
+                type="button"
+                onClick={handleResetCandidateControls}
+              >
+                Reset Filters
+              </button>
+            )}
 
             {filteredCandidateRecords.length === 0 ? (
               <p className="info-banner" role="status" aria-live="polite">
@@ -546,7 +597,7 @@ const PerformanceDashboard = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredCandidateRecords.map((record) => (
+                    {sortedFilteredCandidateRecords.map((record) => (
                       <tr key={record.candidateCycleId}>
                         <td>{formatNullableValue(record.fullName)}</td>
                         <td>{formatNullableValue(record.email)}</td>
