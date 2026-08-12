@@ -475,6 +475,16 @@ export default function PodManagement() {
     if (inFlightRef.current) {
       return;
     }
+    if (
+      modalMode === "assignLead" &&
+      form.leadType === "TECH_LEAD" &&
+      modalContext?.appliedRole === "HR Psyconnect Intern"
+    ) {
+      setModalError(
+        "HR Psyconnect candidates cannot be assigned as Project Manager.",
+      );
+      return;
+    }
     inFlightRef.current = true;
     setIsSubmitting(true);
     setModalError("");
@@ -942,8 +952,12 @@ export default function PodManagement() {
                     {searchResults.map((candidate) => {
                       const hasActivePortalAccount =
                         candidate.portalAccountStatus === "ACTIVE";
+                      const isHrPsyconnectCandidate =
+                        candidate.appliedRole === "HR Psyconnect Intern";
                       const leadRequirementId =
                         `lead-portal-requirement-${candidate.candidateId}`;
+                      const projectManagerRequirementId =
+                        `project-manager-requirement-${candidate.candidateId}`;
 
                       return (
                         <tr key={candidate.candidateId}>
@@ -1011,16 +1025,22 @@ export default function PodManagement() {
                               <button
                                 className="btn btn-secondary"
                                 type="button"
-                                disabled={!hasActivePortalAccount}
+                                disabled={
+                                  !hasActivePortalAccount || isHrPsyconnectCandidate
+                                }
                                 aria-describedby={
-                                  hasActivePortalAccount
-                                    ? undefined
-                                    : leadRequirementId
+                                  !hasActivePortalAccount
+                                    ? leadRequirementId
+                                    : isHrPsyconnectCandidate
+                                      ? projectManagerRequirementId
+                                      : undefined
                                 }
                                 title={
-                                  hasActivePortalAccount
-                                    ? undefined
-                                    : "Activate the candidate portal before assigning a lead role."
+                                  !hasActivePortalAccount
+                                    ? "Activate the candidate portal before assigning a lead role."
+                                    : isHrPsyconnectCandidate
+                                      ? "HR Psyconnect candidates cannot be assigned as Project Manager."
+                                      : undefined
                                 }
                                 onClick={() => openModal("assignLead", {
                                   ...candidate,
@@ -1037,6 +1057,15 @@ export default function PodManagement() {
                               >
                                 Activate the candidate portal before assigning a
                                 lead role.
+                              </span>
+                            )}
+                            {hasActivePortalAccount && isHrPsyconnectCandidate && (
+                              <span
+                                id={projectManagerRequirementId}
+                                className="pod-secondary-text"
+                              >
+                                HR Psyconnect candidates cannot be assigned as
+                                Project Manager.
                               </span>
                             )}
                           </td>
@@ -1333,7 +1362,14 @@ export default function PodManagement() {
                       }))}
                     >
                       <option value="POD_LEAD">Pod Lead</option>
-                      <option value="TECH_LEAD">Project Manager</option>
+                      <option
+                        value="TECH_LEAD"
+                        disabled={
+                          modalContext?.appliedRole === "HR Psyconnect Intern"
+                        }
+                      >
+                        Project Manager
+                      </option>
                     </select>
                   </div>
                   <div className="info-banner">
