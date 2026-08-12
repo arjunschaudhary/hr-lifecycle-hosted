@@ -21,6 +21,8 @@ export default function CandidateProtectedRoute() {
     loading,
     isActiveAppUser,
     hasStaffAccess,
+    hasPerformanceDashboardAccess,
+    hasLeadReviewAccess,
     hasCandidateAccess,
     authorizationError,
     signOut,
@@ -101,6 +103,22 @@ export default function CandidateProtectedRoute() {
             className="auth-logout-button auth-logout-button--compact auth-link-button"
           >
             HR Workspace
+          </Link>
+        )}
+        {hasPerformanceDashboardAccess && (
+          <Link
+            to="/performance-dashboard"
+            className="auth-logout-button auth-logout-button--compact auth-link-button"
+          >
+            Performance Dashboard
+          </Link>
+        )}
+        {hasLeadReviewAccess && (
+          <Link
+            to="/lead-reviews"
+            className="auth-logout-button auth-logout-button--compact auth-link-button"
+          >
+            Lead Reviews
           </Link>
         )}
         <button

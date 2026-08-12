@@ -116,7 +116,11 @@ const MetricCard = ({ icon: Icon, title, value }) => (
 );
 
 const PerformanceDashboard = () => {
-  const { hasPerformanceDashboardAccess } = useAuth();
+  const {
+    hasPerformanceDashboardAccess,
+    hasStaffAccess,
+    hasLeadReviewAccess,
+  } = useAuth();
   const [cycles, setCycles] = useState([]);
   const [candidateRecords, setCandidateRecords] = useState([]);
   const [actionItems, setActionItems] = useState([]);
@@ -345,11 +349,19 @@ const PerformanceDashboard = () => {
       ? "—"
       : `${selectedCycle.scoringCompletionPercent}%`;
 
+  const backLink = hasStaffAccess
+    ? { to: "/", label: "Back to Dashboard" }
+    : hasLeadReviewAccess
+      ? { to: "/lead-reviews", label: "Lead Reviews" }
+      : null;
+
   return (
     <main className="app-page">
-      <Link to="/" className="back-link">
-        Back to Dashboard
-      </Link>
+      {backLink && (
+        <Link to={backLink.to} className="back-link">
+          {backLink.label}
+        </Link>
+      )}
 
       <header className="page-header-modern">
         <div className="page-icon" aria-hidden="true">

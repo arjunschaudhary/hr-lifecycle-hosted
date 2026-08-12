@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { LoaderCircle, LogOut, ShieldAlert } from "lucide-react";
-import { Navigate, Outlet, useLocation } from "react-router-dom";
+import { Link, Navigate, Outlet, useLocation } from "react-router-dom";
 
 import { useAuth } from "../context/authContext";
 
@@ -21,6 +21,8 @@ export default function LeadReviewProtectedRoute() {
     loading,
     isActiveAppUser,
     hasLeadReviewAccess,
+    hasPerformanceDashboardAccess,
+    hasCandidateAccess,
     authorizationError,
     signOut,
   } = useAuth();
@@ -91,6 +93,28 @@ export default function LeadReviewProtectedRoute() {
         <span className="auth-session-email" title={user?.email}>
           Signed in as <strong>{user?.email || "Unknown account"}</strong>
         </span>
+        <Link
+          to="/lead-reviews"
+          className="auth-logout-button auth-logout-button--compact auth-link-button"
+        >
+          Lead Reviews
+        </Link>
+        {hasPerformanceDashboardAccess && (
+          <Link
+            to="/performance-dashboard"
+            className="auth-logout-button auth-logout-button--compact auth-link-button"
+          >
+            Performance Dashboard
+          </Link>
+        )}
+        {hasCandidateAccess && (
+          <Link
+            to="/portal"
+            className="auth-logout-button auth-logout-button--compact auth-link-button"
+          >
+            Candidate Portal
+          </Link>
+        )}
         <button
           className="auth-logout-button auth-logout-button--compact"
           type="button"
