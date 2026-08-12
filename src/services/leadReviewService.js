@@ -6,6 +6,11 @@ const SAFE_LEAD_REVIEW_ERROR =
   "Unable to load the Lead Review.";
 const SAFE_SAVE_LEAD_REVIEW_ERROR =
   "Unable to save the Lead Review.";
+const SAFE_SAVE_LEAD_REVIEW_MESSAGES = new Set([
+  "You cannot submit a Lead Review for your own candidate cycle.",
+  "Project Manager Lead Reviews require an eligible Pod Lead.",
+  "This Lead Review draft is already owned by another reviewer.",
+]);
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -120,6 +125,17 @@ const isNullableIntegerInRange = (value, minimum, maximum) =>
 
 const isNullableFiniteNumber = (value) =>
   value === null || (typeof value === "number" && Number.isFinite(value));
+
+const getSafeSaveLeadReviewMessage = (error) => {
+  const message =
+    isRecord(error) && typeof error.message === "string"
+      ? error.message.trim()
+      : "";
+
+  return SAFE_SAVE_LEAD_REVIEW_MESSAGES.has(message)
+    ? message
+    : SAFE_SAVE_LEAD_REVIEW_ERROR;
+};
 
 function mapLeadReviewTaskRow(row) {
   if (
@@ -400,12 +416,16 @@ export async function saveCandidateLeadReview(input) {
       }
     );
 
-    if (error || !isRecord(data)) {
+    if (error) {
+      throw new Error(getSafeSaveLeadReviewMessage(error));
+    }
+
+    if (!isRecord(data)) {
       throw new Error(SAFE_SAVE_LEAD_REVIEW_ERROR);
     }
 
     return data;
-  } catch {
-    throw new Error(SAFE_SAVE_LEAD_REVIEW_ERROR);
+  } catch (error) {
+    throw new Error(getSafeSaveLeadReviewMessage(error), { cause: error });
   }
 }
