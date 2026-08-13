@@ -14,6 +14,7 @@ import {
   fetchPerformanceActionQueue,
   fetchPerformanceCycleOverview,
 } from "../services/performanceDashboardService";
+import CandidateDetailModal from "../components/CandidateDetailModal";
 
 const DATE_FORMATTER = new Intl.DateTimeFormat("en-IN", {
   day: "numeric",
@@ -133,6 +134,7 @@ const PerformanceDashboard = () => {
   const [selectedResultStatus, setSelectedResultStatus] = useState("");
   const [selectedActionOwner, setSelectedActionOwner] = useState("");
   const [sortKey, setSortKey] = useState("name_asc");
+  const [selectedCandidateId, setSelectedCandidateId] = useState(null);
   const [retryRequestId, setRetryRequestId] = useState(0);
   const selectedCycleIdRef = useRef("");
 
@@ -305,15 +307,8 @@ const PerformanceDashboard = () => {
 
   const sortedFilteredCandidateRecords = useMemo(() => {
     return [...filteredCandidateRecords].sort((a, b) => {
-      if (sortKey === "name_asc" || sortKey === "name_desc") {
-        const cmp = (a.fullName || "").localeCompare(b.fullName || "");
-        return sortKey === "name_asc" ? cmp : -cmp;
-      }
-      // date sort: use evaluationStartDate
-      const aMs = a.evaluationStartDate ? new Date(a.evaluationStartDate).getTime() : -Infinity;
-      const bMs = b.evaluationStartDate ? new Date(b.evaluationStartDate).getTime() : -Infinity;
-      if (aMs !== bMs) return sortKey === "date_asc" ? aMs - bMs : bMs - aMs;
-      return (a.fullName || "").localeCompare(b.fullName || "");
+      const comparison = (a.fullName || "").localeCompare(b.fullName || "");
+      return sortKey === "name_desc" ? -comparison : comparison;
     });
   }, [filteredCandidateRecords, sortKey]);
 
@@ -556,8 +551,6 @@ const PerformanceDashboard = () => {
                 >
                   <option value="name_asc">Name (A–Z)</option>
                   <option value="name_desc">Name (Z–A)</option>
-                  <option value="date_asc">Start Date (Oldest)</option>
-                  <option value="date_desc">Start Date (Newest)</option>
                 </select>
               </div>
             </div>
@@ -599,7 +592,21 @@ const PerformanceDashboard = () => {
                   <tbody>
                     {sortedFilteredCandidateRecords.map((record) => (
                       <tr key={record.candidateCycleId}>
-                        <td>{formatNullableValue(record.fullName)}</td>
+                        <td>
+                          {hasStaffAccess ? (
+                            <button
+                              type="button"
+                              className="candidate-link"
+                              onClick={() =>
+                                setSelectedCandidateId(record.candidateId)
+                              }
+                            >
+                              {formatNullableValue(record.fullName)}
+                            </button>
+                          ) : (
+                            formatNullableValue(record.fullName)
+                          )}
+                        </td>
                         <td>{formatNullableValue(record.email)}</td>
                         <td>{getPodLabel(record)}</td>
                         <td>{formatNullableValue(record.appliedRole)}</td>
@@ -716,6 +723,10 @@ const PerformanceDashboard = () => {
           </section>
         </>
       )}
+      <CandidateDetailModal
+        candidateId={selectedCandidateId}
+        onClose={() => setSelectedCandidateId(null)}
+      />
     </main>
   );
 };
