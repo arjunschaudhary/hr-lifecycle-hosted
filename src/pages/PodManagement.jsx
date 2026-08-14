@@ -94,7 +94,20 @@ function getMemberKind(membership) {
   if (membership.membershipType === "CANDIDATE") {
     return "Candidate";
   }
+  if (membership.membershipType === "TECH_LEAD") {
+    return "Candidate portal user";
+  }
   return membership.candidateId ? "Candidate-backed lead" : "Staff-only lead";
+}
+
+function getMembershipTypeLabel(membershipType) {
+  if (membershipType === "HR_SITE_CONNECT") {
+    return "HR Psyconnect reviewer";
+  }
+  if (membershipType === "TECH_LEAD") {
+    return "Project Manager";
+  }
+  return formatStatus(membershipType);
 }
 
 function CandidateButton({ candidateId, name, onOpen }) {
@@ -475,15 +488,28 @@ export default function PodManagement() {
     if (inFlightRef.current) {
       return;
     }
-    if (
-      modalMode === "assignLead" &&
-      form.leadType === "TECH_LEAD" &&
-      modalContext?.appliedRole === "HR Psyconnect Intern"
-    ) {
-      setModalError(
-        "HR Psyconnect candidates cannot be assigned as Project Manager.",
-      );
-      return;
+    if (modalMode === "assignLead" && form.leadType === "TECH_LEAD") {
+      if (modalContext?.appliedRole === "HR Psyconnect Intern") {
+        setModalError(
+          "HR Psyconnect candidates cannot be assigned as Project Manager.",
+        );
+        return;
+      }
+      if (modalContext?.appliedRole !== "Project Manager Intern") {
+        setModalError(
+          "Only Project Manager Intern (PMT) candidates can be assigned as Project Manager.",
+        );
+        return;
+      }
+      if (
+        !modalContext?.activePodId ||
+        modalContext.activePodId !== form.podId
+      ) {
+        setModalError(
+          "The candidate must already be active in the selected pod before Project Manager assignment.",
+        );
+        return;
+      }
     }
     inFlightRef.current = true;
     setIsSubmitting(true);
@@ -591,6 +617,25 @@ export default function PodManagement() {
     form.effectiveFrom >
       selectedAssignmentCandidate.requiredEvaluationStartDate;
 
+  const isKnownInvalidProjectManagerAssignment =
+    modalMode === "assignLead" &&
+    form.leadType === "TECH_LEAD" &&
+    (
+      modalContext?.appliedRole !== "Project Manager Intern" ||
+      !modalContext?.activePodId ||
+      modalContext.activePodId !== form.podId
+    );
+
+  const isLeadFormInvalid =
+    modalMode === "assignLead" &&
+    (
+      !form.candidateId ||
+      !form.podId ||
+      !form.effectiveFrom ||
+      !["POD_LEAD", "TECH_LEAD"].includes(form.leadType) ||
+      isKnownInvalidProjectManagerAssignment
+    );
+
   const renderMembershipRows = (records, allowEnd) => {
     if (records.length === 0) {
       return (
@@ -628,11 +673,7 @@ export default function PodManagement() {
                     </span>
                   )}
                 </td>
-                <td>
-                  {membership.membershipType === "HR_SITE_CONNECT"
-                    ? "HR Psyconnect reviewer"
-                    : formatStatus(membership.membershipType)}
-                </td>
+                <td>{getMembershipTypeLabel(membership.membershipType)}</td>
                 <td>{getMemberKind(membership)}</td>
                 <td>{formatDate(membership.effectiveFrom)}</td>
                 <td>{formatDate(membership.effectiveTo)}</td>
@@ -954,6 +995,16 @@ export default function PodManagement() {
                         candidate.portalAccountStatus === "ACTIVE";
                       const isHrPsyconnectCandidate =
                         candidate.appliedRole === "HR Psyconnect Intern";
+                      const isProjectManagerCandidate =
+                        candidate.appliedRole === "Project Manager Intern";
+                      const projectManagerEligibilityMessage =
+                        isHrPsyconnectCandidate
+                          ? "HR Psyconnect candidates cannot be assigned as Project Manager."
+                          : !isProjectManagerCandidate
+                            ? "Only Project Manager Intern (PMT) candidates can be assigned as Project Manager."
+                            : !candidate.activePodId
+                              ? "The candidate must already be active in a pod before Project Manager assignment."
+                              : "";
                       const leadRequirementId =
                         `lead-portal-requirement-${candidate.candidateId}`;
                       const projectManagerRequirementId =
@@ -1026,24 +1077,26 @@ export default function PodManagement() {
                                 className="btn btn-secondary"
                                 type="button"
                                 disabled={
-                                  !hasActivePortalAccount || isHrPsyconnectCandidate
+                                  !hasActivePortalAccount ||
+                                  Boolean(projectManagerEligibilityMessage)
                                 }
                                 aria-describedby={
                                   !hasActivePortalAccount
                                     ? leadRequirementId
-                                    : isHrPsyconnectCandidate
+                                    : projectManagerEligibilityMessage
                                       ? projectManagerRequirementId
                                       : undefined
                                 }
                                 title={
                                   !hasActivePortalAccount
                                     ? "Activate the candidate portal before assigning a lead role."
-                                    : isHrPsyconnectCandidate
-                                      ? "HR Psyconnect candidates cannot be assigned as Project Manager."
+                                    : projectManagerEligibilityMessage
+                                      ? projectManagerEligibilityMessage
                                       : undefined
                                 }
                                 onClick={() => openModal("assignLead", {
                                   ...candidate,
+                                  podId: candidate.activePodId,
                                   leadType: "TECH_LEAD",
                                 })}
                               >
@@ -1059,13 +1112,13 @@ export default function PodManagement() {
                                 lead role.
                               </span>
                             )}
-                            {hasActivePortalAccount && isHrPsyconnectCandidate && (
+                            {hasActivePortalAccount &&
+                              projectManagerEligibilityMessage && (
                               <span
                                 id={projectManagerRequirementId}
                                 className="pod-secondary-text"
                               >
-                                HR Psyconnect candidates cannot be assigned as
-                                Project Manager.
+                                {projectManagerEligibilityMessage}
                               </span>
                             )}
                           </td>
@@ -1365,7 +1418,9 @@ export default function PodManagement() {
                       <option
                         value="TECH_LEAD"
                         disabled={
-                          modalContext?.appliedRole === "HR Psyconnect Intern"
+                          modalContext?.appliedRole !== "Project Manager Intern" ||
+                          !modalContext?.activePodId ||
+                          modalContext.activePodId !== form.podId
                         }
                       >
                         Project Manager
@@ -1376,9 +1431,10 @@ export default function PodManagement() {
                     <UserRoundPlus aria-hidden="true" />
                     <p>
                       Candidate portal access and the Candidate role are
-                      preserved. An active portal account is required, and
-                      overlapping Pod Lead and Project Manager assignments in the
-                      same pod are blocked.
+                      preserved. An active portal account is required. Project
+                      Managers must already be active candidates in the selected
+                      pod, and overlapping Pod Lead and Project Manager
+                      assignments in the same pod are blocked.
                     </p>
                   </div>
                 </>
@@ -1560,6 +1616,7 @@ export default function PodManagement() {
                   type="submit"
                   disabled={
                     isSubmitting ||
+                    isLeadFormInvalid ||
                     (modalMode === "assignHrReviewer" &&
                       (!form.userId ||
                         !form.effectiveFrom ||

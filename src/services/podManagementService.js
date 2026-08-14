@@ -112,6 +112,8 @@ const SAFE_FUNCTION_MESSAGES = new Set([
   "Candidate role is not active for the mapped portal user.",
   "An active HR Psyconnect user cannot be assigned as Project Manager.",
   "HR Psyconnect candidates cannot be assigned as Project Manager.",
+  "Only Project Manager Intern (PMT) candidates can be assigned as Project Manager.",
+  "The candidate must already be active in the selected pod before Project Manager assignment.",
   "Lead membership dates overlap an existing lead assignment in this pod.",
   "Required candidate portal account or active role was not found.",
   "HR Psyconnect reviewer assignment values are invalid.",

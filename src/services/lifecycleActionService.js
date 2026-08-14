@@ -1,5 +1,5 @@
 import { supabase } from "./supabaseClient";
-import { ROLE_OPTIONS } from "../constants/roleOptions";
+import { LIFECYCLE_SUPPORTED_ROLE_CODES } from "../constants/roleOptions";
 
 function parseDateOnly(dateValue) {
   const [year, month, day] = String(dateValue || "")
@@ -35,9 +35,8 @@ function getValidatedRoleCode(roleCode) {
     throw new Error("Role code is missing. MID generation cannot continue.");
   }
 
-  const isKnownRoleCode = ROLE_OPTIONS.some(
-    (role) => role.code === normalizedRoleCode
-  );
+  const isKnownRoleCode =
+    LIFECYCLE_SUPPORTED_ROLE_CODES.includes(normalizedRoleCode);
 
   if (!isKnownRoleCode) {
     throw new Error("Role code is not valid. MID generation cannot continue.");

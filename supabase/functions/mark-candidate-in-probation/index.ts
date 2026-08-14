@@ -3,6 +3,7 @@ import {
   createClient,
   type SupabaseClient,
 } from "npm:@supabase/supabase-js@2";
+import { getCorsHeaders } from "../_shared/cors.ts";
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -74,32 +75,17 @@ function nonBlank(value: string | undefined): string | undefined {
   return trimmed ? trimmed : undefined;
 }
 
-function getCorsHeaders(): Record<string, string> {
-  const configuredOrigin = nonBlank(Deno.env.get("ALLOWED_ORIGIN"));
-  const headers: Record<string, string> = {
-    "Access-Control-Allow-Headers":
-      "authorization, apikey, content-type, x-client-info",
-    "Access-Control-Allow-Methods": "POST, OPTIONS",
-    "Content-Type": "application/json; charset=utf-8",
-  };
-
-  if (configuredOrigin) {
-    headers["Access-Control-Allow-Origin"] = configuredOrigin;
-    headers.Vary = "Origin";
-  } else {
-    headers["Access-Control-Allow-Origin"] = "*";
-  }
-
-  return headers;
-}
-
-function jsonResponse(
+function createJsonResponse(
+  request: Request,
   body: Record<string, unknown>,
   status = 200,
 ): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: getCorsHeaders(),
+    headers: {
+      ...getCorsHeaders(request),
+      "Content-Type": "application/json; charset=utf-8",
+    },
   });
 }
 
@@ -263,8 +249,18 @@ function parseProcessingResult(
 }
 
 Deno.serve(async (request: Request): Promise<Response> => {
+  const jsonResponse = (
+    body: Record<string, unknown>,
+    status = 200,
+  ) => createJsonResponse(request, body, status);
+
   if (request.method === "OPTIONS") {
-    return new Response("ok", { headers: getCorsHeaders() });
+    return new Response("ok", {
+      headers: {
+        ...getCorsHeaders(request),
+        "Content-Type": "application/json; charset=utf-8",
+      },
+    });
   }
 
   if (request.method !== "POST") {

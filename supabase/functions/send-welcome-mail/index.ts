@@ -10,6 +10,7 @@ import {
   type WelcomeEmailTemplate,
   type WelcomeEmailTemplateInput,
 } from "../_shared/welcomeEmailTemplate.ts";
+import { getCorsHeaders } from "../_shared/cors.ts";
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -79,33 +80,17 @@ function nonBlank(value: string | undefined): string | undefined {
   return trimmed ? trimmed : undefined;
 }
 
-function getCorsHeaders(): Record<string, string> {
-  const configuredOrigin = nonBlank(Deno.env.get("ALLOWED_ORIGIN"));
-  const headers: Record<string, string> = {
-    "Access-Control-Allow-Headers":
-      "authorization, apikey, content-type, x-client-info",
-    "Access-Control-Allow-Methods": "POST, OPTIONS",
-    "Content-Type": "application/json; charset=utf-8",
-  };
-
-  if (configuredOrigin) {
-    headers["Access-Control-Allow-Origin"] = configuredOrigin;
-    headers.Vary = "Origin";
-  } else {
-    // Production must configure ALLOWED_ORIGIN to the exact frontend origin.
-    headers["Access-Control-Allow-Origin"] = "*";
-  }
-
-  return headers;
-}
-
-function jsonResponse(
+function createJsonResponse(
+  request: Request,
   body: Record<string, unknown>,
   status = 200,
 ): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: getCorsHeaders(),
+    headers: {
+      ...getCorsHeaders(request),
+      "Content-Type": "application/json; charset=utf-8",
+    },
   });
 }
 
@@ -514,10 +499,11 @@ async function finalizeWelcomeMail(
 }
 
 function successResponse(
+  request: Request,
   candidateId: string,
   alreadyCompleted: boolean,
 ): Response {
-  return jsonResponse({
+  return createJsonResponse(request, {
     success: true,
     candidateId,
     jobStatus: "SUCCESS",
@@ -528,6 +514,11 @@ function successResponse(
 }
 
 async function handleRequest(request: Request): Promise<Response> {
+  const jsonResponse = (
+    body: Record<string, unknown>,
+    status = 200,
+  ) => createJsonResponse(request, body, status);
+
   if (request.method === "OPTIONS") {
     return jsonResponse({ success: true });
   }
@@ -648,12 +639,12 @@ async function handleRequest(request: Request): Promise<Response> {
     }
 
     if (!claim.shouldSend && !claim.needsFinalization) {
-      return successResponse(claim.candidateId, true);
+      return successResponse(request, claim.candidateId, true);
     }
 
     if (!claim.shouldSend && claim.needsFinalization) {
       await finalizeWelcomeMail(adminClient, claim);
-      return successResponse(claim.candidateId, true);
+      return successResponse(request, claim.candidateId, true);
     }
 
     let template: WelcomeEmailTemplate;
@@ -730,7 +721,7 @@ async function handleRequest(request: Request): Promise<Response> {
     await persistProviderAcceptance(adminClient, claim, messageId);
     await finalizeWelcomeMail(adminClient, claim);
 
-    return successResponse(claim.candidateId, false);
+    return successResponse(request, claim.candidateId, false);
   } catch (error) {
     if (!(error instanceof HttpError)) {
       logServerError("send_welcome_mail", error, {

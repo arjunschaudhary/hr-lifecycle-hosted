@@ -2,6 +2,7 @@ import {
   createClient,
   type SupabaseClient,
 } from "https://esm.sh/@supabase/supabase-js@2";
+import { getCorsHeaders } from "../_shared/cors.ts";
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -44,6 +45,8 @@ const SAFE_DATABASE_MESSAGES = new Set([
   "Candidate role is not active for the mapped portal user.",
   "An active HR Psyconnect user cannot be assigned as Project Manager.",
   "HR Psyconnect candidates cannot be assigned as Project Manager.",
+  "Only Project Manager Intern (PMT) candidates can be assigned as Project Manager.",
+  "The candidate must already be active in the selected pod before Project Manager assignment.",
   "Lead membership dates overlap an existing lead assignment in this pod.",
   "Required candidate portal account or active role was not found.",
   "HR Psyconnect reviewer assignment values are invalid.",
@@ -92,22 +95,17 @@ function validDate(value: unknown): value is string {
     date.toISOString().slice(0, 10) === value;
 }
 
-function getCorsHeaders(): Record<string, string> {
-  const configuredOrigin = nonBlank(Deno.env.get("ALLOWED_ORIGIN"));
-  return {
-    "Access-Control-Allow-Origin": configuredOrigin ?? "*",
-    "Access-Control-Allow-Headers":
-      "authorization, apikey, content-type, x-client-info",
-    "Access-Control-Allow-Methods": "POST, OPTIONS",
-    "Content-Type": "application/json",
-    "Vary": "Origin",
-  };
-}
-
-function jsonResponse(body: JsonRecord, status = 200): Response {
+function createJsonResponse(
+  request: Request,
+  body: JsonRecord,
+  status = 200,
+): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: getCorsHeaders(),
+    headers: {
+      ...getCorsHeaders(request),
+      "Content-Type": "application/json",
+    },
   });
 }
 
@@ -380,8 +378,16 @@ function isSuccessfulRpcResult(value: unknown): value is JsonRecord {
 }
 
 Deno.serve(async (request: Request) => {
+  const jsonResponse = (body: JsonRecord, status = 200) =>
+    createJsonResponse(request, body, status);
+
   if (request.method === "OPTIONS") {
-    return new Response("ok", { headers: getCorsHeaders() });
+    return new Response("ok", {
+      headers: {
+        ...getCorsHeaders(request),
+        "Content-Type": "application/json",
+      },
+    });
   }
   if (request.method !== "POST") {
     return jsonResponse({ error: "Method not allowed." }, 405);

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { submitCandidateForm } from "../services/candidateFormService";
 import { UserPlus } from "lucide-react";
-import { ROLE_OPTIONS } from "../constants/roleOptions";
+import { ACTIVE_ROLE_OPTIONS } from "../constants/roleOptions";
 
 const initialFormData = {
   full_name: "",
@@ -31,7 +31,7 @@ export default function CandidateProbationForm() {
   }
 
   function handleRoleChange(event) {
-  const selectedRole = ROLE_OPTIONS.find(
+  const selectedRole = ACTIVE_ROLE_OPTIONS.find(
     (role) => role.name === event.target.value
   );
 
@@ -181,7 +181,7 @@ export default function CandidateProbationForm() {
                 >
                   <option value="">Select Applied Role</option>
 
-                  {ROLE_OPTIONS.map((role) => (
+                  {ACTIVE_ROLE_OPTIONS.map((role) => (
                     <option key={role.code} value={role.name}>
                       {role.name}
                     </option>

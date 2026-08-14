@@ -693,6 +693,8 @@ grid-template-columns:1fr;
 }
 
 .candidate-position-details{
+  grid-column:1 / -1;
+  min-width:0;
   margin-top:28px;
 }
 
@@ -702,13 +704,14 @@ grid-template-columns:1fr;
 
 .candidate-role-grid{
   display:grid;
-  grid-template-columns:minmax(0, 2fr) minmax(180px, 1fr);
+  grid-template-columns:minmax(0, 2fr) minmax(160px, 1fr);
   align-items:start;
   gap:18px;
 }
 
 .candidate-role-grid .form-group{
   margin-bottom:0;
+  min-width:0;
 }
 
 .candidate-role-grid select{
@@ -748,7 +751,7 @@ grid-template-columns:1fr;
   line-height:1.4;
 }
 
-@media(max-width:640px){
+@media(max-width:700px){
   .candidate-role-grid{
     grid-template-columns:1fr;
     gap:18px;
