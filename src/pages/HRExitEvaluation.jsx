@@ -7,17 +7,15 @@
  */
 
 import { useEffect, useState } from "react";
-import { Link, useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, CheckCircle2, Plus, Trash2, UserCheck, ClipboardCheck } from "lucide-react";
+import { Link, useParams } from "react-router-dom";
+import { ArrowLeft, CheckCircle2, Plus, Trash2 } from "lucide-react";
 
-import { useAuth } from "../context/authContext";
 import {
   getHRExitEvaluationData,
   getPendingHRExitCases,
   submitHRExitEvaluation,
 } from "../services/hrExitEvaluationService";
 
-import ExitFormHeader from "../components/exit/ExitFormHeader";
 import ExitProgressBar from "../components/exit/ExitProgressBar";
 import ExitQuestionSection from "../components/exit/ExitQuestionSection";
 import ExitQuestionField from "../components/exit/ExitQuestionField";
@@ -51,8 +49,6 @@ const SECTION_TITLES = [
 
 export default function HRExitEvaluation() {
   const { exitCaseId } = useParams();
-  const navigate = useNavigate();
-  const { user } = useAuth();
 
   // Mode 1: List View state (when !exitCaseId)
   const [pendingList, setPendingList] = useState([]);
@@ -393,11 +389,8 @@ export default function HRExitEvaluation() {
     setSubmitError("");
 
     try {
-      const reviewerId = reviewer?.id || user?.id;
-
       await submitHRExitEvaluation({
         exitCaseId: exitCase.exitCaseId,
-        reviewerId,
         formData,
         handoverItems,
       });

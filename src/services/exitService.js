@@ -8,93 +8,73 @@ import { supabase } from "./supabaseClient";
 
 const EXIT_LOAD_ERROR = "Unable to load exit information. Please try again.";
 const EXIT_SUBMIT_ERROR = "Unable to submit your feedback. Please try again.";
+const SAFE_EXIT_LOAD_MESSAGES = new Set([
+  "Candidate portal access is required.",
+  "An active candidate account is required.",
+]);
+const SAFE_EXIT_SUBMIT_MESSAGES = new Set([
+  "Candidate portal access is required.",
+  "An active candidate account is required.",
+  "No active exit case is available for this candidate.",
+  "Exit feedback has already been submitted for this case.",
+  "Exit feedback must be a valid object.",
+  "Exit feedback is too large.",
+  "One or more Exit feedback text fields are invalid.",
+  "One or more Exit feedback selections are too long.",
+  "One or more Exit feedback text responses are too long.",
+  "One or more Exit handover fields are too long.",
+  "One or more Exit feedback selections are invalid.",
+  "Too many Exit feedback selections were provided.",
+  "Exit handover tasks must be a valid list.",
+  "Too many Exit handover tasks were provided.",
+  "One or more Exit handover tasks are invalid.",
+  "One or more Exit handover task fields are invalid.",
+  "Each Exit handover task must include a task name.",
+  "One or more Exit handover task fields are too long.",
+  "Please indicate whether the full internship duration was completed.",
+  "A primary Exit reason is required.",
+  "Please specify the other Exit reason.",
+  "Please specify the other exposure desired.",
+  "Please specify the other HR communication issue.",
+  "Please specify the other improvement suggestion.",
+  "Please provide the name of the person who was briefed.",
+  "All required Exit feedback ratings must be valid whole numbers.",
+  "One or more Exit feedback ratings are invalid.",
+  "Exit case state changed before feedback could be submitted.",
+]);
 
 // ---------------------------------------------------------------------------
 // Helper: guard against missing Supabase client
 // ---------------------------------------------------------------------------
 function assertClient() {
-  if (!supabase || typeof supabase.from !== "function") {
+  if (!supabase || typeof supabase.rpc !== "function") {
     throw new Error(EXIT_LOAD_ERROR);
   }
 }
 
-// ---------------------------------------------------------------------------
-// resolveCurrentCandidateId
-// Tries current_candidate_id RPC first, falls back to candidate_user_accounts table query.
-// ---------------------------------------------------------------------------
-async function resolveCurrentCandidateId() {
-  assertClient();
+function getSafeRpcMessage(error, fallbackMessage, safeMessages) {
+  const message =
+    error && typeof error.message === "string" ? error.message.trim() : "";
 
-  // Method 1: Try RPC
-  try {
-    const { data: candidateId, error } = await supabase.rpc(
-      "current_candidate_id"
-    );
-    if (!error && candidateId) {
-      return candidateId;
-    }
-  } catch {
-    // Ignore RPC failure and try fallback
-  }
-
-  // Method 2: Fallback via auth user session -> candidate_user_accounts
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    throw new Error(EXIT_LOAD_ERROR);
-  }
-
-  const { data: rows, error: tableError } = await supabase
-    .from("candidate_user_accounts")
-    .select("candidate_id")
-    .eq("user_id", user.id)
-    .eq("account_status", "ACTIVE")
-    .limit(1);
-
-  if (tableError || !rows || rows.length === 0) {
-    throw new Error(EXIT_LOAD_ERROR);
-  }
-
-  return rows[0].candidate_id;
+  return safeMessages.has(message) ? message : fallbackMessage;
 }
 
 // ---------------------------------------------------------------------------
 // getCandidateExitCase
-// Returns the open exit case for the specified or currently authenticated candidate,
-// or null if no active exit case exists.
+// Returns the latest Exit case for the current authenticated candidate,
+// including completed history, or null if no Exit case exists.
 // ---------------------------------------------------------------------------
-export async function getCandidateExitCase(explicitCandidateId = null) {
+export async function getCandidateExitCase() {
   assertClient();
 
-  const candidateId = explicitCandidateId || (await resolveCurrentCandidateId());
-
-  if (!candidateId) {
-    throw new Error(EXIT_LOAD_ERROR);
-  }
-
-  const { data: rows, error } = await supabase
-    .from("exit_cases")
-    .select(
-      `
-      exit_case_id,
-      candidate_id,
-      exit_date,
-      exit_type,
-      overall_status,
-      candidate_form_completed,
-      hr_form_completed,
-      pod_name_snapshot,
-      created_at
-    `
-    )
-    .eq("candidate_id", candidateId)
-    .order("created_at", { ascending: false })
-    .limit(1);
+  const { data: rows, error } = await supabase.rpc(
+    "get_current_candidate_exit_case",
+  );
 
   if (error) {
-    throw new Error(EXIT_LOAD_ERROR);
+    throw new Error(
+      getSafeRpcMessage(error, EXIT_LOAD_ERROR, SAFE_EXIT_LOAD_MESSAGES),
+    );
   }
 
   if (!rows || rows.length === 0) {
@@ -108,13 +88,10 @@ export async function getCandidateExitCase(explicitCandidateId = null) {
 // getCandidateExitData
 // Returns the exit case + the candidate's profile data needed for auto-fill.
 // ---------------------------------------------------------------------------
-export async function getCandidateExitData(explicitCandidateId = null) {
+export async function getCandidateExitData() {
   assertClient();
 
-  const candidateId = explicitCandidateId || (await resolveCurrentCandidateId());
-
-  // Fetch exit case for resolved candidate
-  const exitCase = await getCandidateExitCase(candidateId);
+  const exitCase = await getCandidateExitCase();
 
   if (!exitCase) {
     return { exitCase: null, profile: null };
@@ -133,24 +110,14 @@ export async function getCandidateExitData(explicitCandidateId = null) {
     // If portal summary RPC fails, safely proceed with exitCase details
   }
 
-  // Check for an already-submitted feedback record
-  const { data: existing, error: fbError } = await supabase
-    .from("candidate_exit_feedback")
-    .select("feedback_id, submitted_at")
-    .eq("exit_case_id", exitCase.exit_case_id)
-    .maybeSingle();
-
-  if (fbError) {
-    throw new Error(EXIT_LOAD_ERROR);
-  }
-
   const profile = portalSummary.profile ?? {};
   const internship = portalSummary.internship ?? {};
 
   return {
     exitCase: {
       ...exitCase,
-      alreadySubmitted: Boolean(existing?.submitted_at) || exitCase.candidate_form_completed,
+      alreadySubmitted:
+        Boolean(exitCase.already_submitted) || exitCase.candidate_form_completed,
     },
     profile: {
       fullName: profile.fullName ?? "",
@@ -167,190 +134,26 @@ export async function getCandidateExitData(explicitCandidateId = null) {
 
 // ---------------------------------------------------------------------------
 // submitCandidateExitFeedback
-// Inserts into candidate_exit_feedback, then updates exit_cases on success.
-// Never updates exit_cases before the feedback is stored.
+// Submits candidate feedback atomically. Candidate and Exit-case identity are
+// resolved by the secure RPC from the current authenticated candidate.
 // ---------------------------------------------------------------------------
-export async function submitCandidateExitFeedback({ exitCaseId, candidateId, formData }) {
+export async function submitCandidateExitFeedback({ formData }) {
   assertClient();
 
-  if (!exitCaseId || !candidateId) {
+  if (!formData || typeof formData !== "object") {
     throw new Error(EXIT_SUBMIT_ERROR);
   }
 
-  // Guard: prevent duplicate submission
-  const { data: existing, error: dupError } = await supabase
-    .from("candidate_exit_feedback")
-    .select("feedback_id")
-    .eq("exit_case_id", exitCaseId)
-    .maybeSingle();
+  const { data, error } = await supabase.rpc(
+    "submit_current_candidate_exit_feedback",
+    { p_feedback: { ...formData } },
+  );
 
-  if (dupError) {
-    throw new Error(EXIT_SUBMIT_ERROR);
-  }
-
-  if (existing) {
-    throw new Error("You have already submitted feedback for this exit case.");
-  }
-
-  // Build the feedback record from formData
-  const feedbackRecord = {
-    exit_case_id: exitCaseId,
-    candidate_id: candidateId,
-
-    // Basic exit info
-    completed_full_duration:
-      formData.completedFullDuration === "yes"
-        ? true
-        : formData.completedFullDuration === "no"
-        ? false
-        : null,
-    primary_exit_reason: formData.primaryExitReason || null,
-    other_exit_reasons:
-      formData.otherExitReasons?.length > 0 ? formData.otherExitReasons : null,
-    other_reason_text: formData.otherReasonText || null,
-    preventable_exit: formData.preventableExit || null,
-    wanted_extension: formData.wantedExtension || null,
-    extension_reason: formData.extensionReason || null,
-
-    // Learning
-    overall_experience_rating: toIntOrNull(formData.overallExperienceRating),
-    nps_score: toIntOrNull(formData.npsScore),
-    expectation_match: formData.expectationMatch || null,
-    learning_rating: toIntOrNull(formData.learningRating),
-    meaningful_work: formData.meaningfulWork || null,
-    missing_exposure:
-      formData.missingExposure?.length > 0 ? formData.missingExposure : null,
-    missing_exposure_other: formData.missingExposureOther || null,
-
-    // Mentorship
-    guidance_rating: toIntOrNull(formData.guidanceRating),
-    feedback_frequency: formData.feedbackFrequency || null,
-    psychological_safety_rating: toIntOrNull(formData.psychologicalSafetyRating),
-    valued_contributor_rating: toIntOrNull(formData.valuedContributorRating),
-    work_distribution_rating: toIntOrNull(formData.workDistributionRating),
-    pod_culture_rating: toIntOrNull(formData.podCultureRating),
-
-    // Safety
-    safety_issue: formData.safetyIssue || null,
-    safety_issue_details: formData.safetyIssueDetails || null,
-    is_confidential: formData.safetyIssue === "yes",
-
-    // HR Communication
-    hr_communication_issues:
-      formData.hrCommunicationIssues?.length > 0
-        ? formData.hrCommunicationIssues
-        : null,
-    hr_communication_other: formData.hrCommunicationOther || null,
-
-    // Final feedback
-    improvement_suggestions:
-      formData.improvementSuggestions?.length > 0
-        ? formData.improvementSuggestions
-        : null,
-    improvement_other: formData.improvementOther || null,
-    rejoin_interest: formData.rejoinInterest || null,
-
-    submitted_at: new Date().toISOString(),
-  };
-
-  // STEP 1: Insert feedback record
-  const { error: insertError } = await supabase
-    .from("candidate_exit_feedback")
-    .insert(feedbackRecord);
-
-  if (insertError) {
-    if (insertError.code === "23505") {
-      throw new Error(
-        "You have already submitted feedback for this exit case."
-      );
-    }
-    throw new Error(EXIT_SUBMIT_ERROR);
-  }
-
-  // STEP 2: Insert handover items into exit_handover_items if provided
-  const successorName =
-    formData.briefedSomeone === "yes" ? formData.personName?.trim() || null : null;
-  const repositoryLink = formData.repositoryLink?.trim() || null;
-  const transferDocuments = formData.transferDocuments?.trim() || null;
-  const accessToRevoke = formData.accessToRevoke?.trim() || null;
-  const timeSensitiveNotes = formData.timeSensitiveNotes?.trim() || null;
-
-  const validTasks = Array.isArray(formData.ongoingTasks)
-    ? formData.ongoingTasks.filter((t) => t && t.taskName && t.taskName.trim().length > 0)
-    : [];
-
-  let handoverRecords = [];
-
-  if (validTasks.length > 0) {
-    handoverRecords = validTasks.map((t) => ({
-      exit_case_id: exitCaseId,
-      task_name: t.taskName.trim(),
-      task_status: t.taskStatus || "IN_PROGRESS",
-      next_steps: t.nextSteps?.trim() || null,
-      successor_name: successorName,
-      repository_link: repositoryLink,
-      transfer_documents: transferDocuments,
-      access_to_revoke: accessToRevoke,
-      time_sensitive_notes: timeSensitiveNotes,
-    }));
-  } else if (
-    successorName ||
-    repositoryLink ||
-    transferDocuments ||
-    accessToRevoke ||
-    timeSensitiveNotes
-  ) {
-    handoverRecords.push({
-      exit_case_id: exitCaseId,
-      task_name: "General Handover Notes",
-      task_status: "COMPLETED",
-      next_steps: null,
-      successor_name: successorName,
-      repository_link: repositoryLink,
-      transfer_documents: transferDocuments,
-      access_to_revoke: accessToRevoke,
-      time_sensitive_notes: timeSensitiveNotes,
-    });
-  }
-
-  if (handoverRecords.length > 0) {
-    const { error: handoverError } = await supabase
-      .from("exit_handover_items")
-      .insert(handoverRecords);
-
-    if (handoverError) {
-      console.error(
-        "[exitService] exit_handover_items insert failed:",
-        handoverError
-      );
-      throw new Error(EXIT_SUBMIT_ERROR);
-    }
-  }
-
-  // STEP 3: Update exit_cases only after successful inserts.
-  // Transition overall_status to 'HR_PENDING' since Candidate form is now completed.
-  const { error: updateError } = await supabase
-    .from("exit_cases")
-    .update({
-      candidate_form_completed: true,
-      overall_status: "HR_PENDING",
-      updated_at: new Date().toISOString(),
-    })
-    .eq("exit_case_id", exitCaseId);
-
-  if (updateError) {
-    console.error(
-      "[exitService] exit_cases update failed after feedback insert:",
-      updateError
+  if (error) {
+    throw new Error(
+      getSafeRpcMessage(error, EXIT_SUBMIT_ERROR, SAFE_EXIT_SUBMIT_MESSAGES),
     );
   }
-}
 
-// ---------------------------------------------------------------------------
-// Utility
-// ---------------------------------------------------------------------------
-function toIntOrNull(value) {
-  if (value === null || value === undefined || value === "") return null;
-  const n = parseInt(value, 10);
-  return Number.isFinite(n) ? n : null;
+  return data;
 }

@@ -1,6 +1,7 @@
 import { supabase } from "./supabaseClient";
 
 const toCount = (value) => Number(value ?? 0);
+const EXIT_QUEUE_LOAD_ERROR = "Unable to load pending Exit evaluations.";
 
 function mapDashboardCounts(row) {
   return {
@@ -56,33 +57,10 @@ export async function fetchPendingExitCases() {
     throw new Error("Supabase environment variables are not configured.");
   }
 
-  const { data, error } = await supabase
-    .from("exit_cases")
-    .select(
-      `
-      exit_case_id,
-      candidate_id,
-      lifecycle_id,
-      mid,
-      pod_name_snapshot,
-      exit_date,
-      exit_type,
-      overall_status,
-      candidate_form_completed,
-      hr_form_completed,
-      created_at,
-      master_candidates (
-        full_name,
-        department
-      )
-    `
-    )
-    .eq("candidate_form_completed", true)
-    .eq("hr_form_completed", false)
-    .order("created_at", { ascending: false });
+  const { data, error } = await supabase.rpc("get_hr_exit_queue");
 
   if (error) {
-    throw error;
+    throw new Error(EXIT_QUEUE_LOAD_ERROR);
   }
 
   return (data || []).map((row) => ({
@@ -90,8 +68,9 @@ export async function fetchPendingExitCases() {
     candidateId: row.candidate_id,
     lifecycleId: row.lifecycle_id,
     mid: row.mid || "—",
-    candidateName: row.master_candidates?.full_name || "Unknown Candidate",
-    podName: row.pod_name_snapshot || row.master_candidates?.department || "—",
+    candidateName: row.candidate_name || "Unknown Candidate",
+    podName:
+      row.pod_name_snapshot || row.candidate_department || "—",
     exitType: row.exit_type || "—",
     exitDate: row.exit_date || "—",
     overallStatus: row.overall_status || "HR_PENDING",

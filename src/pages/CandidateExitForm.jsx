@@ -4,10 +4,9 @@
  */
 
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { Plus, Trash2 } from "lucide-react";
 
-import { useAuth } from "../context/authContext";
 import {
   getCandidateExitData,
   submitCandidateExitFeedback,
@@ -48,12 +47,8 @@ const SECTION_TITLES = [
 ];
 
 export default function CandidateExitForm() {
-  const navigate = useNavigate();
-  const { candidateId } = useAuth();
-
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [exitCase, setExitCase] = useState(null);
   const [profile, setProfile] = useState(null);
 
   const [currentSection, setCurrentSection] = useState(1);
@@ -152,7 +147,6 @@ export default function CandidateExitForm() {
           return;
         }
 
-        setExitCase(data.exitCase);
         setProfile(data.profile);
 
         if (data.exitCase.alreadySubmitted || data.exitCase.candidate_form_completed) {
@@ -275,8 +269,6 @@ export default function CandidateExitForm() {
 
     try {
       await submitCandidateExitFeedback({
-        exitCaseId: exitCase.exit_case_id,
-        candidateId: candidateId || exitCase.candidate_id,
         formData,
       });
 

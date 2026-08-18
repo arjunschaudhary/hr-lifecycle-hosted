@@ -6,105 +6,60 @@
 
 import { supabase } from "./supabaseClient";
 
+const EXIT_ANALYTICS_LOAD_ERROR = "Unable to load exit analytics cases.";
+const EXIT_DETAILS_LOAD_ERROR = "Unable to load the completed Exit record.";
+const SAFE_EXIT_ANALYTICS_MESSAGES = new Set([
+  "Authorized HR access is required.",
+  "Exit analytics filters must be a valid object.",
+  "Exit analytics filters are too large.",
+  "One or more Exit analytics filters are invalid.",
+  "One or more Exit analytics filters are too long.",
+  "Exit analytics start date is invalid.",
+  "Exit analytics end date is invalid.",
+  "One or more Exit analytics dates are invalid.",
+]);
+
+function getSafeRpcMessage(error, fallbackMessage, safeMessages) {
+  const message =
+    error && typeof error.message === "string" ? error.message.trim() : "";
+
+  return safeMessages.has(message) ? message : fallbackMessage;
+}
+
 /**
- * Fetches raw exit data from Supabase tables for analytical aggregation.
+ * Fetches the non-confidential raw Exit analytics data exposed by the secure RPC.
  */
 export async function fetchExitRawData(filters = {}) {
-  if (!supabase || typeof supabase.from !== "function") {
+  if (!supabase || typeof supabase.rpc !== "function") {
     throw new Error("Supabase client is not configured.");
   }
 
-  // 1. Fetch Exit Cases with Candidate profile details
-  let exitCasesQuery = supabase
-    .from("exit_cases")
-    .select(`
-      exit_case_id,
-      candidate_id,
-      lifecycle_id,
-      pod_id,
-      mid,
-      pod_name_snapshot,
-      exit_date,
-      exit_type,
-      overall_status,
-      candidate_form_completed,
-      hr_form_completed,
-      exit_completed_at,
-      created_at,
-      master_candidates (
-        full_name,
-        email,
-        department,
-        applied_role
-      )
-    `)
-    .order("exit_date", { ascending: false });
+  const serverFilters = {};
+  ["exitType", "overallStatus", "startDate", "endDate"].forEach((key) => {
+    if (filters[key]) {
+      serverFilters[key] = filters[key];
+    }
+  });
 
-  // Apply server-side filters if specified
-  if (filters.exitType && filters.exitType !== "ALL") {
-    exitCasesQuery = exitCasesQuery.eq("exit_type", filters.exitType);
-  }
-  if (filters.overallStatus && filters.overallStatus !== "ALL") {
-    exitCasesQuery = exitCasesQuery.eq("overall_status", filters.overallStatus);
-  }
-  if (filters.startDate) {
-    exitCasesQuery = exitCasesQuery.gte("exit_date", filters.startDate);
-  }
-  if (filters.endDate) {
-    exitCasesQuery = exitCasesQuery.lte("exit_date", filters.endDate);
-  }
+  const { data, error } = await supabase.rpc("get_exit_analytics", {
+    p_filters: serverFilters,
+  });
 
-  const { data: exitCasesData, error: exitCasesError } = await exitCasesQuery;
-
-  if (exitCasesError) {
-    console.error("[exitAnalyticsService] Error fetching exit_cases:", exitCasesError);
-    throw new Error("Unable to load exit analytics cases.");
-  }
-
-  const exitCases = exitCasesData || [];
-
-  if (exitCases.length === 0) {
-    return {
-      exitCases: [],
-      candidateFeedbacks: [],
-      hrEvaluations: [],
-      handoverItems: [],
-    };
-  }
-
-  const exitCaseIds = exitCases.map((c) => c.exit_case_id);
-
-  // 2. Fetch Candidate Feedbacks, HR Evaluations, and Handover Items in parallel
-  const [feedbackRes, hrEvalRes, handoverRes] = await Promise.all([
-    supabase
-      .from("candidate_exit_feedback")
-      .select("*")
-      .in("exit_case_id", exitCaseIds),
-    supabase
-      .from("hr_exit_evaluations")
-      .select("*")
-      .in("exit_case_id", exitCaseIds),
-    supabase
-      .from("exit_handover_items")
-      .select("*")
-      .in("exit_case_id", exitCaseIds),
-  ]);
-
-  if (feedbackRes.error) {
-    console.error("[exitAnalyticsService] Error fetching candidate_exit_feedback:", feedbackRes.error);
-  }
-  if (hrEvalRes.error) {
-    console.error("[exitAnalyticsService] Error fetching hr_exit_evaluations:", hrEvalRes.error);
-  }
-  if (handoverRes.error) {
-    console.error("[exitAnalyticsService] Error fetching exit_handover_items:", handoverRes.error);
+  if (error) {
+    throw new Error(
+      getSafeRpcMessage(
+        error,
+        EXIT_ANALYTICS_LOAD_ERROR,
+        SAFE_EXIT_ANALYTICS_MESSAGES,
+      ),
+    );
   }
 
   return {
-    exitCases,
-    candidateFeedbacks: feedbackRes.data || [],
-    hrEvaluations: hrEvalRes.data || [],
-    handoverItems: handoverRes.data || [],
+    exitCases: data?.exitCases || [],
+    candidateFeedbacks: data?.candidateFeedbacks || [],
+    hrEvaluations: data?.hrEvaluations || [],
+    handoverItems: data?.handoverItems || [],
   };
 }
 
@@ -701,110 +656,34 @@ export async function getExitAnalyticsData(filters = {}) {
  * Fetch complete historical record details (Candidate Questionnaire + HR Evaluation) for a completed exit case.
  */
 export async function getCompletedExitCaseDetails(exitCaseId) {
-  if (!supabase || typeof supabase.from !== "function") {
+  if (!supabase || typeof supabase.rpc !== "function") {
     throw new Error("Supabase client is not configured.");
   }
 
-  // 1. Fetch Exit Case
-  const { data: caseRows, error: caseError } = await supabase
-    .from("exit_cases")
-    .select(`
-      exit_case_id,
-      candidate_id,
-      lifecycle_id,
-      mid,
-      pod_name_snapshot,
-      exit_date,
-      exit_type,
-      overall_status,
-      candidate_form_completed,
-      hr_form_completed,
-      exit_completed_at,
-      created_at,
-      master_candidates (
-        full_name,
-        email,
-        phone,
-        department,
-        applied_role
-      ),
-      hr_lifecycle (
-        probation_start_date,
-        current_end_date,
-        original_end_date,
-        internship_duration_months
-      )
-    `)
-    .eq("exit_case_id", exitCaseId)
-    .limit(1);
-
-  if (caseError || !caseRows || caseRows.length === 0) {
+  if (!exitCaseId) {
     throw new Error("Exit case record not found.");
   }
 
-  const exitCaseRaw = caseRows[0];
+  const { data, error } = await supabase.rpc(
+    "get_completed_exit_case_details",
+    { p_exit_case_id: exitCaseId },
+  );
 
-  // 2. Fetch Candidate feedback, HR evaluation, and handover items in parallel
-  const [fbRes, hrRes, itemsRes] = await Promise.all([
-    supabase
-      .from("candidate_exit_feedback")
-      .select("*")
-      .eq("exit_case_id", exitCaseId)
-      .maybeSingle(),
-    supabase
-      .from("hr_exit_evaluations")
-      .select("*")
-      .eq("exit_case_id", exitCaseId)
-      .maybeSingle(),
-    supabase
-      .from("exit_handover_items")
-      .select("*")
-      .eq("exit_case_id", exitCaseId),
-  ]);
-
-  const candidateFeedback = fbRes.data || null;
-  const hrEvaluation = hrRes.data || null;
-  const handoverItems = itemsRes.data || [];
-
-  // 3. Fetch reviewer name if reviewer_id present
-  let reviewerName = "HR Evaluator";
-  let reviewerRole = "HR Executive";
-  if (hrEvaluation?.reviewer_id) {
-    try {
-      const { data: reviewerUser } = await supabase
-        .from("users")
-        .select("name, email, roles(label)")
-        .eq("id", hrEvaluation.reviewer_id)
-        .maybeSingle();
-
-      if (reviewerUser) {
-        reviewerName = reviewerUser.name || reviewerUser.email;
-        if (reviewerUser.roles?.label) {
-          reviewerRole = reviewerUser.roles.label;
-        }
-      }
-    } catch {
-      // Fallback reviewerName
-    }
+  if (error || !data?.exitCase) {
+    const message =
+      error?.message?.trim() === "Completed Exit case was not found."
+        ? "Exit case record not found."
+        : EXIT_DETAILS_LOAD_ERROR;
+    throw new Error(message);
   }
 
-  // 4. Fetch verifier name if verified_by present
-  let verifierName = reviewerName;
-  if (hrEvaluation?.verified_by && hrEvaluation.verified_by !== hrEvaluation.reviewer_id) {
-    try {
-      const { data: verifierUser } = await supabase
-        .from("users")
-        .select("name, email")
-        .eq("id", hrEvaluation.verified_by)
-        .maybeSingle();
-
-      if (verifierUser) {
-        verifierName = verifierUser.name || verifierUser.email;
-      }
-    } catch {
-      // Fallback verifierName
-    }
-  }
+  const exitCaseRaw = data.exitCase;
+  const candidateFeedback = data.candidateFeedback || null;
+  const hrEvaluation = data.hrEvaluation || null;
+  const handoverItems = data.handoverItems || [];
+  const reviewerName = data.reviewer?.name || "HR Evaluator";
+  const reviewerRole = data.reviewer?.role || "HR Executive";
+  const verifierName = data.verifier?.name || reviewerName;
 
   const candidateProfile = exitCaseRaw.master_candidates || {};
   const lifecycleInfo = exitCaseRaw.hr_lifecycle || {};
