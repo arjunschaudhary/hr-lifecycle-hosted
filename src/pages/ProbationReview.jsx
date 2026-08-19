@@ -4,13 +4,13 @@ import { ClipboardCheck } from "lucide-react";
 import CandidateDetailModal from "../components/CandidateDetailModal";
 import {
   extendCandidateProbation,
-  generateCandidateMidAfterProbation,
   updateCandidateLifecycleStatus,
   approveCandidateForProbation,
 } from "../services/lifecycleActionService";
 import { fetchProbationReviewCandidates } from "../services/probationReviewService";
 import { sendCandidateWelcomeEmail } from "../services/welcomeMailService";
 import { markCandidateInProbation } from "../services/inProbationActionService";
+import { passProbationAndPrepareOffer } from "../services/probationOfferService";
 import ApproveProbationModal from "../components/ApproveProbationModal";
 function requiresWelcomeMailManualCheck(message) {
   return message.includes("Check the sender Sent folder before retrying.");
@@ -387,25 +387,27 @@ export default function ProbationReview() {
     }
   }
 
-  async function handleGenerateMid(record) {
+  async function handlePassProbationAndPrepareOffer(record) {
     setActionCandidateId(record.candidateId);
     setActionMessage("");
     setErrorMessage("");
 
     try {
-      const { mid } = await generateCandidateMidAfterProbation({
-        candidateId: record.candidateId,
-        fullName: record.fullName,
-        roleCode: record.roleCode,
-        existingMid: record.mid,
-        performedBy: "HR",
-      });
+      const result = await passProbationAndPrepareOffer(record.candidateId);
 
-      setActionMessage(`MID generated: ${mid}`);
+      setActionMessage(
+        result.alreadyPrepared
+          ? `Offer preparation is already queued. MID: ${result.mid}`
+          : `Probation passed. MID generated: ${result.mid}. Offer automation queued.`
+      );
       await refreshProbationRecords();
     } catch (error) {
-      console.error("Unable to generate MID:", error);
-      setErrorMessage(error.message || "Unable to generate MID.");
+      console.error("Unable to pass probation and prepare the offer:", error);
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Unable to pass probation and prepare the offer. Please try again."
+      );
     } finally {
       setActionCandidateId(null);
     }
@@ -674,19 +676,10 @@ export default function ProbationReview() {
                       type="button"
                       className="btn btn-success"
                       disabled={actionCandidateId === record.candidateId}
-                      onClick={() =>
-                        handleLifecycleAction({
-                          candidateId: record.candidateId,
-                          fromStatus: "PROBATION_REVIEW",
-                          toStatus: "PROBATION_PASSED",
-                          activityType: "PROBATION_PASSED",
-                          remarks: "Candidate passed probation review by HR",
-                          successMessage: "Candidate marked as probation passed.",
-                        })
-                      }
+                      onClick={() => handlePassProbationAndPrepareOffer(record)}
                     >
                       {actionCandidateId === record.candidateId
-                        ? "Saving..."
+                        ? "Processing..."
                         : "Pass Probation"}
                     </button>
 
@@ -752,11 +745,11 @@ export default function ProbationReview() {
                     type="button"
                     className="btn btn-primary"
                     disabled={actionCandidateId === record.candidateId}
-                    onClick={() => handleGenerateMid(record)}
+                    onClick={() => handlePassProbationAndPrepareOffer(record)}
                   >
                     {actionCandidateId === record.candidateId
-                      ? "Generating..."
-                      : "Generate MID"}
+                      ? "Processing..."
+                      : "Continue Offer Preparation"}
                   </button>
                 )}
               </td>
