@@ -296,10 +296,10 @@ begin
 
         select coalesce(
                    max(
-                       pg_catalog.substring(
-                           l.mid
-                           from pg_catalog.length(v_mid_prefix) + 1
-                           for 3
+                       pg_catalog.substr(
+                           l.mid,
+                           pg_catalog.length(v_mid_prefix) + 1,
+                           3
                        )::integer
                    ),
                    0
