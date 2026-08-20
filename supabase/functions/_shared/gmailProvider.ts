@@ -6,6 +6,12 @@ export type EmailTemplate = {
   html: string;
 };
 
+export type EmailAttachment = {
+  filename: string;
+  contentType: string;
+  content: Uint8Array;
+};
+
 type GmailConfiguration = {
   clientId: string;
   clientSecret: string;
@@ -274,6 +280,10 @@ function encodeBodyBase64(value: string): string {
   return encodeUtf8Base64(value).match(/.{1,76}/g)?.join("\r\n") ?? "";
 }
 
+function encodeBytesBase64(value: Uint8Array): string {
+  return bytesToBase64(value).match(/.{1,76}/g)?.join("\r\n") ?? "";
+}
+
 function encodeHeaderWord(value: string): string {
   return `=?UTF-8?B?${encodeUtf8Base64(value)}?=`;
 }
@@ -292,10 +302,22 @@ function normalizeBodyLineEndings(value: string): string {
   return value.replace(/\r\n|\r|\n/g, "\r\n");
 }
 
+function sanitizeAttachmentFilename(value: string): string {
+  const basename = value.trim().split(/[\\/]/).pop() ?? "";
+  const sanitized = basename
+    .replace(/[^A-Za-z0-9._-]/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^\.+/, "")
+    .slice(0, 120);
+
+  return sanitized || "attachment.pdf";
+}
+
 function createMimeMessage(
   configuration: GmailConfiguration,
   recipientEmail: string,
   template: EmailTemplate,
+  attachment?: EmailAttachment,
 ): string {
   const recipient = validateEmailAddress(
     recipientEmail,
@@ -333,36 +355,80 @@ function createMimeMessage(
     );
   }
 
-  const boundary = createMultipartBoundary();
-  const headers = [
+  const alternativeBoundary = createMultipartBoundary();
+  const baseHeaders = [
     `From: ${encodeHeaderWord(configuration.senderName)} <${configuration.senderEmail}>`,
     `To: ${recipient}`,
     ...(configuration.replyToEmail
       ? [`Reply-To: ${configuration.replyToEmail}`]
       : []),
-    `Subject: ${template.subject}`,
+    `Subject: ${encodeHeaderWord(template.subject.trim())}`,
     "MIME-Version: 1.0",
-    `Content-Type: multipart/alternative; boundary="${boundary}"`,
   ];
   const plainTextBody = encodeBodyBase64(
     normalizeBodyLineEndings(template.text),
   );
   const htmlBody = encodeBodyBase64(normalizeBodyLineEndings(template.html));
 
-  return [
-    ...headers,
-    "",
-    `--${boundary}`,
+  const alternativeParts = [
+    `--${alternativeBoundary}`,
     'Content-Type: text/plain; charset="UTF-8"',
     "Content-Transfer-Encoding: base64",
     "",
     plainTextBody,
-    `--${boundary}`,
+    `--${alternativeBoundary}`,
     'Content-Type: text/html; charset="UTF-8"',
     "Content-Transfer-Encoding: base64",
     "",
     htmlBody,
-    `--${boundary}--`,
+    `--${alternativeBoundary}--`,
+  ];
+
+  if (!attachment) {
+    return [
+      ...baseHeaders,
+      `Content-Type: multipart/alternative; boundary="${alternativeBoundary}"`,
+      "",
+      ...alternativeParts,
+      "",
+    ].join("\r\n");
+  }
+
+  if (
+    typeof attachment.filename !== "string" ||
+    typeof attachment.contentType !== "string" ||
+    !/^[A-Za-z0-9.+-]+\/[A-Za-z0-9.+-]+$/.test(attachment.contentType) ||
+    !(attachment.content instanceof Uint8Array) ||
+    attachment.content.byteLength === 0
+  ) {
+    throw new GmailProviderError(
+      "CONFIGURATION",
+      "NOT_SENT",
+      false,
+      "Email attachment is invalid.",
+      "Email delivery could not be prepared.",
+      500,
+    );
+  }
+
+  const mixedBoundary = createMultipartBoundary();
+  const filename = sanitizeAttachmentFilename(attachment.filename);
+
+  return [
+    ...baseHeaders,
+    `Content-Type: multipart/mixed; boundary="${mixedBoundary}"`,
+    "",
+    `--${mixedBoundary}`,
+    `Content-Type: multipart/alternative; boundary="${alternativeBoundary}"`,
+    "",
+    ...alternativeParts,
+    `--${mixedBoundary}`,
+    `Content-Type: ${attachment.contentType}; name="${filename}"`,
+    "Content-Transfer-Encoding: base64",
+    `Content-Disposition: attachment; filename="${filename}"`,
+    "",
+    encodeBytesBase64(attachment.content),
+    `--${mixedBoundary}--`,
     "",
   ].join("\r\n");
 }
@@ -374,9 +440,10 @@ function encodeMimeForGmail(mimeMessage: string): string {
     .replace(/=+$/g, "");
 }
 
-export async function sendEmailWithGmail(
+async function sendEmailWithGmailInternal(
   recipientEmail: string,
   template: EmailTemplate,
+  attachment?: EmailAttachment,
 ): Promise<{ messageId: string }> {
   const configuration = getGmailConfiguration();
   const accessToken = await requestAccessToken(configuration);
@@ -384,6 +451,7 @@ export async function sendEmailWithGmail(
     configuration,
     recipientEmail,
     template,
+    attachment,
   );
   const rawMessage = encodeMimeForGmail(mimeMessage);
   let response: Response;
@@ -473,6 +541,36 @@ export async function sendEmailWithGmail(
   }
 
   return { messageId };
+}
+
+export async function sendEmailWithGmail(
+  recipientEmail: string,
+  template: EmailTemplate,
+): Promise<{ messageId: string }> {
+  return await sendEmailWithGmailInternal(recipientEmail, template);
+}
+
+export async function sendEmailWithGmailAttachment(
+  recipientEmail: string,
+  template: EmailTemplate,
+  attachment: EmailAttachment,
+): Promise<{ messageId: string }> {
+  if (attachment.contentType !== "application/pdf") {
+    throw new GmailProviderError(
+      "CONFIGURATION",
+      "NOT_SENT",
+      false,
+      "Offer attachment must be an application/pdf file.",
+      "Email delivery could not be prepared.",
+      500,
+    );
+  }
+
+  return await sendEmailWithGmailInternal(
+    recipientEmail,
+    template,
+    attachment,
+  );
 }
 
 function toWelcomeEmailMessage(value: string): string {
