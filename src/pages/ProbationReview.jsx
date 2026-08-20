@@ -10,7 +10,11 @@ import {
 import { fetchProbationReviewCandidates } from "../services/probationReviewService";
 import { sendCandidateWelcomeEmail } from "../services/welcomeMailService";
 import { markCandidateInProbation } from "../services/inProbationActionService";
-import { passProbationAndPrepareOffer } from "../services/probationOfferService";
+import {
+  getOfferAutomationFailureKind,
+  passProbationAndPrepareOffer,
+  processQueuedOfferLetter,
+} from "../services/probationOfferService";
 import ApproveProbationModal from "../components/ApproveProbationModal";
 function requiresWelcomeMailManualCheck(message) {
   return message.includes("Check the sender Sent folder before retrying.");
@@ -394,12 +398,23 @@ export default function ProbationReview() {
 
     try {
       const result = await passProbationAndPrepareOffer(record.candidateId);
+      let offerStatusMessage;
 
-      setActionMessage(
-        result.alreadyPrepared
-          ? `Offer preparation is already queued. MID: ${result.mid}`
-          : `Probation passed. MID generated: ${result.mid}. Offer automation queued.`
-      );
+      try {
+        await processQueuedOfferLetter(record.candidateId);
+        offerStatusMessage =
+          `Probation passed. MID: ${result.mid}. ` +
+          "Offer letter generated and sent automatically.";
+      } catch (workerError) {
+        offerStatusMessage =
+          getOfferAutomationFailureKind(workerError) === "MANUAL_REVIEW"
+            ? `Probation passed. MID: ${result.mid}. ` +
+              "Offer email delivery requires manual verification before retrying."
+            : `Probation passed. MID: ${result.mid}. ` +
+              "Offer automation has been recorded but has not completed yet.";
+      }
+
+      setActionMessage(offerStatusMessage);
       await refreshProbationRecords();
     } catch (error) {
       console.error("Unable to pass probation and prepare the offer:", error);
