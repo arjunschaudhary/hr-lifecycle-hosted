@@ -14,6 +14,10 @@ import {
   fetchPerformanceActionQueue,
   fetchPerformanceCycleOverview,
 } from "../services/performanceDashboardService";
+import {
+  finalizeAndLockCandidatePerformance,
+  getCurrentUserHasExactHrSiteConnectLeadRole,
+} from "../services/performanceResultService";
 import CandidateDetailModal from "../components/CandidateDetailModal";
 
 const DATE_FORMATTER = new Intl.DateTimeFormat("en-IN", {
@@ -81,13 +85,25 @@ const formatStatus = (value) => {
 };
 
 const formatActionOwner = (value) =>
-  value === "HR_SITE_CONNECT" ? "HR Psyconnect" : formatStatus(value);
+  value === "HR_SITE_CONNECT"
+    ? "HR Psyconnect"
+    : value === "HR_SITE_CONNECT_LEAD"
+      ? "HR Psyconnect Lead"
+      : value === "HR_LEAD"
+        ? "HR Lead"
+        : value === "HR"
+          ? "HR"
+          : formatStatus(value);
 
 const formatNullableValue = (value) =>
   value === null || value === undefined || value === "" ? "—" : value;
 
 const getResultBadgeClass = (status) => {
-  if (status === "FINALIZED" || status === "LOCKED") {
+  if (
+    status === "FINALIZED" ||
+    status === "LOCKED" ||
+    status === "NOT_EVALUATED"
+  ) {
     return "badge-success";
   }
 
@@ -136,6 +152,12 @@ const PerformanceDashboard = () => {
   const [sortKey, setSortKey] = useState("name_asc");
   const [selectedCandidateId, setSelectedCandidateId] = useState(null);
   const [retryRequestId, setRetryRequestId] = useState(0);
+  const [hasPerformanceFinalizationAccess, setHasPerformanceFinalizationAccess] =
+    useState(false);
+  const [finalizingCandidateCycleId, setFinalizingCandidateCycleId] =
+    useState("");
+  const [finalizationError, setFinalizationError] = useState("");
+  const [finalizationSuccess, setFinalizationSuccess] = useState("");
   const selectedCycleIdRef = useRef("");
 
   useEffect(() => {
@@ -156,11 +178,17 @@ const PerformanceDashboard = () => {
       setPageError("");
 
       try {
-        const [nextCycles, nextCandidateRecords, nextActionItems] =
+        const [
+          nextCycles,
+          nextCandidateRecords,
+          nextActionItems,
+          nextHasPerformanceFinalizationAccess,
+        ] =
           await Promise.all([
             fetchPerformanceCycleOverview(),
             fetchCandidatePerformanceList(),
             fetchPerformanceActionQueue(),
+            getCurrentUserHasExactHrSiteConnectLeadRole().catch(() => false),
           ]);
 
         if (!isMounted) {
@@ -170,6 +198,9 @@ const PerformanceDashboard = () => {
         setCycles(nextCycles);
         setCandidateRecords(nextCandidateRecords);
         setActionItems(nextActionItems);
+        setHasPerformanceFinalizationAccess(
+          nextHasPerformanceFinalizationAccess,
+        );
         const preservedCycle = nextCycles.find(
           (cycle) => cycle.cycleId === selectedCycleIdRef.current,
         );
@@ -185,6 +216,7 @@ const PerformanceDashboard = () => {
         setSelectedCycleId(nextSelectedCycleId);
       } catch {
         if (isMounted) {
+          setHasPerformanceFinalizationAccess(false);
           setPageError("Unable to load the Performance Dashboard.");
         }
       } finally {
@@ -365,6 +397,39 @@ const PerformanceDashboard = () => {
     setRetryRequestId((currentRequestId) => currentRequestId + 1);
   };
 
+  const handleFinalizePerformance = async (candidateCycleId, candidateName) => {
+    if (
+      !hasPerformanceFinalizationAccess ||
+      finalizingCandidateCycleId
+    ) {
+      return;
+    }
+
+    const shouldFinalize = window.confirm(
+      `Finalize performance for ${candidateName || "this candidate"}? This will lock the result and prevent further scoring changes.`,
+    );
+
+    if (!shouldFinalize) {
+      return;
+    }
+
+    setFinalizingCandidateCycleId(candidateCycleId);
+    setFinalizationError("");
+    setFinalizationSuccess("");
+
+    try {
+      await finalizeAndLockCandidatePerformance(candidateCycleId);
+      setFinalizationSuccess(
+        `Performance finalized and locked for ${candidateName || "the candidate"}.`,
+      );
+      setRetryRequestId((currentRequestId) => currentRequestId + 1);
+    } catch {
+      setFinalizationError("Unable to finalize the performance result.");
+    } finally {
+      setFinalizingCandidateCycleId("");
+    }
+  };
+
   const scoringCompletionValue =
     selectedCycle?.scoringCompletionPercent === null ||
     selectedCycle?.scoringCompletionPercent === undefined
@@ -492,6 +557,17 @@ const PerformanceDashboard = () => {
               />
             </div>
           </section>
+
+          {finalizationError && (
+            <p className="info-banner" role="alert">
+              {finalizationError}
+            </p>
+          )}
+          {finalizationSuccess && (
+            <p className="info-banner" role="status" aria-live="polite">
+              {finalizationSuccess}
+            </p>
+          )}
 
           <section aria-labelledby="candidate-performance-heading">
             <h2 id="candidate-performance-heading">Candidate Performance</h2>
@@ -636,15 +712,39 @@ const PerformanceDashboard = () => {
                           >
                             {formatStatus(record.resultStatus)}
                           </span>
+                          {record.resultStatus === "NOT_EVALUATED" && (
+                            <div>No eligible working days</div>
+                          )}
                         </td>
                         <td>
                           <div className="action-group">
-                            <Link
-                              to={`/performance-dashboard/${record.candidateCycleId}/daily`}
-                              className="btn btn-primary"
-                            >
-                              Open Daily Entries
-                            </Link>
+                            {record.resultStatus !== "NOT_EVALUATED" && (
+                              <Link
+                                to={`/performance-dashboard/${record.candidateCycleId}/daily`}
+                                className="btn btn-primary"
+                              >
+                                Open Daily Entries
+                              </Link>
+                            )}
+                            {hasPerformanceFinalizationAccess &&
+                              record.resultStatus === "CANDIDATE_REVIEW" && (
+                                <button
+                                  className="btn"
+                                  type="button"
+                                  disabled={Boolean(finalizingCandidateCycleId)}
+                                  onClick={() =>
+                                    void handleFinalizePerformance(
+                                      record.candidateCycleId,
+                                      record.fullName,
+                                    )
+                                  }
+                                >
+                                  {finalizingCandidateCycleId ===
+                                  record.candidateCycleId
+                                    ? "Finalizing..."
+                                    : "Finalize Performance"}
+                                </button>
+                              )}
                           </div>
                         </td>
                       </tr>
@@ -692,6 +792,7 @@ const PerformanceDashboard = () => {
                       <th>Due Date</th>
                       <th>Status</th>
                       <th>Reason</th>
+                      <th>Action</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -714,6 +815,43 @@ const PerformanceDashboard = () => {
                           </span>
                         </td>
                         <td>{formatNullableValue(item.actionReason)}</td>
+                        <td>
+                          {item.actionCode === "SUBMIT_HR_REVIEW" ? (
+                            <Link
+                              to={`/performance/hr-review/${item.candidateCycleId}`}
+                              className="btn btn-primary"
+                            >
+                              Open HR Review
+                            </Link>
+                          ) : item.actionCode === "SUBMIT_EXCEPTIONAL_SCORE" ? (
+                            <Link
+                              to={`/performance/hr-review/${item.candidateCycleId}`}
+                              className="btn btn-primary"
+                            >
+                              Enter Exceptional Score
+                            </Link>
+                          ) : hasPerformanceFinalizationAccess &&
+                            item.actionCode === "FINALIZE_RESULT" ? (
+                            <button
+                              className="btn btn-primary"
+                              type="button"
+                              disabled={Boolean(finalizingCandidateCycleId)}
+                              onClick={() =>
+                                void handleFinalizePerformance(
+                                  item.candidateCycleId,
+                                  item.fullName,
+                                )
+                              }
+                            >
+                              {finalizingCandidateCycleId ===
+                              item.candidateCycleId
+                                ? "Finalizing..."
+                                : "Finalize Performance"}
+                            </button>
+                          ) : (
+                            "—"
+                          )}
+                        </td>
                       </tr>
                     ))}
                   </tbody>

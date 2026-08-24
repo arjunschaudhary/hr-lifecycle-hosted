@@ -6,6 +6,8 @@ import {
   getCandidateHrReview,
   saveCandidateHrReview,
 } from "../services/hrReviewService";
+import { fetchCandidatePerformanceList } from "../services/performanceDashboardService";
+import { saveCandidateExceptionalScore } from "../services/performanceResultService";
 
 const EMPTY_VALUE = "—";
 const SCORE_FIELDS = [
@@ -14,6 +16,12 @@ const SCORE_FIELDS = [
   "reportingPolicyComplianceScore",
 ];
 const SCORE_OPTIONS = Array.from({ length: 6 }, (_, index) => index);
+const TERMINAL_RESULT_STATUSES = new Set([
+  "FINALIZED",
+  "LOCKED",
+  "NOT_EVALUATED",
+]);
+const CLOSED_CYCLE_STATUSES = new Set(["DRAFT", "FINALIZED", "LOCKED"]);
 const DATE_FORMATTER = new Intl.DateTimeFormat("en-IN", {
   day: "numeric",
   month: "short",
@@ -104,6 +112,20 @@ const buildForm = (detail) => ({
 
 const parseScore = (value) => (value === "" ? null : Number(value));
 
+const getCandidatePerformanceRecord = async (candidateCycleId) => {
+  const records = await fetchCandidatePerformanceList();
+  const record = records.find(
+    (candidateRecord) =>
+      candidateRecord.candidateCycleId === candidateCycleId,
+  );
+
+  if (!record) {
+    throw new Error("Candidate performance record is not available.");
+  }
+
+  return record;
+};
+
 const MetricCard = ({ title, value }) => (
   <article className="metric-card">
     <p className="metric-title">{title}</p>
@@ -143,6 +165,12 @@ const HrReviewDetail = () => {
   const [saveError, setSaveError] = useState("");
   const [saveSuccess, setSaveSuccess] = useState("");
   const [refreshError, setRefreshError] = useState("");
+  const [performanceRecord, setPerformanceRecord] = useState(null);
+  const [exceptionalScore, setExceptionalScore] = useState("");
+  const [isExceptionalLoading, setIsExceptionalLoading] = useState(true);
+  const [isExceptionalSaving, setIsExceptionalSaving] = useState(false);
+  const [exceptionalError, setExceptionalError] = useState("");
+  const [exceptionalSuccess, setExceptionalSuccess] = useState("");
 
   useEffect(() => {
     let isMounted = true;
@@ -181,6 +209,48 @@ const HrReviewDetail = () => {
     };
 
     void loadDetail();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [candidateCycleId, retryRequestId]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadExceptionalScore = async () => {
+      setIsExceptionalLoading(true);
+      setExceptionalError("");
+
+      try {
+        const record = await getCandidatePerformanceRecord(candidateCycleId);
+
+        if (!isMounted) {
+          return;
+        }
+
+        setPerformanceRecord(record);
+        setExceptionalScore(
+          record.exceptionalScore === null
+            ? ""
+            : String(record.exceptionalScore),
+        );
+        setExceptionalSuccess("");
+      } catch {
+        if (isMounted) {
+          setPerformanceRecord(null);
+          setExceptionalError(
+            "Unable to load the current Exceptional Score.",
+          );
+        }
+      } finally {
+        if (isMounted) {
+          setIsExceptionalLoading(false);
+        }
+      }
+    };
+
+    void loadExceptionalScore();
 
     return () => {
       isMounted = false;
@@ -320,10 +390,83 @@ const HrReviewDetail = () => {
     }
   };
 
+  const handleSaveExceptionalScore = async () => {
+    if (!exceptionalCanEdit || isExceptionalSaving) {
+      return;
+    }
+
+    const normalizedValue = exceptionalScore.trim();
+
+    if (!normalizedValue) {
+      setExceptionalError("Exceptional Score is required.");
+      setExceptionalSuccess("");
+      return;
+    }
+
+    const parsedValue = Number(normalizedValue);
+
+    if (
+      !Number.isFinite(parsedValue) ||
+      parsedValue < 0 ||
+      parsedValue > 10
+    ) {
+      setExceptionalError("Exceptional Score must be between 0 and 10.");
+      setExceptionalSuccess("");
+      return;
+    }
+
+    setIsExceptionalSaving(true);
+    setExceptionalError("");
+    setExceptionalSuccess("");
+
+    try {
+      await saveCandidateExceptionalScore(candidateCycleId, parsedValue);
+    } catch {
+      setExceptionalError("Unable to save the Exceptional Score.");
+      setIsExceptionalSaving(false);
+      return;
+    }
+
+    try {
+      const [nextDetail, nextPerformanceRecord] = await Promise.all([
+        getCandidateHrReview(candidateCycleId),
+        getCandidatePerformanceRecord(candidateCycleId),
+      ]);
+
+      setDetail(nextDetail);
+      setForm(buildForm(nextDetail));
+      setPerformanceRecord(nextPerformanceRecord);
+      setExceptionalScore(String(nextPerformanceRecord.exceptionalScore));
+      setExceptionalSuccess("Exceptional Score saved successfully.");
+    } catch {
+      setExceptionalError(
+        "The Exceptional Score was saved, but the refreshed details could not be loaded.",
+      );
+    } finally {
+      setIsExceptionalSaving(false);
+    }
+  };
+
   const readOnlyMessage =
     detail?.editReason || "HR Review editing is not available for this cycle.";
   const isFormDisabled =
     !isEditable || isSaving || isRefreshing || Boolean(refreshError);
+  const performanceResultStatus =
+    performanceRecord?.resultStatus || detail?.resultStatus;
+  const isNotEvaluated = performanceResultStatus === "NOT_EVALUATED";
+  const exceptionalCanEdit = Boolean(
+    detail &&
+      performanceRecord &&
+      detail.dailyScoringComplete &&
+      detail.reviewIsOpen &&
+      !CLOSED_CYCLE_STATUSES.has(detail.cycleStatus) &&
+      !TERMINAL_RESULT_STATUSES.has(performanceResultStatus),
+  );
+  const exceptionalReadOnlyMessage = isNotEvaluated
+    ? "Not Evaluated — No eligible working days."
+    : TERMINAL_RESULT_STATUSES.has(performanceResultStatus)
+      ? "Exceptional Score is read-only because this result is final."
+      : "Exceptional Score becomes editable when Daily scoring is complete and the review window is open.";
   const subtitle = detail
     ? `${detail.fullName} - ${detail.cycleCode}`
     : "Review candidate performance for the selected cycle.";
@@ -563,6 +706,86 @@ const HrReviewDetail = () => {
                 </div>
               )}
             </form>
+          </section>
+
+          <section aria-labelledby="exceptional-score-heading">
+            <h2 id="exceptional-score-heading">Exceptional Score</h2>
+            <p className="page-subtitle">
+              Record the separate Exceptional contribution component. This
+              does not change the HR Review /15 fields.
+            </p>
+
+            {isExceptionalLoading ? (
+              <p role="status" aria-live="polite">
+                Loading Exceptional Score...
+              </p>
+            ) : (
+              <form onSubmit={(event) => event.preventDefault()}>
+                <div className="form-grid">
+                  <div className="form-group">
+                    <label htmlFor="candidate-exceptional-score">
+                      Exceptional Score <span>/10</span>
+                    </label>
+                    <input
+                      id="candidate-exceptional-score"
+                      className="form-input"
+                      type="number"
+                      min="0"
+                      max="10"
+                      step="0.01"
+                      inputMode="decimal"
+                      value={exceptionalScore}
+                      onChange={(event) => {
+                        setExceptionalScore(event.target.value);
+                        setExceptionalError("");
+                        setExceptionalSuccess("");
+                      }}
+                      disabled={!exceptionalCanEdit || isExceptionalSaving}
+                    />
+                  </div>
+                  <MetricCard
+                    title="Current Saved Value"
+                    value={
+                      performanceRecord?.exceptionalScore === null ||
+                      performanceRecord?.exceptionalScore === undefined
+                        ? EMPTY_VALUE
+                        : `${performanceRecord.exceptionalScore} / 10`
+                    }
+                  />
+                </div>
+
+                {!exceptionalCanEdit && !exceptionalError && (
+                  <p className="info-banner" role="status" aria-live="polite">
+                    {exceptionalReadOnlyMessage}
+                  </p>
+                )}
+                {exceptionalError && (
+                  <p className="info-banner" role="alert">
+                    {exceptionalError}
+                  </p>
+                )}
+                {exceptionalSuccess && (
+                  <p className="info-banner" role="status" aria-live="polite">
+                    {exceptionalSuccess}
+                  </p>
+                )}
+
+                {exceptionalCanEdit && (
+                  <div className="action-group">
+                    <button
+                      className="btn btn-primary"
+                      type="button"
+                      disabled={isExceptionalSaving}
+                      onClick={() => void handleSaveExceptionalScore()}
+                    >
+                      {isExceptionalSaving
+                        ? "Saving..."
+                        : "Save Exceptional Score"}
+                    </button>
+                  </div>
+                )}
+              </form>
+            )}
           </section>
         </>
       )}
