@@ -6,6 +6,12 @@ export type EmailTemplate = {
   html: string;
 };
 
+export type EmailAttachment = {
+  filename: string;
+  contentType: "application/pdf";
+  bytes: Uint8Array;
+};
+
 type GmailConfiguration = {
   clientId: string;
   clientSecret: string;
@@ -367,6 +373,44 @@ function createMimeMessage(
   ].join("\r\n");
 }
 
+function createMimeMessageWithAttachment(
+  configuration: GmailConfiguration,
+  recipientEmail: string,
+  template: EmailTemplate,
+  attachment: EmailAttachment,
+): string {
+  if (!/^[^\\/\r\n]+\.pdf$/i.test(attachment.filename) || attachment.bytes.length === 0) {
+    throw new GmailProviderError("CONFIGURATION", "NOT_SENT", false, "PDF attachment is invalid.", "Email delivery could not be prepared.", 500);
+  }
+
+  const recipient = validateEmailAddress(recipientEmail, "Email recipient address is invalid.");
+  const outerBoundary = createMultipartBoundary();
+  const alternativeBoundary = createMultipartBoundary();
+  const headers = [
+    `From: ${encodeHeaderWord(configuration.senderName)} <${configuration.senderEmail}>`,
+    `To: ${recipient}`,
+    ...(configuration.replyToEmail ? [`Reply-To: ${configuration.replyToEmail}`] : []),
+    `Subject: ${template.subject}`,
+    "MIME-Version: 1.0",
+    `Content-Type: multipart/mixed; boundary="${outerBoundary}"`,
+  ];
+
+  return [
+    ...headers, "",
+    `--${outerBoundary}`,
+    `Content-Type: multipart/alternative; boundary="${alternativeBoundary}"`, "",
+    `--${alternativeBoundary}`, 'Content-Type: text/plain; charset="UTF-8"', "Content-Transfer-Encoding: base64", "",
+    encodeBodyBase64(normalizeBodyLineEndings(template.text)),
+    `--${alternativeBoundary}`, 'Content-Type: text/html; charset="UTF-8"', "Content-Transfer-Encoding: base64", "",
+    encodeBodyBase64(normalizeBodyLineEndings(template.html)),
+    `--${alternativeBoundary}--`,
+    `--${outerBoundary}`, "Content-Type: application/pdf", "Content-Transfer-Encoding: base64",
+    `Content-Disposition: attachment; filename="${attachment.filename}"`, "",
+    bytesToBase64(attachment.bytes).match(/.{1,76}/g)?.join("\r\n") ?? "",
+    `--${outerBoundary}--`, "",
+  ].join("\r\n");
+}
+
 function encodeMimeForGmail(mimeMessage: string): string {
   return encodeUtf8Base64(mimeMessage)
     .replaceAll("+", "-")
@@ -472,6 +516,33 @@ export async function sendEmailWithGmail(
     );
   }
 
+  return { messageId };
+}
+
+export async function sendEmailWithPdfAttachment(
+  recipientEmail: string,
+  template: EmailTemplate,
+  attachment: EmailAttachment,
+): Promise<{ messageId: string }> {
+  const configuration = getGmailConfiguration();
+  const accessToken = await requestAccessToken(configuration);
+  const raw = encodeMimeForGmail(createMimeMessageWithAttachment(configuration, recipientEmail, template, attachment));
+  let response: Response;
+  try {
+    response = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/messages/send", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ raw }),
+    });
+  } catch {
+    throw new GmailProviderError("GMAIL_SEND", "UNKNOWN", false, "Gmail delivery outcome is unknown after a network failure.", "Email delivery outcome is unknown. Check the sender Sent folder before retrying.", 502);
+  }
+  if (!response.ok) {
+    throw new GmailProviderError("GMAIL_SEND", response.status >= 500 ? "UNKNOWN" : "NOT_SENT", response.status === 429, "Gmail rejected the PDF email request.", "Email delivery could not be completed.", 502);
+  }
+  const payload = await response.json();
+  const messageId = typeof payload?.id === "string" ? payload.id.trim() : "";
+  if (!messageId) throw new GmailProviderError("GMAIL_SEND", "UNKNOWN", false, "Gmail returned success without a message ID.", "Email delivery outcome is unknown.", 502);
   return { messageId };
 }
 

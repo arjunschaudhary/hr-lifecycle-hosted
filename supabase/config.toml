@@ -430,3 +430,7 @@ entrypoint = "./functions/mark-candidate-in-probation/index.ts"
 [functions.manage-pod-membership]
 verify_jwt = false
 entrypoint = "./functions/manage-pod-membership/index.ts"
+
+[functions.dispatch-exit-document-jobs]
+verify_jwt = false
+entrypoint = "./functions/dispatch-exit-document-jobs/index.ts"

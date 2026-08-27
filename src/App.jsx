@@ -32,6 +32,19 @@ import LeadReviewDetail from "./pages/LeadReviewDetail";
 import PodManagement from "./pages/PodManagement";
 import HRExitEvaluation from "./pages/HRExitEvaluation";
 import ExitAnalytics from "./pages/ExitAnalytics";
+import CertificateLor from "./pages/CertificateLor";
+import { useAuth } from "./context/authContext";
+
+function CertificateLorRoute() {
+  const { hasCertificateLorAccess } = useAuth();
+
+  return (
+    <ProtectedRoute
+      requiredAccess={hasCertificateLorAccess}
+      accessLabel="Certificate & LOR module"
+    />
+  );
+}
 
 function App() {
   return (
@@ -92,6 +105,9 @@ function App() {
             path="/performance/hr-review/:candidateCycleId"
             element={<HrReviewDetail />}
           />
+        </Route>
+        <Route element={<CertificateLorRoute />}>
+          <Route path="/certificate-lor" element={<CertificateLor />} />
         </Route>
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
