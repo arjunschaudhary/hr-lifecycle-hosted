@@ -9,6 +9,7 @@ const SAFE_SAVE_LEAD_REVIEW_ERROR =
 const SAFE_SAVE_LEAD_REVIEW_MESSAGES = new Set([
   "You cannot submit a Lead Review for your own candidate cycle.",
   "Project Manager Lead Reviews require an eligible Pod Lead.",
+  "Pod Lead candidates cannot receive a Lead Review.",
   "This Lead Review draft is already owned by another reviewer.",
 ]);
 

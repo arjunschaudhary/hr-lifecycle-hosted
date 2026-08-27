@@ -135,6 +135,8 @@ const MetricCard = ({ icon: Icon, title, value }) => (
 const PerformanceDashboard = () => {
   const {
     hasPerformanceDashboardAccess,
+    hasPerformanceMarkingAccess,
+    hasHrReviewAccess,
     hasStaffAccess,
     hasLeadReviewAccess,
   } = useAuth();
@@ -816,14 +818,32 @@ const PerformanceDashboard = () => {
                         </td>
                         <td>{formatNullableValue(item.actionReason)}</td>
                         <td>
-                          {item.actionCode === "SUBMIT_HR_REVIEW" ? (
+                          {hasLeadReviewAccess &&
+                          item.actionCode === "SUBMIT_LEAD_REVIEW" ? (
+                            <Link
+                              to={`/lead-reviews/${item.candidateCycleId}`}
+                              className="btn btn-primary"
+                            >
+                              Open Lead Review
+                            </Link>
+                          ) : hasPerformanceMarkingAccess &&
+                            item.actionCode === "COMPLETE_DAILY_SCORING" ? (
+                            <Link
+                              to={`/performance-dashboard/${item.candidateCycleId}/daily`}
+                              className="btn btn-primary"
+                            >
+                              Open Daily Entries
+                            </Link>
+                          ) : hasHrReviewAccess &&
+                            item.actionCode === "SUBMIT_HR_REVIEW" ? (
                             <Link
                               to={`/performance/hr-review/${item.candidateCycleId}`}
                               className="btn btn-primary"
                             >
                               Open HR Review
                             </Link>
-                          ) : item.actionCode === "SUBMIT_EXCEPTIONAL_SCORE" ? (
+                          ) : hasPerformanceMarkingAccess &&
+                            item.actionCode === "SUBMIT_EXCEPTIONAL_SCORE" ? (
                             <Link
                               to={`/performance/hr-review/${item.candidateCycleId}`}
                               className="btn btn-primary"

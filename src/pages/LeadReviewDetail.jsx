@@ -5,6 +5,7 @@ import { ClipboardCheck } from "lucide-react";
 import { useAuth } from "../context/authContext";
 import {
   fetchCandidateLeadReview,
+  fetchLeadReviewTasks,
   saveCandidateLeadReview,
 } from "../services/leadReviewService";
 
@@ -132,8 +133,9 @@ const ScoreSelect = ({
 
 const LeadReviewDetail = () => {
   const { candidateCycleId } = useParams();
-  const { hasLeadReviewAccess } = useAuth();
+  const { hasLeadReviewAccess, user } = useAuth();
   const [detail, setDetail] = useState(null);
+  const [taskCanEdit, setTaskCanEdit] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
   const [isLoading, setIsLoading] = useState(true);
   const [pageError, setPageError] = useState("");
@@ -160,14 +162,21 @@ const LeadReviewDetail = () => {
       setPageError("");
 
       try {
-        const nextDetail =
-          await fetchCandidateLeadReview(candidateCycleId);
+        const [nextDetail, tasks] = await Promise.all([
+          fetchCandidateLeadReview(candidateCycleId),
+          fetchLeadReviewTasks(),
+        ]);
 
         if (!isMounted) {
           return;
         }
 
+        const currentTask = tasks.find(
+          (task) => task.candidateCycleId === candidateCycleId,
+        );
+
         setDetail(nextDetail);
+        setTaskCanEdit(currentTask?.canEdit === true);
         setForm(buildForm(nextDetail));
         setSaveError("");
         setSaveSuccess("");
@@ -205,7 +214,13 @@ const LeadReviewDetail = () => {
     detail &&
       detail.reviewIsOpen &&
       detail.dailyScoringComplete &&
-      detail.reviewStatus !== "SUBMITTED",
+      detail.reviewStatus !== "SUBMITTED" &&
+      taskCanEdit,
+  );
+  const isOwnedByAnotherReviewer = Boolean(
+    detail?.reviewStatus === "DRAFT" &&
+      detail.reviewerUserId &&
+      detail.reviewerUserId !== user?.id,
   );
 
   const handleFieldChange = (field, value) => {
@@ -237,10 +252,16 @@ const LeadReviewDetail = () => {
         reviewStatus,
       });
 
-      const nextDetail =
-        await fetchCandidateLeadReview(candidateCycleId);
+      const [nextDetail, tasks] = await Promise.all([
+        fetchCandidateLeadReview(candidateCycleId),
+        fetchLeadReviewTasks(),
+      ]);
+      const currentTask = tasks.find(
+        (task) => task.candidateCycleId === candidateCycleId,
+      );
 
       setDetail(nextDetail);
+      setTaskCanEdit(currentTask?.canEdit === true);
       setForm(buildForm(nextDetail));
       setSaveSuccess(
         reviewStatus === "SUBMITTED"
@@ -259,6 +280,10 @@ const LeadReviewDetail = () => {
   };
 
   const getReadOnlyMessage = () => {
+    if (isOwnedByAnotherReviewer) {
+      return "This Lead Review is being handled by another reviewer.";
+    }
+
     if (detail?.reviewStatus === "SUBMITTED") {
       return "This Lead Review has been submitted and is read-only.";
     }
