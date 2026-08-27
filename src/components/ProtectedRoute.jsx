@@ -13,7 +13,7 @@ function AuthLoadingScreen() {
   );
 }
 
-export default function ProtectedRoute() {
+export default function ProtectedRoute({ requiredAccess = true, accessLabel = "HR workspace" }) {
   const location = useLocation();
   const {
     session,
@@ -48,8 +48,8 @@ export default function ProtectedRoute() {
     return <Navigate to="/login" replace state={{ from: location }} />;
   }
 
-  if (authorizationError || !isActiveAppUser || !hasStaffAccess) {
-    let message = "Your account does not have access to the HR workspace.";
+  if (authorizationError || !isActiveAppUser || !hasStaffAccess || !requiredAccess) {
+    let message = `Your account does not have access to the ${accessLabel}.`;
 
     if (authorizationError) {
       message = authorizationError;

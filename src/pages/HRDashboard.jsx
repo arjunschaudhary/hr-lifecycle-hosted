@@ -23,6 +23,7 @@ import {
   Network,
   LogOut,
   BarChart3,
+  FileBadge,
 } from "lucide-react";
 
 import { fetchDashboardCounts, fetchPendingExitCases } from "../services/hrDashboardService";
@@ -52,6 +53,7 @@ export default function HRDashboard() {
     hasPerformanceDashboardAccess,
     hasHrReviewAccess,
     hasPodManagementAccess,
+    hasCertificateLorAccess,
   } = useAuth();
 
   const [counts, setCounts] = useState(EMPTY_DASHBOARD_COUNTS);
@@ -142,6 +144,15 @@ export default function HRDashboard() {
       label: "Exit Analytics",
       icon: <BarChart3 size={18} />,
     },
+    ...(hasCertificateLorAccess
+      ? [
+          {
+            path: "/certificate-lor",
+            label: "Certificate & LOR",
+            icon: <FileBadge size={18} />,
+          },
+        ]
+      : []),
     {
       path: "/offer-approval",
       label: "Offer Process",

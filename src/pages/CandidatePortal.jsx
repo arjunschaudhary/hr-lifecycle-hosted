@@ -18,6 +18,7 @@ import { fetchCurrentCandidatePortalSummary } from "../services/candidatePortalS
 import { submitCurrentCandidateSignedOffer, resubmitCurrentCandidateSignedOffer } from "../services/candidateSignedOfferUploadService";
 import { fetchCurrentCandidatePerformanceHistory } from "../services/candidatePerformanceService";
 import { calculateLeaveDays, getTodayKolkataString } from "../utils/leaveRules";
+import { fetchCurrentCandidateIssuedDocuments, getIssuedDocumentUrl } from "../services/issuedDocumentsService";
 
 const INITIAL_LEAVE_FORM = {
   leaveType: "Casual Leave",
@@ -903,6 +904,22 @@ export default function CandidatePortal() {
   const [podLeave, setPodLeave] = useState([]);
   const [podLeaveLoading, setPodLeaveLoading] = useState(true);
   const [podLeaveError, setPodLeaveError] = useState("");
+  const [issuedDocuments, setIssuedDocuments] = useState([]);
+  const [issuedDocumentsError, setIssuedDocumentsError] = useState("");
+
+  useEffect(() => {
+    fetchCurrentCandidateIssuedDocuments()
+      .then(setIssuedDocuments)
+      .catch((loadError) => setIssuedDocumentsError(loadError.message));
+  }, []);
+
+  const handleViewIssuedDocument = async (storagePath) => {
+    try {
+      window.open(await getIssuedDocumentUrl(storagePath), "_blank", "noopener,noreferrer");
+    } catch (viewError) {
+      setIssuedDocumentsError(viewError.message);
+    }
+  };
 
   const handleLeaveFileChange = (event) => {
     setLeaveSubmissionError("");
@@ -1438,6 +1455,22 @@ export default function CandidatePortal() {
           <button className="btn btn-primary" type="button" onClick={handleRetry}>
             Retry
           </button>
+        </section>
+      )}
+
+      {!loading && !error && summary && (
+        <section className="card" aria-labelledby="issued-documents-title">
+          <h2 id="issued-documents-title">Issued Documents</h2>
+          {issuedDocumentsError && <p className="auth-inline-error" role="alert">{issuedDocumentsError}</p>}
+          {issuedDocuments.length === 0 ? <p className="page-subtitle">No issued documents are available yet.</p> : (
+            <div className="candidate-details-grid">{issuedDocuments.map((document) => (
+              <div className="candidate-detail-card" key={document.document_id}>
+                <span>{formatStatus(document.document_variant || document.document_type)}</span>
+                <strong>{formatDate(document.issued_at)}</strong>
+                <button className="btn btn-primary" type="button" onClick={() => handleViewIssuedDocument(document.storage_path)}>View / Download</button>
+              </div>
+            ))}</div>
+          )}
         </section>
       )}
 
