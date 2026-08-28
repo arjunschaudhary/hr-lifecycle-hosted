@@ -9,6 +9,40 @@ const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-
 const certificateId = /^CERT-[A-Z0-9]+$/;
 const json = (body: Record<string, unknown>, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 
+function requireStoredCertificateVerificationUrl(
+  value: unknown,
+  expectedCertificateId: string,
+): string {
+  if (typeof value !== "string" || !value.trim() || value !== value.trim()) {
+    throw new Error(
+      "Stored certificate requires controlled verification/QR reconciliation.",
+    );
+  }
+
+  let parsed: URL;
+
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new Error(
+      "Stored certificate requires controlled verification/QR reconciliation.",
+    );
+  }
+
+  const linkedCertificateId = parsed.searchParams.get("id")?.trim().toUpperCase();
+
+  if (
+    parsed.protocol !== "https:" ||
+    linkedCertificateId !== expectedCertificateId
+  ) {
+    throw new Error(
+      "Stored certificate requires controlled verification/QR reconciliation.",
+    );
+  }
+
+  return value;
+}
+
 async function recordFailureSafely(
   admin: ReturnType<typeof createClient>,
   jobId: string,
@@ -69,10 +103,14 @@ Deno.serve(async (request) => {
         ) {
           throw new Error("Existing certificate identity is invalid.");
         }
+        const storedVerificationUrl = requireStoredCertificateVerificationUrl(
+          existingDocument.certificate_verification_url,
+          normalizedCertificateId,
+        );
         identity = {
           certificateId: normalizedCertificateId,
-          verificationUrl: existingDocument.certificate_verification_url,
-          qrPayload: existingDocument.certificate_verification_url,
+          verificationUrl: storedVerificationUrl,
+          qrPayload: storedVerificationUrl,
         };
       } else {
         if (existingDocument?.storage_path) {
@@ -83,7 +121,22 @@ Deno.serve(async (request) => {
     } else if (existingDocument?.certificate_id) {
       throw new Error("Non-certificate document has an unexpected certificate identity.");
     }
-    const qrImageUrl = getCertificateQrImageUrl(identity);
+
+    let qrImageUrl: string | null = null;
+    if (template.requiresQrCode) {
+      if (!identity) {
+        throw new Error("Certificate identity is required for QR generation.");
+      }
+
+      if (!identity.verificationUrl.trim() || !identity.qrPayload.trim()) {
+        throw new Error("Certificate verification URL and QR payload are required.");
+      }
+
+      qrImageUrl = getCertificateQrImageUrl(identity);
+      if (!qrImageUrl.trim()) {
+        throw new Error("Certificate QR image URL could not be generated.");
+      }
+    }
     const totalInternshipMonths =
       (lifecycle.internship_duration_months || 0) +
       (lifecycle.total_extension_months || 0);

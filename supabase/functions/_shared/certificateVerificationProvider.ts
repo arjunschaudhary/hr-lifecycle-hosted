@@ -3,14 +3,34 @@ const CERTIFICATE_ID_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
 export type CertificateVerificationIdentity = {
   certificateId: string;
-  verificationUrl: string | null;
-  qrPayload: string | null;
+  verificationUrl: string;
+  qrPayload: string;
 };
 
-function getConfiguredVerificationUrlTemplate(): string | null {
-  const value =
-    Deno.env.get("CERTIFICATE_VERIFICATION_URL_TEMPLATE")?.trim() ||
-    "https://verifycertificateportal.netlify.app/?id={certificateId}";
+function validateHttpsUrl(value: string, errorMessage: string): void {
+  let parsed: URL;
+
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new Error(errorMessage);
+  }
+
+  if (parsed.protocol !== "https:") {
+    throw new Error("Certificate verification URLs must use HTTPS.");
+  }
+}
+
+function getConfiguredVerificationUrlTemplate(): string {
+  const value = Deno.env
+    .get("CERTIFICATE_VERIFICATION_URL_TEMPLATE")
+    ?.trim();
+
+  if (!value) {
+    throw new Error(
+      "Certificate verification URL configuration is missing.",
+    );
+  }
 
   if (!value.includes("{certificateId}")) {
     throw new Error(
@@ -18,21 +38,12 @@ function getConfiguredVerificationUrlTemplate(): string | null {
     );
   }
 
-  const sample = value.replace("{certificateId}", "CERT-TEST");
-  const parsed = new URL(sample);
-  if (parsed.protocol !== "https:") {
-    throw new Error("Certificate verification URLs must use HTTPS.");
-  }
+  const sample = value.replaceAll("{certificateId}", "CERT-TEST");
+  validateHttpsUrl(sample, "Certificate verification URL template is invalid.");
 
   return value;
 }
 
-/**
- * Generates the certificate-side identity without assuming a Netlify route or
- * API. When the organization confirms its Apps Script/deep-link contract, set
- * CERTIFICATE_VERIFICATION_URL_TEMPLATE to that HTTPS URL with
- * {certificateId}; QR generation then consumes `qrPayload` only.
- */
 export function createCertificateVerificationIdentity(): CertificateVerificationIdentity {
   const bytes = crypto.getRandomValues(new Uint8Array(CERTIFICATE_ID_BYTES));
   const certificateId = `CERT-${Array.from(
@@ -40,9 +51,12 @@ export function createCertificateVerificationIdentity(): CertificateVerification
     (byte) => CERTIFICATE_ID_ALPHABET[byte % CERTIFICATE_ID_ALPHABET.length],
   ).join("")}`;
   const template = getConfiguredVerificationUrlTemplate();
-  const verificationUrl = template
-    ? template.replaceAll("{certificateId}", certificateId)
-    : null;
+  const verificationUrl = template.replaceAll("{certificateId}", certificateId);
+
+  validateHttpsUrl(
+    verificationUrl,
+    "Generated certificate verification URL is invalid.",
+  );
 
   return {
     certificateId,
@@ -51,17 +65,18 @@ export function createCertificateVerificationIdentity(): CertificateVerification
   };
 }
 
-/** Returns null until a confirmed verification URL contract exists. */
 export function getCertificateQrPayload(
   identity: CertificateVerificationIdentity,
-): string | null {
+): string {
   return identity.qrPayload;
 }
 
-/** Returns QuickChart HTTPS QR image URL if qrPayload is available. */
 export function getCertificateQrImageUrl(
-  identity: CertificateVerificationIdentity | null,
-): string | null {
-  if (!identity || !identity.qrPayload) return null;
+  identity: CertificateVerificationIdentity,
+): string {
+  if (!identity.qrPayload.trim()) {
+    throw new Error("Certificate QR payload is required.");
+  }
+
   return `https://quickchart.io/qr?text=${encodeURIComponent(identity.qrPayload)}&margin=1&size=300`;
 }

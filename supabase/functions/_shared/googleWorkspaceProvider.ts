@@ -1229,6 +1229,18 @@ export async function copyPopulateAndExportTemplate(
   values: TemplateValues,
   qrImageUrl?: string | null,
 ): Promise<Uint8Array> {
+  if (template.requiresQrCode) {
+    if (template.source !== "GOOGLE_SLIDES") {
+      throw new Error(
+        "The required certificate QR code cannot be inserted into this template type.",
+      );
+    }
+
+    if (!qrImageUrl?.trim()) {
+      throw new Error("A QR image URL is required for this certificate template.");
+    }
+  }
+
   const copyResponse = await exitWorkspaceFetch(
     `https://www.googleapis.com/drive/v3/files/${template.templateId}/copy?fields=id`,
     {
@@ -1252,10 +1264,16 @@ export async function copyPopulateAndExportTemplate(
 
   try {
     if (template.source === "GOOGLE_SLIDES") {
-      await replaceExitQrCodeShapeInSlides(
+      const qrCodeInserted = await replaceExitQrCodeShapeInSlides(
         copiedId,
         qrImageUrl || null,
       );
+
+      if (template.requiresQrCode && !qrCodeInserted) {
+        throw new Error(
+          "The required certificate QR code could not be inserted.",
+        );
+      }
     }
 
     const textValues = { ...values };
