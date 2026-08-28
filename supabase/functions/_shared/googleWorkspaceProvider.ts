@@ -1321,60 +1321,494 @@ export async function uploadPdfToDriveFolder(
   folderId: string,
   fileName: string,
   pdfBytes: Uint8Array,
+  recovery?: {
+    requestId: string;
+    existingFileId?: string | null;
+  },
 ): Promise<{ fileId: string; webViewLink?: string }> {
-  const token = await requestExitWorkspaceAccessToken();
-  const metadata = JSON.stringify({
-    name: fileName,
-    parents: [folderId],
-  });
+  const normalizedFolderId = folderId.trim();
 
-  const boundary = "-------314159265358979323846";
-  const delimiter = `\r\n--${boundary}\r\n`;
-  const closeDelimiter = `\r\n--${boundary}--`;
+  if (!FILE_ID_PATTERN.test(normalizedFolderId)) {
+    throw new Error("Google Drive destination folder ID is invalid.");
+  }
 
-  const bodyHead =
-    `${delimiter}Content-Type: application/json; charset=UTF-8\r\n\r\n` +
-    metadata +
-    `${delimiter}Content-Type: application/pdf\r\n\r\n`;
+  if (!pdfBytes.byteLength) {
+    throw new Error("Exit-document PDF is empty.");
+  }
 
-  const encoder = new TextEncoder();
-  const headBytes = encoder.encode(bodyHead);
-  const tailBytes = encoder.encode(closeDelimiter);
-
-  const totalLength =
-    headBytes.length + pdfBytes.length + tailBytes.length;
-  const multipartBody = new Uint8Array(totalLength);
-  multipartBody.set(headBytes, 0);
-  multipartBody.set(pdfBytes, headBytes.length);
-  multipartBody.set(
-    tailBytes,
-    headBytes.length + pdfBytes.length,
-  );
-
-  const response = await fetch(
-    "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink",
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": `multipart/related; boundary=${boundary}`,
-      },
-      body: multipartBody,
-    },
-  );
-
-  if (!response.ok) {
-    const errorText = await response.text().catch(() => "");
-
+  if (recovery && !UUID_PATTERN.test(recovery.requestId)) {
     throw new Error(
-      `Google Drive PDF upload failed (${response.status}): ${errorText}`,
+      "Exit-document request ID is invalid for Google Drive recovery.",
     );
   }
 
-  const payload = await response.json();
+  const token = await requestExitWorkspaceAccessToken();
 
-  return {
-    fileId: payload.id,
-    webViewLink: payload.webViewLink,
+  type ExitDrivePdf = {
+    fileId: string;
+    webViewLink?: string;
   };
+
+  const parseExitDrivePdf = (
+    value: unknown,
+  ): ExitDrivePdf | null => {
+    if (!isRecord(value)) {
+      return null;
+    }
+
+    const rawId =
+      typeof value.id === "string"
+        ? value.id.trim()
+        : "";
+
+    const mimeType =
+      typeof value.mimeType === "string"
+        ? value.mimeType.trim()
+        : "";
+
+    const parents =
+      Array.isArray(value.parents) &&
+        value.parents.every(
+          (parent) => typeof parent === "string",
+        )
+        ? value.parents as string[]
+        : [];
+
+    const appProperties =
+      isRecord(value.appProperties)
+        ? Object.fromEntries(
+          Object.entries(
+            value.appProperties,
+          ).filter(
+            (
+              entry,
+            ): entry is [string, string] =>
+              typeof entry[1] === "string",
+          ),
+        )
+        : {};
+
+    const webViewLink =
+      typeof value.webViewLink === "string" &&
+        value.webViewLink.trim()
+        ? value.webViewLink.trim()
+        : undefined;
+
+    if (
+      !FILE_ID_PATTERN.test(rawId) ||
+      mimeType !== PDF_MIME_TYPE ||
+      !parents.includes(normalizedFolderId)
+    ) {
+      return null;
+    }
+
+    if (recovery) {
+      if (
+        appProperties.jcfExitDocumentRequestId !==
+          recovery.requestId ||
+        appProperties.jcfExitDocumentArtifact !==
+          "PDF"
+      ) {
+        return null;
+      }
+    }
+
+    return {
+      fileId: rawId,
+      webViewLink,
+    };
+  };
+
+  const getDriveFileById = async (
+    fileId: string,
+  ): Promise<ExitDrivePdf | null> => {
+    const normalizedFileId = fileId.trim();
+
+    if (!FILE_ID_PATTERN.test(normalizedFileId)) {
+      throw new Error(
+        "Stored Exit-document Google Drive file ID is invalid.",
+      );
+    }
+
+    const query = new URLSearchParams({
+      fields:
+        "id,mimeType,parents,appProperties,webViewLink",
+      supportsAllDrives: "true",
+    });
+
+    let response: Response;
+
+    try {
+      response = await fetch(
+        `https://www.googleapis.com/drive/v3/files/${
+          encodeURIComponent(
+            normalizedFileId,
+          )
+        }?${query}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      );
+    } catch {
+      throw new Error(
+        "Google Drive Exit-document lookup failed.",
+      );
+    }
+
+    if (response.status === 404) {
+      return null;
+    }
+
+    if (!response.ok) {
+      throw new Error(
+        `Google Drive Exit-document lookup failed (${response.status}).`,
+      );
+    }
+
+    let payload: unknown;
+
+    try {
+      payload = await response.json();
+    } catch {
+      throw new Error(
+        "Google Drive returned unreadable Exit-document metadata.",
+      );
+    }
+
+    const parsed = parseExitDrivePdf(payload);
+
+    if (
+      !parsed ||
+      parsed.fileId !== normalizedFileId
+    ) {
+      throw new Error(
+        "Stored Google Drive file does not match the expected Exit-document artifact.",
+      );
+    }
+
+    return parsed;
+  };
+
+  const findDriveFileByRequest =
+    async (): Promise<ExitDrivePdf | null> => {
+      if (!recovery) {
+        return null;
+      }
+
+      const query = new URLSearchParams({
+        q:
+          `'${normalizedFolderId}' in parents and ` +
+          `appProperties has { key='jcfExitDocumentRequestId' and value='${recovery.requestId}' } and ` +
+          `appProperties has { key='jcfExitDocumentArtifact' and value='PDF' } and ` +
+          `trashed=false`,
+        fields:
+          "nextPageToken,files(id,mimeType,parents,appProperties,webViewLink)",
+        pageSize: "10",
+        spaces: "drive",
+        supportsAllDrives: "true",
+        includeItemsFromAllDrives: "true",
+      });
+
+      let response: Response;
+
+      try {
+        response = await fetch(
+          `https://www.googleapis.com/drive/v3/files?${query}`,
+          {
+            headers: {
+              Authorization:
+                `Bearer ${token}`,
+            },
+          },
+        );
+      } catch {
+        throw new Error(
+          "Google Drive Exit-document recovery lookup failed.",
+        );
+      }
+
+      if (!response.ok) {
+        throw new Error(
+          `Google Drive Exit-document recovery lookup failed (${response.status}).`,
+        );
+      }
+
+      let payload: unknown;
+
+      try {
+        payload = await response.json();
+      } catch {
+        throw new Error(
+          "Google Drive returned an unreadable Exit-document recovery response.",
+        );
+      }
+
+      if (
+        !isRecord(payload) ||
+        !Array.isArray(payload.files)
+      ) {
+        throw new Error(
+          "Google Drive returned invalid Exit-document recovery metadata.",
+        );
+      }
+
+      const files = payload.files
+        .map(parseExitDrivePdf)
+        .filter(
+          (
+            file,
+          ): file is ExitDrivePdf =>
+            file !== null,
+        );
+
+      const hasAnotherPage =
+        typeof payload.nextPageToken ===
+          "string" &&
+        payload.nextPageToken.trim() !== "";
+
+      if (
+        files.length !== payload.files.length
+      ) {
+        throw new Error(
+          "Google Drive returned an unexpected Exit-document artifact.",
+        );
+      }
+
+      if (
+        files.length > 1 ||
+        hasAnotherPage
+      ) {
+        throw new Error(
+          "Multiple Google Drive PDFs exist for the same Exit-document request.",
+        );
+      }
+
+      return files[0] ?? null;
+    };
+
+  const recoverAfterUncertainUpload =
+    async (): Promise<ExitDrivePdf | null> => {
+      if (!recovery) {
+        return null;
+      }
+
+      for (
+        let attempt = 1;
+        attempt <= 3;
+        attempt += 1
+      ) {
+        try {
+          const recovered =
+            await findDriveFileByRequest();
+
+          if (recovered) {
+            return recovered;
+          }
+        } catch (error) {
+          if (attempt === 3) {
+            throw error;
+          }
+        }
+
+        if (attempt < 3) {
+          await new Promise(
+            (resolve) =>
+              setTimeout(
+                resolve,
+                attempt * 250,
+              ),
+          );
+        }
+      }
+
+      return null;
+    };
+
+  /*
+   * Durable DB evidence wins first.
+   */
+  if (recovery?.existingFileId) {
+    const existing =
+      await getDriveFileById(
+        recovery.existingFileId,
+      );
+
+    if (!existing) {
+      throw new Error(
+        "Stored Exit-document Google Drive file could not be found.",
+      );
+    }
+
+    return existing;
+  }
+
+  /*
+   * If DB persistence was lost after a previous successful
+   * Drive upload, recover using the request marker.
+   */
+  if (recovery) {
+    const recovered =
+      await findDriveFileByRequest();
+
+    if (recovered) {
+      return recovered;
+    }
+  }
+
+  const metadata = JSON.stringify({
+    name: sanitizeDriveFileName(
+      fileName,
+      "JCF-Exit-Document.pdf",
+    ),
+
+    parents: [
+      normalizedFolderId,
+    ],
+
+    ...(recovery
+      ? {
+        appProperties: {
+          jcfExitDocumentRequestId:
+            recovery.requestId,
+
+          jcfExitDocumentArtifact:
+            "PDF",
+        },
+      }
+      : {}),
+  });
+
+  const boundary =
+    `JCF_EXIT_PDF_${
+      crypto.randomUUID()
+        .replace(/-/g, "")
+    }`;
+
+  const delimiter =
+    `\r\n--${boundary}\r\n`;
+
+  const closeDelimiter =
+    `\r\n--${boundary}--`;
+
+  const bodyHead =
+    `${delimiter}` +
+    `Content-Type: application/json; charset=UTF-8\r\n\r\n` +
+    metadata +
+    `${delimiter}` +
+    `Content-Type: application/pdf\r\n\r\n`;
+
+  const encoder =
+    new TextEncoder();
+
+  const headBytes =
+    encoder.encode(bodyHead);
+
+  const tailBytes =
+    encoder.encode(closeDelimiter);
+
+  const totalLength =
+    headBytes.length +
+    pdfBytes.length +
+    tailBytes.length;
+
+  const multipartBody =
+    new Uint8Array(totalLength);
+
+  multipartBody.set(
+    headBytes,
+    0,
+  );
+
+  multipartBody.set(
+    pdfBytes,
+    headBytes.length,
+  );
+
+  multipartBody.set(
+    tailBytes,
+    headBytes.length +
+      pdfBytes.length,
+  );
+
+  let response: Response;
+
+  try {
+    response = await fetch(
+      "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,mimeType,parents,appProperties,webViewLink&supportsAllDrives=true",
+      {
+        method: "POST",
+
+        headers: {
+          Authorization:
+            `Bearer ${token}`,
+
+          "Content-Type":
+            `multipart/related; boundary=${boundary}`,
+        },
+
+        body: multipartBody,
+      },
+    );
+  } catch {
+    const recovered =
+      await recoverAfterUncertainUpload();
+
+    if (recovered) {
+      return recovered;
+    }
+
+    throw new Error(
+      "Google Drive PDF upload did not return a confirmed result.",
+    );
+  }
+
+  if (!response.ok) {
+    const recovered =
+      await recoverAfterUncertainUpload();
+
+    if (recovered) {
+      return recovered;
+    }
+
+    throw new Error(
+      `Google Drive PDF upload failed (${response.status}).`,
+    );
+  }
+
+  let payload: unknown;
+
+  try {
+    payload = await response.json();
+  } catch {
+    const recovered =
+      await recoverAfterUncertainUpload();
+
+    if (recovered) {
+      return recovered;
+    }
+
+    throw new Error(
+      "Google Drive PDF upload returned an unreadable result.",
+    );
+  }
+
+  const uploaded =
+    parseExitDrivePdf(payload);
+
+  if (!uploaded) {
+    const recovered =
+      await recoverAfterUncertainUpload();
+
+    if (recovered) {
+      return recovered;
+    }
+
+    throw new Error(
+      "Google Drive did not confirm the Exit-document PDF artifact.",
+    );
+  }
+
+  return uploaded;
 }
