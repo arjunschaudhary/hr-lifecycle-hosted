@@ -1,11 +1,12 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js";
-import { createCertificateVerificationIdentity, getCertificateQrImageUrl } from "../_shared/certificateVerificationProvider.ts";
+import { createCertificateVerificationIdentity, getCertificateQrImageUrl, type CertificateVerificationIdentity } from "../_shared/certificateVerificationProvider.ts";
 import { GENERATED_DOCUMENTS_FOLDER_ID, getExitDocumentTemplate, ISSUED_DOCUMENTS_BUCKET } from "../_shared/exitDocumentTemplates.ts";
 import { copyPopulateAndExportTemplate, uploadPdfToDriveFolder } from "../_shared/googleWorkspaceProvider.ts";
 import { isGmailProviderError, sendEmailWithGmailAttachment } from "../_shared/gmailProvider.ts";
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const certificateId = /^CERT-[A-Z0-9]+$/;
 const json = (body: Record<string, unknown>, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 
 async function recordFailureSafely(
@@ -50,15 +51,39 @@ Deno.serve(async (request) => {
       admin.from("hr_lifecycle").select("probation_start_date,current_end_date,internship_duration_months,total_extension_months,current_internship_duration_days").eq("lifecycle_id", exitCase.lifecycle_id).single(),
     ]);
     if (!candidate || !lifecycle) throw new Error("Candidate or lifecycle could not be resolved.");
-    const { data: existingDocument } = await admin
+    const { data: existingDocument, error: existingDocumentError } = await admin
       .from("exit_documents")
       .select("storage_path,certificate_id,certificate_verification_url")
-      .eq("generated_by_job_id", jobId)
+      .eq("exit_case_id", payload.exitCaseId)
+      .eq("document_variant", payload.documentVariant)
       .maybeSingle();
-    const identity = existingDocument
-      ? { certificateId: existingDocument.certificate_id, verificationUrl: existingDocument.certificate_verification_url, qrPayload: existingDocument.certificate_verification_url }
-      : (template.requiresCertificateId ? createCertificateVerificationIdentity() : null);
-    const qrImageUrl = identity ? getCertificateQrImageUrl(identity as any) : null;
+    if (existingDocumentError) throw existingDocumentError;
+
+    let identity: CertificateVerificationIdentity | null = null;
+    if (template.requiresCertificateId) {
+      if (existingDocument?.certificate_id) {
+        const normalizedCertificateId = existingDocument.certificate_id.trim().toUpperCase();
+        if (
+          normalizedCertificateId !== existingDocument.certificate_id ||
+          !certificateId.test(normalizedCertificateId)
+        ) {
+          throw new Error("Existing certificate identity is invalid.");
+        }
+        identity = {
+          certificateId: normalizedCertificateId,
+          verificationUrl: existingDocument.certificate_verification_url,
+          qrPayload: existingDocument.certificate_verification_url,
+        };
+      } else {
+        if (existingDocument?.storage_path) {
+          throw new Error("Stored certificate requires identity reconciliation before retry.");
+        }
+        identity = createCertificateVerificationIdentity();
+      }
+    } else if (existingDocument?.certificate_id) {
+      throw new Error("Non-certificate document has an unexpected certificate identity.");
+    }
+    const qrImageUrl = getCertificateQrImageUrl(identity);
     const totalInternshipMonths =
       (lifecycle.internship_duration_months || 0) +
       (lifecycle.total_extension_months || 0);
