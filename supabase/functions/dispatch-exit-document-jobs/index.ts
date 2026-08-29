@@ -4,6 +4,12 @@ import { getCorsHeaders } from "../_shared/cors.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+const LEGACY_RECONCILIATION_JOB_IDS = new Set([
+  "bddfd007-d2c9-4354-a1ff-d694a2d45606",
+  "2b5efc7c-166e-458e-9b04-49a1f0792d77",
+  "eac8b569-c775-4cbe-a201-04b127424603",
+]);
+
 function response(request: Request, body: Record<string, unknown>, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -43,24 +49,33 @@ Deno.serve(async (request) => {
   if (accessError || hasAccess !== true) return response(request, { error: "HR Site Connect Lead access is required." }, 403);
 
   const admin = createClient(url, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } });
-  const { data: requests, error: requestsError } = await admin
-    .from("exit_document_requests")
-    .select("request_id,job_id")
-    .in("request_id", requestIds);
-  if (requestsError || !requests || requests.length !== requestIds.length || requests.some((item) => !item.job_id)) {
-    return response(request, { error: "Document requests could not be resolved for dispatch." }, 409);
+  const { data: preparedJobs, error: prepareError } = await admin.rpc(
+    "prepare_exit_document_dispatch_jobs",
+    { p_request_ids: requestIds },
+  );
+
+  if (prepareError) {
+    console.error("Unable to prepare safe Exit-document dispatch jobs.", prepareError);
+    return response(request, { error: "Document jobs could not be prepared for dispatch." }, 409);
   }
 
-  const jobIds = requests.map((item) => item.job_id as string);
-  const { data: jobs, error: jobsError } = await admin
-    .from("automation_jobs")
-    .select("job_id")
-    .eq("job_type", "EXIT_DOCUMENT")
-    .in("job_id", jobIds)
-    .in("job_status", ["PENDING", "RETRY"]);
-  if (jobsError) return response(request, { error: "Document jobs could not be resolved for dispatch." }, 500);
+  const jobIds = Array.isArray(preparedJobs)
+    ? preparedJobs.map((item) => item?.job_id)
+    : [];
 
-  const dispatches = await Promise.all((jobs ?? []).map(async ({ job_id }) => {
+  if (
+    jobIds.some((jobId) =>
+      typeof jobId !== "string" ||
+      !UUID.test(jobId) ||
+      LEGACY_RECONCILIATION_JOB_IDS.has(jobId)
+    ) ||
+    new Set(jobIds).size !== jobIds.length
+  ) {
+    console.error("Safe Exit-document dispatch preparation returned invalid data.");
+    return response(request, { error: "Document dispatch preparation returned invalid data." }, 500);
+  }
+
+  const dispatches = await Promise.all(jobIds.map(async (jobId) => {
     try {
       const workerResponse = await fetch(`${url}/functions/v1/process-exit-document`, {
         method: "POST",
@@ -69,17 +84,18 @@ Deno.serve(async (request) => {
           apikey: serviceKey,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ jobId: job_id }),
+        body: JSON.stringify({ jobId }),
       });
-      return { jobId: job_id, accepted: workerResponse.ok || workerResponse.status === 202 };
+      return { jobId, accepted: workerResponse.ok || workerResponse.status === 202 };
     } catch {
-      return { jobId: job_id, accepted: false };
+      return { jobId, accepted: false };
     }
   }));
 
   return response(request, {
     queued: requestIds.length,
+    eligible: jobIds.length,
     dispatched: dispatches.filter((dispatch) => dispatch.accepted).length,
-    dispatchPending: dispatches.filter((dispatch) => !dispatch.accepted).length,
+    dispatchPending: requestIds.length - dispatches.filter((dispatch) => dispatch.accepted).length,
   }, 202);
 });
