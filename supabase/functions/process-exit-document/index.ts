@@ -49,12 +49,21 @@ type ProviderOutcome =
   | "ACCEPTED";
 
 type ExitDocumentClaim = {
+  terminalized?: false;
   exitCaseId: string;
   exitDocumentRequestId: string;
   documentVariant: string;
-  attemptCount?: number;
+  attemptCount: number;
   leaseExpiresAt?: string | null;
   staleProcessingReclaim?: boolean;
+};
+
+type TerminalizedExitDocumentClaim = {
+  terminalized: true;
+  jobId: string;
+  jobStatus: "FAILED";
+  requestStatus: "FAILED";
+  attemptCount: number;
 };
 
 type ExitDocumentReservation = {
@@ -238,6 +247,7 @@ async function downloadIssuedPdfIfPresent(
 async function recordFailureSafely(
   admin: ReturnType<typeof createClient>,
   jobId: string,
+  claimAttemptCount: number,
   errorMessage: string,
   retryable: boolean,
   providerOutcome: ProviderOutcome,
@@ -245,9 +255,11 @@ async function recordFailureSafely(
   try {
     const { error } =
       await admin.rpc(
-        "record_exit_document_job_failure",
+        "record_exit_document_job_failure_fenced",
         {
           p_job_id: jobId,
+          p_claim_attempt_count:
+            claimAttemptCount,
           p_error_message:
             errorMessage,
           p_retryable:
@@ -279,7 +291,7 @@ async function reconcileDurableProviderState(
     await admin
       .from("automation_jobs")
       .select(
-        "job_type,job_status,provider_message_id,provider_accepted_at",
+        "job_type,job_status,attempt_count,provider_message_id,provider_accepted_at",
       )
       .eq("job_id", jobId)
       .maybeSingle();
@@ -324,12 +336,25 @@ async function reconcileDurableProviderState(
     hasProviderMessage &&
     hasProviderAcceptedAt
   ) {
+    if (
+      !Number.isInteger(
+        job.attempt_count,
+      ) ||
+      job.attempt_count < 1
+    ) {
+      throw new Error(
+        "Exit-document provider reconciliation has no valid claim attempt.",
+      );
+    }
+
     const {
       error: completionError,
     } = await admin.rpc(
-      "complete_exit_document_email",
+      "complete_exit_document_email_fenced",
       {
         p_job_id: jobId,
+        p_claim_attempt_count:
+          job.attempt_count,
         p_gmail_message_id:
           job.provider_message_id,
       },
@@ -558,6 +583,15 @@ Deno.serve(
         },
       );
 
+    let claimAttemptCount:
+      number | null = null;
+
+    let gmailInvocationStarted =
+      false;
+
+    let providerAcceptanceRecorded =
+      false;
+
     try {
       const reconciliation =
         await reconcileDurableProviderState(
@@ -584,7 +618,37 @@ Deno.serve(
       }
 
       const payload =
-        claim as ExitDocumentClaim;
+        claim as
+          | ExitDocumentClaim
+          | TerminalizedExitDocumentClaim;
+
+      if (
+        payload?.terminalized === true
+      ) {
+        if (
+          !uuid.test(payload.jobId) ||
+          payload.jobId !== jobId ||
+          payload.jobStatus !==
+            "FAILED" ||
+          payload.requestStatus !==
+            "FAILED" ||
+          !Number.isInteger(
+            payload.attemptCount,
+          ) ||
+          payload.attemptCount < 5
+        ) {
+          throw new Error(
+            "Exit-document terminal claim returned invalid data.",
+          );
+        }
+
+        return json({
+          status: "FAILED",
+          terminalized: true,
+          attemptCount:
+            payload.attemptCount,
+        });
+      }
 
       if (
         !payload ||
@@ -596,12 +660,19 @@ Deno.serve(
             .exitDocumentRequestId,
         ) ||
         typeof payload
-          .documentVariant !== "string"
+          .documentVariant !== "string" ||
+        !Number.isInteger(
+          payload.attemptCount,
+        ) ||
+        payload.attemptCount < 1
       ) {
         throw new Error(
           "Exit-document claim returned invalid data.",
         );
       }
+
+      claimAttemptCount =
+        payload.attemptCount;
 
       const template =
         getExitDocumentTemplate(
@@ -862,10 +933,12 @@ Deno.serve(
         data: reservationData,
         error: reservationError,
       } = await admin.rpc(
-        "reserve_exit_document_generation",
+        "reserve_exit_document_generation_fenced",
         {
           p_job_id:
             jobId,
+          p_claim_attempt_count:
+            claimAttemptCount,
           p_certificate_id:
             identity
               ?.certificateId ??
@@ -1165,10 +1238,12 @@ Deno.serve(
       const {
         error: driveRecordError,
       } = await admin.rpc(
-        "record_exit_document_drive_archive",
+        "record_exit_document_drive_archive_fenced",
         {
           p_job_id:
             jobId,
+          p_claim_attempt_count:
+            claimAttemptCount,
           p_drive_file_id:
             drive.fileId,
         },
@@ -1182,10 +1257,13 @@ Deno.serve(
         data: completion,
         error: generationError,
       } = await admin.rpc(
-        "complete_exit_document_generation",
+        "complete_exit_document_generation_fenced",
         {
           p_job_id:
             jobId,
+
+          p_claim_attempt_count:
+            claimAttemptCount,
 
           p_document_id:
             reservation
@@ -1225,10 +1303,12 @@ Deno.serve(
       const {
         error: emailBoundaryError,
       } = await admin.rpc(
-        "mark_exit_document_email_attempt",
+        "mark_exit_document_email_attempt_fenced",
         {
           p_job_id:
             jobId,
+          p_claim_attempt_count:
+            claimAttemptCount,
         },
       );
 
@@ -1247,6 +1327,9 @@ Deno.serve(
         { messageId: string };
 
       try {
+        gmailInvocationStarted =
+          true;
+
         gmail =
           await sendEmailWithGmailAttachment(
             candidate.email,
@@ -1282,21 +1365,21 @@ Deno.serve(
             gmailError &&
               error
                 .deliveryOutcome ===
-                "UNKNOWN"
-              ? "UNKNOWN"
-              : "NOT_STARTED";
+                "NOT_SENT"
+              ? "NOT_STARTED"
+              : "UNKNOWN";
 
         const retryable =
           providerOutcome ===
-              "UNKNOWN"
-            ? false
-            : gmailError
+              "NOT_STARTED" &&
+            gmailError
             ? error.retryable
             : false;
 
         await recordFailureSafely(
           admin,
           jobId,
+          claimAttemptCount,
           errorMessageOf(
             error,
             "Email delivery failed.",
@@ -1324,10 +1407,12 @@ Deno.serve(
         error:
           providerAcceptanceError,
       } = await admin.rpc(
-        "record_exit_document_provider_acceptance",
+        "record_exit_document_provider_acceptance_fenced",
         {
           p_job_id:
             jobId,
+          p_claim_attempt_count:
+            claimAttemptCount,
           p_gmail_message_id:
             gmail.messageId,
         },
@@ -1344,6 +1429,7 @@ Deno.serve(
         await recordFailureSafely(
           admin,
           jobId,
+          claimAttemptCount,
           errorMessageOf(
             providerAcceptanceError,
             "Gmail accepted the email but provider evidence could not be recorded.",
@@ -1363,13 +1449,18 @@ Deno.serve(
         );
       }
 
+      providerAcceptanceRecorded =
+        true;
+
       const {
         error: emailError,
       } = await admin.rpc(
-        "complete_exit_document_email",
+        "complete_exit_document_email_fenced",
         {
           p_job_id:
             jobId,
+          p_claim_attempt_count:
+            claimAttemptCount,
           p_gmail_message_id:
             gmail.messageId,
         },
@@ -1384,6 +1475,7 @@ Deno.serve(
         await recordFailureSafely(
           admin,
           jobId,
+          claimAttemptCount,
           errorMessageOf(
             emailError,
             "Email was accepted by Gmail but final database completion failed.",
@@ -1451,16 +1543,28 @@ Deno.serve(
         );
       }
 
-      await recordFailureSafely(
-        admin,
-        jobId,
-        errorMessageOf(
-          error,
-          "Document generation failed.",
-        ),
-        true,
-        "NOT_STARTED",
-      );
+      if (claimAttemptCount !== null) {
+        const providerOutcome:
+          ProviderOutcome =
+            providerAcceptanceRecorded
+              ? "ACCEPTED"
+              : gmailInvocationStarted
+              ? "UNKNOWN"
+              : "NOT_STARTED";
+
+        await recordFailureSafely(
+          admin,
+          jobId,
+          claimAttemptCount,
+          errorMessageOf(
+            error,
+            "Document generation failed.",
+          ),
+          providerOutcome ===
+            "NOT_STARTED",
+          providerOutcome,
+        );
+      }
 
       return json(
         {

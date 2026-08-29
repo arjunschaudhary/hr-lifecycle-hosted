@@ -909,19 +909,6 @@ begin
 
 
     /*
-     * Five total worker claims are allowed.
-     *
-     * A stale PROCESSING reclaim is a new worker attempt and therefore
-     * consumes another attempt from the same budget.
-     */
-    if v_job.attempt_count >= 5 then
-        raise exception using
-            errcode = 'P0001',
-            message = 'Exit-document job exhausted its automatic retry budget.';
-    end if;
-
-
-    /*
      * Revalidate immutable job payload identifiers.
      */
     begin
@@ -1012,6 +999,68 @@ begin
         and v_job.provider_message_id is null
 
         and v_job.provider_accepted_at is null;
+
+
+    /*
+     * Five total worker claims are allowed.
+     *
+     * If the fifth worker hard-crashed before Gmail, a later invocation must
+     * durably terminalize the expired safe lease instead of raising and
+     * leaving the job PROCESSING forever. Provider-uncertain work remains
+     * fail-closed and is never terminalized through this generic branch.
+     */
+    if v_job.attempt_count >= 5 then
+
+        if v_request.email_attempted_at is null
+           and v_job.provider_message_id is null
+           and v_job.provider_accepted_at is null
+           and (
+                (
+                    v_job.job_status in ('PENDING', 'RETRY')
+                    and v_request.status in ('REQUESTED', 'FAILED')
+                )
+                or
+                (
+                    v_is_stale_processing
+                    and v_request.status = 'PROCESSING'
+                )
+           ) then
+
+            update public.automation_jobs
+            set
+                job_status = 'FAILED',
+                error_message =
+                    'Exit-document job exhausted its automatic retry budget after a safe pre-email worker failure.',
+                completed_at = v_now,
+                exit_document_processing_lease_expires_at = null,
+                updated_at = v_now
+            where job_id = v_job.job_id
+            returning * into v_job;
+
+            update public.exit_document_requests
+            set
+                status = 'FAILED',
+                error_message =
+                    'Exit-document job exhausted its automatic retry budget after a safe pre-email worker failure.',
+                email_attempted_at = null
+            where request_id = v_request.request_id
+            returning * into v_request;
+
+            return pg_catalog.jsonb_build_object(
+                'terminalized', true,
+                'jobId', v_job.job_id,
+                'jobStatus', v_job.job_status,
+                'requestStatus', v_request.status,
+                'attemptCount', v_job.attempt_count
+            );
+
+        end if;
+
+        raise exception using
+            errcode = 'P0001',
+            message = 'Exit-document job exhausted its automatic retry budget or requires reconciliation.';
+
+    end if;
 
 
     if v_job.job_status = 'PROCESSING'
@@ -1836,6 +1885,450 @@ end;
 $function$;
 
 
+/*
+ * Claim-attempt-fenced worker API.
+ *
+ * The legacy signatures above and the existing generation/email finalizers
+ * remain available during the migration-first -> worker-second rollout.
+ * The new worker uses only these fenced entry points after a claim. Each
+ * wrapper verifies the current attempt under the same advisory transaction
+ * lock and automation_jobs row lock as the delegated mutation.
+ */
+
+create or replace function public.reserve_exit_document_generation_fenced(
+    p_job_id uuid,
+    p_claim_attempt_count integer,
+    p_certificate_id text default null,
+    p_certificate_verification_url text default null
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, auth, pg_temp
+as $function$
+declare
+    v_job public.automation_jobs%rowtype;
+begin
+    if auth.role() is distinct from 'service_role' then
+        raise exception using
+            errcode = '42501',
+            message = 'Service-role worker access is required.';
+    end if;
+
+    if p_job_id is null
+       or p_claim_attempt_count is null
+       or p_claim_attempt_count < 1 then
+        raise exception using
+            errcode = '22023',
+            message = 'Job ID and claim attempt count are required.';
+    end if;
+
+    perform pg_catalog.pg_advisory_xact_lock(
+        pg_catalog.hashtextextended('exit-document-job:' || p_job_id::text, 0)
+    );
+
+    select aj.*
+    into v_job
+    from public.automation_jobs aj
+    where aj.job_id = p_job_id
+    for update;
+
+    if v_job.job_id is null
+       or v_job.job_type is distinct from 'EXIT_DOCUMENT'
+       or v_job.job_status is distinct from 'PROCESSING' then
+        raise exception using
+            errcode = 'P0001',
+            message = 'Exit-document job is not being processed.';
+    end if;
+
+    if v_job.attempt_count is distinct from p_claim_attempt_count then
+        raise exception using
+            errcode = 'P0001',
+            message = 'Exit-document claim attempt is stale.';
+    end if;
+
+    return public.reserve_exit_document_generation(
+        p_job_id,
+        p_certificate_id,
+        p_certificate_verification_url
+    );
+end;
+$function$;
+
+
+create or replace function public.record_exit_document_drive_archive_fenced(
+    p_job_id uuid,
+    p_claim_attempt_count integer,
+    p_drive_file_id text
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, auth, pg_temp
+as $function$
+declare
+    v_job public.automation_jobs%rowtype;
+begin
+    if auth.role() is distinct from 'service_role' then
+        raise exception using
+            errcode = '42501',
+            message = 'Service-role worker access is required.';
+    end if;
+
+    if p_job_id is null
+       or p_claim_attempt_count is null
+       or p_claim_attempt_count < 1 then
+        raise exception using
+            errcode = '22023',
+            message = 'Job ID and claim attempt count are required.';
+    end if;
+
+    perform pg_catalog.pg_advisory_xact_lock(
+        pg_catalog.hashtextextended('exit-document-job:' || p_job_id::text, 0)
+    );
+
+    select aj.*
+    into v_job
+    from public.automation_jobs aj
+    where aj.job_id = p_job_id
+    for update;
+
+    if v_job.job_id is null
+       or v_job.job_type is distinct from 'EXIT_DOCUMENT'
+       or v_job.job_status is distinct from 'PROCESSING' then
+        raise exception using
+            errcode = 'P0001',
+            message = 'Exit-document job is not being processed.';
+    end if;
+
+    if v_job.attempt_count is distinct from p_claim_attempt_count then
+        raise exception using
+            errcode = 'P0001',
+            message = 'Exit-document claim attempt is stale.';
+    end if;
+
+    return public.record_exit_document_drive_archive(
+        p_job_id,
+        p_drive_file_id
+    );
+end;
+$function$;
+
+
+create or replace function public.complete_exit_document_generation_fenced(
+    p_job_id uuid,
+    p_claim_attempt_count integer,
+    p_document_id uuid,
+    p_storage_path text,
+    p_bucket_id text,
+    p_template_key text,
+    p_template_version text,
+    p_certificate_id text default null,
+    p_certificate_verification_url text default null
+)
+returns table (
+    document_id uuid,
+    candidate_id uuid,
+    candidate_email text,
+    document_variant text
+)
+language plpgsql
+security definer
+set search_path = public, auth, pg_temp
+as $function$
+declare
+    v_job public.automation_jobs%rowtype;
+begin
+    if auth.role() is distinct from 'service_role' then
+        raise exception using
+            errcode = '42501',
+            message = 'Service-role worker access is required.';
+    end if;
+
+    if p_job_id is null
+       or p_claim_attempt_count is null
+       or p_claim_attempt_count < 1 then
+        raise exception using
+            errcode = '22023',
+            message = 'Job ID and claim attempt count are required.';
+    end if;
+
+    perform pg_catalog.pg_advisory_xact_lock(
+        pg_catalog.hashtextextended('exit-document-job:' || p_job_id::text, 0)
+    );
+
+    select aj.*
+    into v_job
+    from public.automation_jobs aj
+    where aj.job_id = p_job_id
+    for update;
+
+    if v_job.job_id is null
+       or v_job.job_type is distinct from 'EXIT_DOCUMENT'
+       or v_job.job_status is distinct from 'PROCESSING' then
+        raise exception using
+            errcode = 'P0001',
+            message = 'Exit-document job is not being processed.';
+    end if;
+
+    if v_job.attempt_count is distinct from p_claim_attempt_count then
+        raise exception using
+            errcode = 'P0001',
+            message = 'Exit-document claim attempt is stale.';
+    end if;
+
+    return query
+    select *
+    from public.complete_exit_document_generation(
+        p_job_id,
+        p_document_id,
+        p_storage_path,
+        p_bucket_id,
+        p_template_key,
+        p_template_version,
+        p_certificate_id,
+        p_certificate_verification_url
+    );
+end;
+$function$;
+
+
+create or replace function public.mark_exit_document_email_attempt_fenced(
+    p_job_id uuid,
+    p_claim_attempt_count integer
+)
+returns timestamptz
+language plpgsql
+security definer
+set search_path = public, auth, pg_temp
+as $function$
+declare
+    v_job public.automation_jobs%rowtype;
+begin
+    if auth.role() is distinct from 'service_role' then
+        raise exception using
+            errcode = '42501',
+            message = 'Service-role worker access is required.';
+    end if;
+
+    if p_job_id is null
+       or p_claim_attempt_count is null
+       or p_claim_attempt_count < 1 then
+        raise exception using
+            errcode = '22023',
+            message = 'Job ID and claim attempt count are required.';
+    end if;
+
+    perform pg_catalog.pg_advisory_xact_lock(
+        pg_catalog.hashtextextended('exit-document-job:' || p_job_id::text, 0)
+    );
+
+    select aj.*
+    into v_job
+    from public.automation_jobs aj
+    where aj.job_id = p_job_id
+    for update;
+
+    if v_job.job_id is null
+       or v_job.job_type is distinct from 'EXIT_DOCUMENT'
+       or v_job.job_status is distinct from 'PROCESSING' then
+        raise exception using
+            errcode = 'P0001',
+            message = 'Exit-document job is not being processed.';
+    end if;
+
+    if v_job.attempt_count is distinct from p_claim_attempt_count then
+        raise exception using
+            errcode = 'P0001',
+            message = 'Exit-document claim attempt is stale.';
+    end if;
+
+    return public.mark_exit_document_email_attempt(p_job_id);
+end;
+$function$;
+
+
+create or replace function public.record_exit_document_provider_acceptance_fenced(
+    p_job_id uuid,
+    p_claim_attempt_count integer,
+    p_gmail_message_id text
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, auth, pg_temp
+as $function$
+declare
+    v_job public.automation_jobs%rowtype;
+begin
+    if auth.role() is distinct from 'service_role' then
+        raise exception using
+            errcode = '42501',
+            message = 'Service-role worker access is required.';
+    end if;
+
+    if p_job_id is null
+       or p_claim_attempt_count is null
+       or p_claim_attempt_count < 1 then
+        raise exception using
+            errcode = '22023',
+            message = 'Job ID and claim attempt count are required.';
+    end if;
+
+    perform pg_catalog.pg_advisory_xact_lock(
+        pg_catalog.hashtextextended('exit-document-job:' || p_job_id::text, 0)
+    );
+
+    select aj.*
+    into v_job
+    from public.automation_jobs aj
+    where aj.job_id = p_job_id
+    for update;
+
+    if v_job.job_id is null
+       or v_job.job_type is distinct from 'EXIT_DOCUMENT'
+       or v_job.job_status is distinct from 'PROCESSING' then
+        raise exception using
+            errcode = 'P0001',
+            message = 'Exit-document job is not being processed.';
+    end if;
+
+    if v_job.attempt_count is distinct from p_claim_attempt_count then
+        raise exception using
+            errcode = 'P0001',
+            message = 'Exit-document claim attempt is stale.';
+    end if;
+
+    return public.record_exit_document_provider_acceptance(
+        p_job_id,
+        p_gmail_message_id
+    );
+end;
+$function$;
+
+
+create or replace function public.complete_exit_document_email_fenced(
+    p_job_id uuid,
+    p_claim_attempt_count integer,
+    p_gmail_message_id text
+)
+returns void
+language plpgsql
+security definer
+set search_path = public, auth, pg_temp
+as $function$
+declare
+    v_job public.automation_jobs%rowtype;
+begin
+    if auth.role() is distinct from 'service_role' then
+        raise exception using
+            errcode = '42501',
+            message = 'Service-role worker access is required.';
+    end if;
+
+    if p_job_id is null
+       or p_claim_attempt_count is null
+       or p_claim_attempt_count < 1 then
+        raise exception using
+            errcode = '22023',
+            message = 'Job ID and claim attempt count are required.';
+    end if;
+
+    perform pg_catalog.pg_advisory_xact_lock(
+        pg_catalog.hashtextextended('exit-document-job:' || p_job_id::text, 0)
+    );
+
+    select aj.*
+    into v_job
+    from public.automation_jobs aj
+    where aj.job_id = p_job_id
+    for update;
+
+    if v_job.job_id is null
+       or v_job.job_type is distinct from 'EXIT_DOCUMENT'
+       or v_job.job_status is distinct from 'PROCESSING' then
+        raise exception using
+            errcode = 'P0001',
+            message = 'Exit-document job is not being processed.';
+    end if;
+
+    if v_job.attempt_count is distinct from p_claim_attempt_count then
+        raise exception using
+            errcode = 'P0001',
+            message = 'Exit-document claim attempt is stale.';
+    end if;
+
+    perform public.complete_exit_document_email(
+        p_job_id,
+        p_gmail_message_id
+    );
+end;
+$function$;
+
+
+create or replace function public.record_exit_document_job_failure_fenced(
+    p_job_id uuid,
+    p_claim_attempt_count integer,
+    p_error_message text,
+    p_retryable boolean,
+    p_provider_outcome text default 'NOT_STARTED'
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, auth, pg_temp
+as $function$
+declare
+    v_job public.automation_jobs%rowtype;
+begin
+    if auth.role() is distinct from 'service_role' then
+        raise exception using
+            errcode = '42501',
+            message = 'Service-role worker access is required.';
+    end if;
+
+    if p_job_id is null
+       or p_claim_attempt_count is null
+       or p_claim_attempt_count < 1 then
+        raise exception using
+            errcode = '22023',
+            message = 'Job ID and claim attempt count are required.';
+    end if;
+
+    perform pg_catalog.pg_advisory_xact_lock(
+        pg_catalog.hashtextextended('exit-document-job:' || p_job_id::text, 0)
+    );
+
+    select aj.*
+    into v_job
+    from public.automation_jobs aj
+    where aj.job_id = p_job_id
+    for update;
+
+    if v_job.job_id is null
+       or v_job.job_type is distinct from 'EXIT_DOCUMENT'
+       or v_job.job_status is distinct from 'PROCESSING' then
+        raise exception using
+            errcode = 'P0001',
+            message = 'Exit-document job is not being processed.';
+    end if;
+
+    if v_job.attempt_count is distinct from p_claim_attempt_count then
+        raise exception using
+            errcode = 'P0001',
+            message = 'Exit-document claim attempt is stale.';
+    end if;
+
+    return public.record_exit_document_job_failure(
+        p_job_id,
+        p_error_message,
+        p_retryable,
+        p_provider_outcome
+    );
+end;
+$function$;
+
+
 
 revoke all privileges
     on function public.record_exit_document_drive_archive(uuid, text)
@@ -1873,5 +2366,84 @@ comment on function public.mark_exit_document_email_attempt(uuid) is
 
 comment on function public.record_exit_document_provider_acceptance(uuid, text) is
     'Durably records Gmail provider acceptance and removes the processing lease before final email completion.';
+
+
+revoke all privileges
+    on function public.reserve_exit_document_generation_fenced(uuid, integer, text, text)
+    from public, anon, authenticated;
+
+grant execute
+    on function public.reserve_exit_document_generation_fenced(uuid, integer, text, text)
+    to service_role;
+
+revoke all privileges
+    on function public.record_exit_document_drive_archive_fenced(uuid, integer, text)
+    from public, anon, authenticated;
+
+grant execute
+    on function public.record_exit_document_drive_archive_fenced(uuid, integer, text)
+    to service_role;
+
+revoke all privileges
+    on function public.complete_exit_document_generation_fenced(uuid, integer, uuid, text, text, text, text, text, text)
+    from public, anon, authenticated;
+
+grant execute
+    on function public.complete_exit_document_generation_fenced(uuid, integer, uuid, text, text, text, text, text, text)
+    to service_role;
+
+revoke all privileges
+    on function public.mark_exit_document_email_attempt_fenced(uuid, integer)
+    from public, anon, authenticated;
+
+grant execute
+    on function public.mark_exit_document_email_attempt_fenced(uuid, integer)
+    to service_role;
+
+revoke all privileges
+    on function public.record_exit_document_provider_acceptance_fenced(uuid, integer, text)
+    from public, anon, authenticated;
+
+grant execute
+    on function public.record_exit_document_provider_acceptance_fenced(uuid, integer, text)
+    to service_role;
+
+revoke all privileges
+    on function public.complete_exit_document_email_fenced(uuid, integer, text)
+    from public, anon, authenticated;
+
+grant execute
+    on function public.complete_exit_document_email_fenced(uuid, integer, text)
+    to service_role;
+
+revoke all privileges
+    on function public.record_exit_document_job_failure_fenced(uuid, integer, text, boolean, text)
+    from public, anon, authenticated;
+
+grant execute
+    on function public.record_exit_document_job_failure_fenced(uuid, integer, text, boolean, text)
+    to service_role;
+
+
+comment on function public.reserve_exit_document_generation_fenced(uuid, integer, text, text) is
+    'Reserves stable Exit-document identity only for the currently claimed worker attempt.';
+
+comment on function public.record_exit_document_drive_archive_fenced(uuid, integer, text) is
+    'Records immutable Drive evidence only for the currently claimed Exit-document worker attempt.';
+
+comment on function public.complete_exit_document_generation_fenced(uuid, integer, uuid, text, text, text, text, text, text) is
+    'Finalizes Exit-document generation only for the currently claimed worker attempt.';
+
+comment on function public.mark_exit_document_email_attempt_fenced(uuid, integer) is
+    'Crosses the Gmail send boundary only for the currently claimed Exit-document worker attempt.';
+
+comment on function public.record_exit_document_provider_acceptance_fenced(uuid, integer, text) is
+    'Records Gmail provider acceptance only for the currently claimed Exit-document worker attempt.';
+
+comment on function public.complete_exit_document_email_fenced(uuid, integer, text) is
+    'Completes Exit-document email state only for the currently claimed worker attempt.';
+
+comment on function public.record_exit_document_job_failure_fenced(uuid, integer, text, boolean, text) is
+    'Records Exit-document failure recovery only for the currently claimed worker attempt.';
 
 commit;
