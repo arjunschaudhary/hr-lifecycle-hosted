@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 
 import { getHrReviewTasks } from "../services/hrReviewService";
+import { useAuth } from "../context/authContext";
 
 const DATE_FORMATTER = new Intl.DateTimeFormat("en-IN", {
   day: "numeric",
@@ -122,6 +123,7 @@ const TaskAction = ({ task }) => {
 };
 
 const HrReviewQueue = () => {
+  const { candidateId: currentCandidateId } = useAuth();
   const [tasks, setTasks] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [pageError, setPageError] = useState("");
@@ -146,7 +148,11 @@ const HrReviewQueue = () => {
         const nextTasks = await getHrReviewTasks();
 
         if (isMounted) {
-          setTasks(nextTasks);
+          setTasks(
+            nextTasks.filter(
+              (task) => task.candidateId !== currentCandidateId,
+            ),
+          );
         }
       } catch {
         if (isMounted) {
@@ -164,7 +170,7 @@ const HrReviewQueue = () => {
     return () => {
       isMounted = false;
     };
-  }, [retryRequestId]);
+  }, [currentCandidateId, retryRequestId]);
 
   const metrics = useMemo(
     () => ({

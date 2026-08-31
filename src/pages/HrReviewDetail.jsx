@@ -8,6 +8,7 @@ import {
 } from "../services/hrReviewService";
 import { fetchCandidatePerformanceList } from "../services/performanceDashboardService";
 import { saveCandidateExceptionalScore } from "../services/performanceResultService";
+import { useAuth } from "../context/authContext";
 
 const EMPTY_VALUE = "—";
 const SCORE_FIELDS = [
@@ -155,6 +156,7 @@ const ScoreSelect = ({ id, label, value, disabled, onChange }) => (
 
 const HrReviewDetail = () => {
   const { candidateCycleId } = useParams();
+  const { candidateId: currentCandidateId } = useAuth();
   const [detail, setDetail] = useState(null);
   const [form, setForm] = useState(EMPTY_FORM);
   const [isLoading, setIsLoading] = useState(true);
@@ -257,7 +259,10 @@ const HrReviewDetail = () => {
     };
   }, [candidateCycleId, retryRequestId]);
 
-  const isEditable = detail?.canEdit === true;
+  const isSelfEvaluation = Boolean(
+    detail && detail.candidateId === currentCandidateId,
+  );
+  const isEditable = detail?.canEdit === true && !isSelfEvaluation;
   const isAmendment = Boolean(
     isEditable && detail?.reviewStatus === "SUBMITTED",
   );
@@ -447,8 +452,9 @@ const HrReviewDetail = () => {
     }
   };
 
-  const readOnlyMessage =
-    detail?.editReason || "HR Review editing is not available for this cycle.";
+  const readOnlyMessage = isSelfEvaluation
+    ? "You cannot award HR Review points to yourself."
+    : detail?.editReason || "HR Review editing is not available for this cycle.";
   const isFormDisabled =
     !isEditable || isSaving || isRefreshing || Boolean(refreshError);
   const performanceResultStatus =
@@ -457,12 +463,15 @@ const HrReviewDetail = () => {
   const exceptionalCanEdit = Boolean(
     detail &&
       performanceRecord &&
+      !isSelfEvaluation &&
       detail.dailyScoringComplete &&
       detail.reviewIsOpen &&
       !CLOSED_CYCLE_STATUSES.has(detail.cycleStatus) &&
       !TERMINAL_RESULT_STATUSES.has(performanceResultStatus),
   );
-  const exceptionalReadOnlyMessage = isNotEvaluated
+  const exceptionalReadOnlyMessage = isSelfEvaluation
+    ? "You cannot award Exceptional points to yourself."
+    : isNotEvaluated
     ? "Not Evaluated — No eligible working days."
     : TERMINAL_RESULT_STATUSES.has(performanceResultStatus)
       ? "Exceptional Score is read-only because this result is final."

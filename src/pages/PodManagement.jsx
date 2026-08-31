@@ -483,10 +483,31 @@ export default function PodManagement() {
     setForm((current) => ({ ...current, userId: "" }));
   };
 
+  const selectedAssignmentCandidate = useMemo(
+    () => [...waitingCandidates, ...searchResults].find(
+      (candidate) => candidate.candidateId === form.candidateId,
+    ) || modalContext,
+    [form.candidateId, modalContext, searchResults, waitingCandidates],
+  );
+
   const handleSubmit = async (event) => {
     event.preventDefault();
     if (inFlightRef.current) {
       return;
+    }
+    if (modalMode === "assignCandidate") {
+      if (selectedAssignmentCandidate?.podAssignmentBlockReason === "PROBATION_REJECTED") {
+        setModalError(
+          "Probation-rejected candidates cannot be assigned to a pod.",
+        );
+        return;
+      }
+      if (selectedAssignmentCandidate?.podAssignmentBlockReason === "EXIT_STARTED") {
+        setModalError(
+          "Candidates with an initiated Exit process cannot be assigned to a pod.",
+        );
+        return;
+      }
     }
     if (modalMode === "assignLead" && form.leadType === "TECH_LEAD") {
       if (modalContext?.appliedRole === "HR Psyconnect Intern") {
@@ -604,13 +625,6 @@ export default function PodManagement() {
     }
   };
 
-  const selectedAssignmentCandidate = useMemo(
-    () => [...waitingCandidates, ...searchResults].find(
-      (candidate) => candidate.candidateId === form.candidateId,
-    ) || modalContext,
-    [form.candidateId, modalContext, searchResults, waitingCandidates],
-  );
-
   const lateEffectiveDate =
     modalMode === "assignCandidate" &&
     selectedAssignmentCandidate?.requiredEvaluationStartDate &&
@@ -634,6 +648,15 @@ export default function PodManagement() {
       !form.effectiveFrom ||
       !["POD_LEAD", "TECH_LEAD"].includes(form.leadType) ||
       isKnownInvalidProjectManagerAssignment
+    );
+
+  const isCandidateFormInvalid =
+    modalMode === "assignCandidate" &&
+    (
+      !form.candidateId ||
+      !form.podId ||
+      !form.effectiveFrom ||
+      Boolean(selectedAssignmentCandidate?.podAssignmentBlockReason)
     );
 
   const renderMembershipRows = (records, allowEnd) => {
@@ -1005,10 +1028,18 @@ export default function PodManagement() {
                             : !candidate.activePodId
                               ? "The candidate must already be active in a pod before Project Manager assignment."
                               : "";
+                      const podAssignmentEligibilityMessage =
+                        candidate.podAssignmentBlockReason === "PROBATION_REJECTED"
+                          ? "Probation-rejected candidates cannot be assigned to a pod."
+                          : candidate.podAssignmentBlockReason === "EXIT_STARTED"
+                            ? "Candidates with an initiated Exit process cannot be assigned to a pod."
+                            : "";
                       const leadRequirementId =
                         `lead-portal-requirement-${candidate.candidateId}`;
                       const projectManagerRequirementId =
                         `project-manager-requirement-${candidate.candidateId}`;
+                      const podAssignmentRequirementId =
+                        `pod-assignment-requirement-${candidate.candidateId}`;
 
                       return (
                         <tr key={candidate.candidateId}>
@@ -1046,6 +1077,13 @@ export default function PodManagement() {
                               <button
                                 className="btn btn-primary"
                                 type="button"
+                                disabled={Boolean(podAssignmentEligibilityMessage)}
+                                aria-describedby={
+                                  podAssignmentEligibilityMessage
+                                    ? podAssignmentRequirementId
+                                    : undefined
+                                }
+                                title={podAssignmentEligibilityMessage || undefined}
                                 onClick={() =>
                                   openModal("assignCandidate", candidate)
                                 }
@@ -1103,6 +1141,14 @@ export default function PodManagement() {
                                 Assign Project Manager
                               </button>
                             </div>
+                            {podAssignmentEligibilityMessage && (
+                              <span
+                                id={podAssignmentRequirementId}
+                                className="pod-secondary-text"
+                              >
+                                {podAssignmentEligibilityMessage}
+                              </span>
+                            )}
                             {!hasActivePortalAccount && (
                               <span
                                 id={leadRequirementId}
@@ -1616,6 +1662,7 @@ export default function PodManagement() {
                   type="submit"
                   disabled={
                     isSubmitting ||
+                    isCandidateFormInvalid ||
                     isLeadFormInvalid ||
                     (modalMode === "assignHrReviewer" &&
                       (!form.userId ||

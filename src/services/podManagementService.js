@@ -48,6 +48,7 @@ const CANDIDATE_COLUMNS = [
   "active_pod_id",
   "active_pod_code",
   "portal_account_status",
+  "pod_assignment_block_reason",
 ];
 
 const WAITING_COLUMNS = [
@@ -104,6 +105,8 @@ const SAFE_FUNCTION_MESSAGES = new Set([
   "Candidate already has an active membership in this pod.",
   "Transfer date must be after the current membership start date.",
   "Candidate pod membership dates overlap an existing membership.",
+  "Probation-rejected candidates cannot be assigned to a pod.",
+  "Candidates with an initiated Exit process cannot be assigned to a pod.",
   "Candidate, pod, lead type, and effective date are required.",
   "Lead type must be POD_LEAD or TECH_LEAD.",
   "Candidate was not found.",
@@ -256,7 +259,8 @@ function mapCandidate(row) {
     !isNullableString(row.lifecycle_status) ||
     !isNullableUuid(row.active_pod_id) ||
     !isNullableString(row.active_pod_code) ||
-    !isNullableString(row.portal_account_status)
+    !isNullableString(row.portal_account_status) ||
+    !isNullableString(row.pod_assignment_block_reason)
   ) {
     throw new Error(SAFE_READ_ERROR);
   }
@@ -271,6 +275,7 @@ function mapCandidate(row) {
     activePodId: row.active_pod_id,
     activePodCode: row.active_pod_code,
     portalAccountStatus: row.portal_account_status,
+    podAssignmentBlockReason: row.pod_assignment_block_reason,
   };
 }
 

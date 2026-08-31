@@ -139,6 +139,7 @@ const PerformanceDashboard = () => {
     hasHrReviewAccess,
     hasStaffAccess,
     hasLeadReviewAccess,
+    candidateId: currentCandidateId,
   } = useAuth();
   const [cycles, setCycles] = useState([]);
   const [candidateRecords, setCandidateRecords] = useState([]);
@@ -275,8 +276,12 @@ const PerformanceDashboard = () => {
   );
 
   const selectedCycleActionItems = useMemo(
-    () => actionItems.filter((item) => item.cycleId === selectedCycleId),
-    [actionItems, selectedCycleId],
+    () => actionItems.filter(
+      (item) =>
+        item.cycleId === selectedCycleId &&
+        item.candidateId !== currentCandidateId,
+    ),
+    [actionItems, currentCandidateId, selectedCycleId],
   );
 
   const podOptions = useMemo(() => {
@@ -720,7 +725,11 @@ const PerformanceDashboard = () => {
                         </td>
                         <td>
                           <div className="action-group">
-                            {record.resultStatus !== "NOT_EVALUATED" && (
+                            {record.candidateId === currentCandidateId ? (
+                              <span className="pod-secondary-text">
+                                Self evaluation unavailable
+                              </span>
+                            ) : record.resultStatus !== "NOT_EVALUATED" && (
                               <Link
                                 to={`/performance-dashboard/${record.candidateCycleId}/daily`}
                                 className="btn btn-primary"
@@ -728,7 +737,8 @@ const PerformanceDashboard = () => {
                                 Open Daily Entries
                               </Link>
                             )}
-                            {hasPerformanceFinalizationAccess &&
+                            {record.candidateId !== currentCandidateId &&
+                              hasPerformanceFinalizationAccess &&
                               record.resultStatus === "CANDIDATE_REVIEW" && (
                                 <button
                                   className="btn"

@@ -54,6 +54,7 @@ const POD_MANAGEMENT_ROLE_SLUGS = [
 ];
 
 const CERTIFICATE_LOR_ROLE_SLUGS = ["HR_SITE_CONNECT_LEAD"];
+const INTERNSHIP_EXTENSION_ROLE_SLUG = "HR_SITE_CONNECT_LEAD";
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -73,6 +74,7 @@ const INITIAL_AUTH_STATE = {
   hasLeadReviewAccess: false,
   hasPodManagementAccess: false,
   hasCertificateLorAccess: false,
+  hasInternshipExtensionAccess: false,
   hasCandidateRole: false,
   candidateId: null,
   hasCandidateAccess: false,
@@ -130,6 +132,7 @@ export function AuthProvider({ children }) {
           hasLeadReviewAccess: false,
           hasPodManagementAccess: false,
           hasCertificateLorAccess: false,
+          hasInternshipExtensionAccess: false,
           hasCandidateRole: false,
           candidateId: null,
           hasCandidateAccess: false,
@@ -159,6 +162,7 @@ export function AuthProvider({ children }) {
         hasLeadReviewAccess: false,
         hasPodManagementAccess: false,
         hasCertificateLorAccess: false,
+        hasInternshipExtensionAccess: false,
         hasCandidateRole: false,
         candidateId: null,
         hasCandidateAccess: false,
@@ -177,6 +181,7 @@ export function AuthProvider({ children }) {
           leadReviewRoleResult,
           podManagementRoleResult,
           certificateLorRoleResult,
+          internshipExtensionRoleResult,
           candidateRoleResult,
           candidateIdResult,
         ] = await Promise.all([
@@ -203,6 +208,9 @@ export function AuthProvider({ children }) {
             p_role_slugs: CERTIFICATE_LOR_ROLE_SLUGS,
           }),
           supabase.rpc("current_user_has_role", {
+            p_role_slug: INTERNSHIP_EXTENSION_ROLE_SLUG,
+          }),
+          supabase.rpc("current_user_has_role", {
             p_role_slug: "CANDIDATE",
           }),
           supabase.rpc("current_candidate_id"),
@@ -217,6 +225,7 @@ export function AuthProvider({ children }) {
           leadReviewRoleResult.error ||
           podManagementRoleResult.error ||
           certificateLorRoleResult.error ||
+          internshipExtensionRoleResult.error ||
           candidateRoleResult.error ||
           candidateIdResult.error
         ) {
@@ -242,6 +251,8 @@ export function AuthProvider({ children }) {
             isActiveAppUser && podManagementRoleResult.data === true,
           hasCertificateLorAccess:
             isActiveAppUser && certificateLorRoleResult.data === true,
+          hasInternshipExtensionAccess:
+            isActiveAppUser && internshipExtensionRoleResult.data === true,
           hasCandidateRole,
           candidateId,
           hasCandidateAccess: isActiveAppUser && hasCandidateRole && Boolean(candidateId),
@@ -257,6 +268,7 @@ export function AuthProvider({ children }) {
           hasLeadReviewAccess: false,
           hasPodManagementAccess: false,
           hasCertificateLorAccess: false,
+          hasInternshipExtensionAccess: false,
           hasCandidateRole: false,
           candidateId: null,
           hasCandidateAccess: false,
@@ -274,6 +286,7 @@ export function AuthProvider({ children }) {
           hasLeadReviewAccess: false,
           hasPodManagementAccess: false,
           hasCertificateLorAccess: false,
+          hasInternshipExtensionAccess: false,
           hasCandidateRole: false,
           candidateId: null,
           hasCandidateAccess: false,

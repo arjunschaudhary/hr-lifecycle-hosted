@@ -165,6 +165,7 @@ const DailyPerformanceMarking = () => {
   const {
     hasPerformanceDashboardAccess,
     hasPerformanceMarkingAccess,
+    candidateId: currentCandidateId,
   } = useAuth();
   const [rows, setRows] = useState([]);
   const [drafts, setDrafts] = useState({});
@@ -249,6 +250,7 @@ const DailyPerformanceMarking = () => {
         : ((dailyAverage + 10) / 20) * 50;
 
     return {
+      candidateId: firstRow.candidateId,
       fullName: firstRow.fullName,
       cycleCode: firstRow.cycleCode,
       cycleStatus: firstRow.cycleStatus,
@@ -277,6 +279,7 @@ const DailyPerformanceMarking = () => {
   );
   const canEdit =
     hasPerformanceMarkingAccess &&
+    summary?.candidateId !== currentCandidateId &&
     !isProtectedCycle &&
     !isProtectedResult;
 
@@ -462,6 +465,13 @@ const DailyPerformanceMarking = () => {
             <p className="info-banner" role="status" aria-live="polite">
               Daily performance can no longer be changed for this result
               status.
+            </p>
+          )}
+
+          {summary?.candidateId === currentCandidateId && (
+            <p className="info-banner" role="status" aria-live="polite">
+              You cannot award Daily Performance points to yourself. These
+              entries are read-only.
             </p>
           )}
 

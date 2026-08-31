@@ -8,7 +8,6 @@ import {
   BriefcaseBusiness,
   Upload,
   BadgeCheck,
-  History,
   Users,
   Clock3,
   Search,
@@ -54,6 +53,7 @@ export default function HRDashboard() {
     hasHrReviewAccess,
     hasPodManagementAccess,
     hasCertificateLorAccess,
+    hasInternshipExtensionAccess,
   } = useAuth();
 
   const [counts, setCounts] = useState(EMPTY_DASHBOARD_COUNTS);
@@ -173,11 +173,6 @@ export default function HRDashboard() {
       label: "Offer Verification",
       icon: <BadgeCheck size={18} />,
     },
-    {
-      path: "/activity-log",
-      label: "Activity Logs",
-      icon: <History size={18} />,
-    },
     ...(hasPerformanceDashboardAccess
       ? [
           {
@@ -213,11 +208,15 @@ export default function HRDashboard() {
       label: "Leave Application",
       path: "/leave-application",
     },
-    {
-      label: "Internship Extension",
-      path: "/internship-extension",
-      icon: <CalendarClock size={18} />,
-    },
+    ...(hasInternshipExtensionAccess
+      ? [
+          {
+            label: "Internship Extension",
+            path: "/internship-extension",
+            icon: <CalendarClock size={18} />,
+          },
+        ]
+      : []),
   ];
 
   return (

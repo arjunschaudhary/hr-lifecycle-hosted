@@ -46,6 +46,17 @@ function CertificateLorRoute() {
   );
 }
 
+function InternshipExtensionRoute() {
+  const { hasInternshipExtensionAccess } = useAuth();
+
+  return (
+    <ProtectedRoute
+      requiredAccess={hasInternshipExtensionAccess}
+      accessLabel="Internship Extension module"
+    />
+  );
+}
+
 function App() {
   return (
     <BrowserRouter>
@@ -96,7 +107,6 @@ function App() {
           <Route path="/activity-log" element={<ActivityLog />} />
           <Route path="/leave-dashboard" element={<LeaveDashboard />} />
           <Route path="/leave-application" element={<LeaveApplication />} />
-          <Route path="/internship-extension" element={<InternshipExtension />} />
           <Route
             path="/performance/hr-review"
             element={<HrReviewQueue />}
@@ -108,6 +118,9 @@ function App() {
         </Route>
         <Route element={<CertificateLorRoute />}>
           <Route path="/certificate-lor" element={<CertificateLor />} />
+        </Route>
+        <Route element={<InternshipExtensionRoute />}>
+          <Route path="/internship-extension" element={<InternshipExtension />} />
         </Route>
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>

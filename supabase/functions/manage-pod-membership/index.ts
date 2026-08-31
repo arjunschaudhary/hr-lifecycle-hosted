@@ -37,6 +37,8 @@ const SAFE_DATABASE_MESSAGES = new Set([
   "Candidate already has an active membership in this pod.",
   "Transfer date must be after the current membership start date.",
   "Candidate pod membership dates overlap an existing membership.",
+  "Probation-rejected candidates cannot be assigned to a pod.",
+  "Candidates with an initiated Exit process cannot be assigned to a pod.",
   "Candidate, pod, lead type, and effective date are required.",
   "Lead type must be POD_LEAD or TECH_LEAD.",
   "Candidate was not found.",
