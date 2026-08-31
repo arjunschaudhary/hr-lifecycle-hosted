@@ -423,6 +423,11 @@ entrypoint = "./functions/create-candidate-portal-account/index.ts"
 # For example, if you want to serve static HTML pages in your function:
 # static_files = [ "./functions/create-candidate-portal-account/*.html" ]
 
+[functions.request-password-reset]
+verify_jwt = false
+import_map = "./functions/request-password-reset/deno.json"
+entrypoint = "./functions/request-password-reset/index.ts"
+
 [functions.mark-candidate-in-probation]
 verify_jwt = false
 entrypoint = "./functions/mark-candidate-in-probation/index.ts"

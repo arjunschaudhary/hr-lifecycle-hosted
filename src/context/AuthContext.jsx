@@ -411,15 +411,21 @@ export function AuthProvider({ children }) {
   );
 
   const requestPasswordReset = useCallback(async (email) => {
-    const { data, error } = await supabase.auth.resetPasswordForEmail(
-      email.trim(),
+    const normalizedEmail = String(email || "").trim().toLowerCase();
+    const { data, error } = await supabase.functions.invoke(
+      "request-password-reset",
       {
-        redirectTo: `${window.location.origin}/reset-password`,
+        body: { email: normalizedEmail },
       },
     );
 
-    if (error) {
-      throw error;
+    if (
+      error ||
+      !data ||
+      data.success !== true ||
+      Object.keys(data).length !== 1
+    ) {
+      throw new Error("Unable to request a password reset.");
     }
 
     return data;
