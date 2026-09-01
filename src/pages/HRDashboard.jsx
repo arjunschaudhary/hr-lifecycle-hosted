@@ -4,7 +4,6 @@ import {
   Menu,
   UserPlus,
   ClipboardCheck,
-  FileSignature,
   BriefcaseBusiness,
   Upload,
   BadgeCheck,
@@ -135,30 +134,6 @@ export default function HRDashboard() {
       icon: <ClipboardCheck size={18} />,
     },
     {
-      path: "/hr-exit-evaluations",
-      label: "Exit Evaluations",
-      icon: <LogOut size={18} />,
-    },
-    {
-      path: "/exit-analytics",
-      label: "Exit Analytics",
-      icon: <BarChart3 size={18} />,
-    },
-    ...(hasCertificateLorAccess
-      ? [
-          {
-            path: "/certificate-lor",
-            label: "Certificate & LOR",
-            icon: <FileBadge size={18} />,
-          },
-        ]
-      : []),
-    {
-      path: "/offer-approval",
-      label: "Offer Process",
-      icon: <FileSignature size={18} />,
-    },
-    {
       path: "/active-interns",
       label: "Active Interns",
       icon: <BriefcaseBusiness size={18} />,
@@ -173,6 +148,15 @@ export default function HRDashboard() {
       label: "Offer Verification",
       icon: <BadgeCheck size={18} />,
     },
+    ...(hasPodManagementAccess
+      ? [
+          {
+            path: "/pod-management",
+            label: "Pod Management",
+            icon: <Network size={18} />,
+          },
+        ]
+      : []),
     ...(hasPerformanceDashboardAccess
       ? [
           {
@@ -191,15 +175,6 @@ export default function HRDashboard() {
           },
         ]
       : []),
-    ...(hasPodManagementAccess
-      ? [
-          {
-            path: "/pod-management",
-            label: "Pod Management",
-            icon: <Network size={18} />,
-          },
-        ]
-      : []),
     {
       label: "Leave Dashboard",
       path: "/leave-dashboard",
@@ -214,6 +189,25 @@ export default function HRDashboard() {
             label: "Internship Extension",
             path: "/internship-extension",
             icon: <CalendarClock size={18} />,
+          },
+        ]
+      : []),
+    {
+      path: "/hr-exit-evaluations",
+      label: "Exit Evaluations",
+      icon: <LogOut size={18} />,
+    },
+    {
+      path: "/exit-analytics",
+      label: "Exit Analytics",
+      icon: <BarChart3 size={18} />,
+    },
+    ...(hasCertificateLorAccess
+      ? [
+          {
+            path: "/certificate-lor",
+            label: "Certificate & LOR",
+            icon: <FileBadge size={18} />,
           },
         ]
       : []),
