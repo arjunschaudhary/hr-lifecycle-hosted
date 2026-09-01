@@ -1710,3 +1710,225 @@ grid-template-columns:1fr;
   gap: 14px;
   margin-bottom: 16px;
 }
+
+/* Certificate/LOR document selection modal */
+.document-selection-modal {
+  width: min(680px, calc(100vw - 32px));
+  max-height: 90vh;
+  padding: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.document-selection-header {
+  flex-shrink: 0;
+  align-items: flex-start;
+  gap: 16px;
+  margin: 0;
+  padding: 24px 26px 18px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.document-selection-header > div {
+  min-width: 0;
+}
+
+.document-selection-header h2 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 20px;
+  line-height: 1.3;
+}
+
+.document-selection-header p {
+  margin: 4px 0 0;
+  color: #64748b;
+  overflow-wrap: anywhere;
+}
+
+.document-selection-form {
+  min-height: 0;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+}
+
+.document-selection-body {
+  min-height: 0;
+  padding: 20px 26px 22px;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.document-variant-section + .document-variant-section {
+  margin-top: 20px;
+}
+
+.document-variant-section h3,
+.document-selection-summary h3,
+.document-selection-warning h3 {
+  margin: 0 0 10px;
+  color: #1e293b;
+  font-size: 15px;
+}
+
+.document-variant-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.document-variant-option {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 12px;
+  border: 1px solid #dbe3ee;
+  border-radius: 10px;
+  background: #f8fafc;
+  color: #334155;
+  cursor: pointer;
+  transition: border-color .16s ease, background-color .16s ease, box-shadow .16s ease;
+}
+
+.document-variant-option:hover {
+  border-color: #93c5fd;
+  background: #eff6ff;
+}
+
+.document-variant-option:focus-within {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, .16);
+}
+
+.document-variant-option.is-selected {
+  border-color: #3b82f6;
+  background: #eff6ff;
+  box-shadow: 0 0 0 1px rgba(59, 130, 246, .12);
+  color: #1d4ed8;
+}
+
+.document-variant-option span {
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.document-selection-modal .document-variant-checkbox {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  margin: 0;
+  padding: 0;
+  border-radius: 4px;
+  accent-color: #2563eb;
+}
+
+.document-selection-modal .document-variant-checkbox:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+
+.document-variant-empty {
+  margin: 0;
+  color: #64748b;
+  font-size: 14px;
+}
+
+.document-selection-summary {
+  margin-top: 22px;
+  padding: 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #f8fafc;
+}
+
+.document-selection-summary-grid {
+  display: grid;
+  grid-template-columns: minmax(150px, .8fr) minmax(0, 1.4fr);
+  gap: 8px 18px;
+  margin: 0;
+  font-size: 13px;
+}
+
+.document-selection-summary-grid dt {
+  color: #64748b;
+  font-weight: 700;
+}
+
+.document-selection-summary-grid dd {
+  min-width: 0;
+  margin: 0;
+  color: #1e293b;
+  overflow-wrap: anywhere;
+}
+
+.document-selection-warning {
+  margin-top: 18px;
+  padding: 14px;
+}
+
+.document-selection-warning p {
+  margin: 0 0 8px;
+}
+
+.document-selection-warning p:last-child {
+  margin-bottom: 0;
+}
+
+.document-selection-footer {
+  flex-shrink: 0;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 16px 26px 20px;
+  border-top: 1px solid #e2e8f0;
+  background: #fff;
+  box-shadow: 0 -8px 20px rgba(15, 23, 42, .04);
+}
+
+@media (max-width: 640px) {
+  .document-selection-modal {
+    width: calc(100vw - 24px);
+    max-height: 90vh;
+    border-radius: 18px;
+  }
+
+  .document-selection-header {
+    padding: 18px 18px 14px;
+  }
+
+  .document-selection-header h2 {
+    font-size: 18px;
+  }
+
+  .document-selection-body {
+    padding: 16px 18px 18px;
+  }
+
+  .document-variant-grid,
+  .document-selection-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .document-selection-summary-grid {
+    gap: 3px;
+  }
+
+  .document-selection-summary-grid dt:not(:first-child) {
+    margin-top: 8px;
+  }
+
+  .document-selection-footer {
+    flex-direction: column-reverse;
+    padding: 14px 18px 16px;
+  }
+
+  .document-selection-footer .btn {
+    width: 100%;
+    justify-content: center;
+  }
+}
