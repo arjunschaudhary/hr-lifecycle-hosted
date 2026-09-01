@@ -99,7 +99,7 @@ const formatFileSize = (value) => {
   return `${(size / (1024 * 1024)).toFixed(1)} MB`;
 };
 
-function SummaryFields({ fields }) {
+function SummaryFields({ fields, className = "" }) {
   const availableFields = fields.filter((field) => field.value);
 
   if (availableFields.length === 0) {
@@ -107,7 +107,7 @@ function SummaryFields({ fields }) {
   }
 
   return (
-    <div className="candidate-details-grid">
+    <div className={`candidate-details-grid ${className}`.trim()}>
       {availableFields.map((field) => (
         <div className="candidate-detail-card" key={field.label}>
           <span>{field.label}</span>
@@ -118,9 +118,12 @@ function SummaryFields({ fields }) {
   );
 }
 
-function SummaryCard({ title, children }) {
+function SummaryCard({ title, children, className = "" }) {
   return (
-    <section className="card" aria-labelledby={`${title.toLowerCase().replaceAll(" ", "-")}-title`}>
+    <section
+      className={`card candidate-portal-section-card ${className}`.trim()}
+      aria-labelledby={`${title.toLowerCase().replaceAll(" ", "-")}-title`}
+    >
       <h2 id={`${title.toLowerCase().replaceAll(" ", "-")}-title`}>{title}</h2>
       {children}
     </section>
@@ -156,7 +159,7 @@ function CandidatePerformanceSection({ cycles, loading, error }) {
       {cycles.length === 0 ? (
         <p className="page-subtitle">No performance cycles available yet.</p>
       ) : (
-        <div className="table-wrapper">
+        <div className="table-wrapper candidate-portal-table-wrap">
           <table>
             <thead>
               <tr>
@@ -261,24 +264,54 @@ function CandidateLeaveSection({
           </div>
         )}
 
-        <form onSubmit={onSubmit} noValidate>
-          <div className="form-group">
-            <label htmlFor="candidate-leave-type">Leave Type</label>
-            <select
-              id="candidate-leave-type"
-              className="form-select"
-              name="leaveType"
-              value={form.leaveType}
-              onChange={onChange}
-              disabled={applicationDisabled}
-              required
-            >
-              {CANDIDATE_LEAVE_TYPES.map((leaveType) => (
-                <option key={leaveType} value={leaveType}>
-                  {leaveType}
-                </option>
-              ))}
-            </select>
+        <form className="candidate-portal-leave-form" onSubmit={onSubmit} noValidate>
+          <div className="candidate-portal-leave-form-grid">
+            <div className="form-group">
+              <label htmlFor="candidate-leave-type">Leave Type</label>
+              <select
+                id="candidate-leave-type"
+                className="form-select"
+                name="leaveType"
+                value={form.leaveType}
+                onChange={onChange}
+                disabled={applicationDisabled}
+                required
+              >
+                {CANDIDATE_LEAVE_TYPES.map((leaveType) => (
+                  <option key={leaveType} value={leaveType}>
+                    {leaveType}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="candidate-leave-start-date">Start Date</label>
+              <input
+                id="candidate-leave-start-date"
+                name="startDate"
+                type="date"
+                value={form.startDate}
+                onChange={onChange}
+                disabled={applicationDisabled}
+                min={getTodayKolkataString()}
+                required
+              />
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="candidate-leave-end-date">End Date</label>
+              <input
+                id="candidate-leave-end-date"
+                name="endDate"
+                type="date"
+                value={form.endDate}
+                onChange={onChange}
+                disabled={applicationDisabled}
+                min={form.startDate || getTodayKolkataString()}
+                required
+              />
+            </div>
           </div>
 
           {form.leaveType === "Other" && (
@@ -298,34 +331,6 @@ function CandidateLeaveSection({
               />
             </div>
           )}
-
-          <div className="form-group">
-            <label htmlFor="candidate-leave-start-date">Start Date</label>
-            <input
-              id="candidate-leave-start-date"
-              name="startDate"
-              type="date"
-              value={form.startDate}
-              onChange={onChange}
-              disabled={applicationDisabled}
-              min={getTodayKolkataString()}
-              required
-            />
-          </div>
-
-          <div className="form-group">
-            <label htmlFor="candidate-leave-end-date">End Date</label>
-            <input
-              id="candidate-leave-end-date"
-              name="endDate"
-              type="date"
-              value={form.endDate}
-              onChange={onChange}
-              disabled={applicationDisabled}
-              min={form.startDate || getTodayKolkataString()}
-              required
-            />
-          </div>
 
           {requestedLeaveDays !== null && (
             <p className="page-subtitle" role="status" aria-live="polite">
@@ -407,7 +412,7 @@ function CandidateLeaveSection({
           )}
 
           <button
-            className="btn btn-primary"
+            className="btn btn-primary candidate-portal-leave-submit"
             type="submit"
             disabled={applicationDisabled}
             aria-busy={submitting}
@@ -421,7 +426,7 @@ function CandidateLeaveSection({
         </form>
       </SummaryCard>
 
-      <SummaryCard title="Leave Request History">
+      <SummaryCard title="Leave Request History" className="candidate-portal-table-section">
         {historyLoading && (
           <p role="status" aria-live="polite">
             Loading leave-request history...
@@ -448,7 +453,7 @@ function CandidateLeaveSection({
         )}
 
         {!historyLoading && !historyError && history.length > 0 && (
-          <div className="table-container">
+          <div className="table-container candidate-portal-table-wrap">
             <table>
               <thead>
                 <tr>
@@ -510,7 +515,7 @@ function CandidateLeaveSection({
 
 function PodOnLeaveTodaySection({ podLeave, podLeaveLoading, podLeaveError }) {
   return (
-    <SummaryCard title="On Leave Today">
+    <SummaryCard title="On Leave Today" className="candidate-portal-table-section">
       {podLeaveLoading && (
         <p role="status" aria-live="polite">Loading pod leave information...</p>
       )}
@@ -528,7 +533,7 @@ function PodOnLeaveTodaySection({ podLeave, podLeaveLoading, podLeaveError }) {
       )}
 
       {!podLeaveLoading && !podLeaveError && podLeave.length > 0 && (
-        <div className="table-container">
+        <div className="table-container candidate-portal-table-wrap">
           <table>
             <thead>
               <tr>
@@ -625,7 +630,7 @@ function PortalSummary({
       </SummaryCard>
 
       {exitCase && (
-        <SummaryCard title="Exit Questionnaire">
+        <SummaryCard title="Exit Questionnaire" className="candidate-portal-exit-callout">
           {exitCase.candidate_form_completed ? (
             <div>
               <div style={{ marginBottom: 12 }}>
@@ -654,6 +659,7 @@ function PortalSummary({
       <SummaryCard title="Leave Summary">
         {leave.available ? (
           <SummaryFields
+            className="candidate-portal-leave-stats"
             fields={[
               { label: "Allocated Leave", value: formatValue(leave.allocatedLeaveDays) },
               { label: "Approved Leave", value: formatValue(leave.approvedLeaveDays) },
@@ -1399,8 +1405,8 @@ export default function CandidatePortal() {
   };
 
   return (
-    <main className="app-page">
-      <header className="page-header-modern">
+    <main className="app-page candidate-portal-page">
+      <header className="page-header-modern candidate-portal-header">
         <div className="page-icon" aria-hidden="true">
           <BriefcaseBusiness />
         </div>
@@ -1410,27 +1416,44 @@ export default function CandidatePortal() {
         </div>
       </header>
 
-      <section className="card" aria-labelledby="candidate-account-title">
-        <h2 id="candidate-account-title">Account</h2>
-        <p>
-          Signed in as <strong>{user?.email || "Unknown account"}</strong>
-        </p>
-        <span className="badge badge-success">Portal account active</span>
-      </section>
+      <div className="candidate-portal-top-summary">
+        <section className="card candidate-portal-summary-card" aria-labelledby="candidate-account-title">
+          <h2 id="candidate-account-title">Account</h2>
+          <p>
+            Signed in as <strong>{user?.email || "Unknown account"}</strong>
+          </p>
+          <span className="badge badge-success">Portal account active</span>
+        </section>
 
-      <section className="card" aria-labelledby="candidate-reference-title">
-        <h2 id="candidate-reference-title">Candidate reference</h2>
+        <section className="card candidate-portal-summary-card" aria-labelledby="candidate-reference-title">
+          <h2 id="candidate-reference-title">Candidate reference</h2>
 
-        <p>
-          MID:{" "}
-          <strong>
-            {loading
-              ? "Loading..."
-              : formatValue(summary?.profile?.mid) || "Not generated yet"}
-          </strong>
-        </p>
+          <p>
+            MID:{" "}
+            <strong>
+              {loading
+                ? "Loading..."
+                : formatValue(summary?.profile?.mid) || "Not generated yet"}
+            </strong>
+          </p>
+        </section>
 
-      </section>
+        {!loading && !error && summary && (
+          <section className="card candidate-portal-issued-documents" aria-labelledby="issued-documents-title">
+            <h2 id="issued-documents-title">Issued Documents</h2>
+            {issuedDocumentsError && <p className="auth-inline-error" role="alert">{issuedDocumentsError}</p>}
+            {issuedDocuments.length === 0 ? <p className="page-subtitle">No issued documents are available yet.</p> : (
+              <div className="candidate-details-grid candidate-portal-issued-document-grid">{issuedDocuments.map((document) => (
+                <div className="candidate-detail-card" key={document.document_id}>
+                  <span>{formatStatus(document.document_variant || document.document_type)}</span>
+                  <strong>{formatDate(document.issued_at)}</strong>
+                  <button className="btn btn-primary" type="button" onClick={() => handleViewIssuedDocument(document.storage_path)}>View / Download</button>
+                </div>
+              ))}</div>
+            )}
+          </section>
+        )}
+      </div>
 
       {loading && (
         <section className="card" role="status" aria-live="polite">
@@ -1455,22 +1478,6 @@ export default function CandidatePortal() {
           <button className="btn btn-primary" type="button" onClick={handleRetry}>
             Retry
           </button>
-        </section>
-      )}
-
-      {!loading && !error && summary && (
-        <section className="card" aria-labelledby="issued-documents-title">
-          <h2 id="issued-documents-title">Issued Documents</h2>
-          {issuedDocumentsError && <p className="auth-inline-error" role="alert">{issuedDocumentsError}</p>}
-          {issuedDocuments.length === 0 ? <p className="page-subtitle">No issued documents are available yet.</p> : (
-            <div className="candidate-details-grid">{issuedDocuments.map((document) => (
-              <div className="candidate-detail-card" key={document.document_id}>
-                <span>{formatStatus(document.document_variant || document.document_type)}</span>
-                <strong>{formatDate(document.issued_at)}</strong>
-                <button className="btn btn-primary" type="button" onClick={() => handleViewIssuedDocument(document.storage_path)}>View / Download</button>
-              </div>
-            ))}</div>
-          )}
         </section>
       )}
 

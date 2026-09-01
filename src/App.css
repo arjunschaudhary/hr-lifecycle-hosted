@@ -1990,3 +1990,244 @@ grid-template-columns:1fr;
     justify-content: center;
   }
 }
+
+/* Candidate Portal workspace */
+.candidate-portal-page {
+  width: 100%;
+  max-width: 1220px;
+  margin: 0 auto;
+  padding: clamp(20px, 3vw, 36px);
+}
+
+.candidate-portal-page > .card {
+  margin-bottom: 24px;
+}
+
+.candidate-portal-header {
+  margin-bottom: 28px;
+}
+
+.candidate-portal-header .page-icon {
+  width: 62px;
+  height: 62px;
+  flex-shrink: 0;
+}
+
+.candidate-portal-header .page-title-modern {
+  margin: 0;
+  font-size: clamp(28px, 3vw, 36px);
+  line-height: 1.15;
+}
+
+.candidate-portal-header .page-subtitle {
+  margin: 7px 0 0;
+  font-size: 15px;
+}
+
+.candidate-portal-top-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+  margin-bottom: 24px;
+}
+
+.candidate-portal-summary-card,
+.candidate-portal-issued-documents,
+.candidate-portal-section-card {
+  min-width: 0;
+  padding: 26px;
+}
+
+.candidate-portal-summary-card h2,
+.candidate-portal-issued-documents h2,
+.candidate-portal-section-card > h2 {
+  margin: 0 0 18px;
+  color: #0f172a;
+  font-size: 21px;
+  line-height: 1.25;
+}
+
+.candidate-portal-summary-card p {
+  margin: 0 0 16px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.candidate-portal-issued-documents {
+  grid-column: 1 / -1;
+}
+
+.candidate-portal-page .candidate-details-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.candidate-portal-page .candidate-portal-issued-document-grid {
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+}
+
+.candidate-portal-page .candidate-detail-card {
+  min-width: 0;
+  padding: 19px 20px;
+}
+
+.candidate-portal-page .candidate-detail-card span {
+  margin-bottom: 9px;
+  font-size: 12px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.candidate-portal-page .candidate-detail-card strong {
+  display: block;
+  font-size: 16px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.candidate-portal-issued-document-grid .candidate-detail-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.candidate-portal-issued-document-grid .btn {
+  margin-top: 4px;
+}
+
+.candidate-portal-exit-callout {
+  border-left: 4px solid #2563eb;
+}
+
+.candidate-portal-leave-stats {
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+}
+
+.candidate-portal-leave-stats .candidate-detail-card {
+  padding: 18px;
+}
+
+.candidate-portal-leave-stats .candidate-detail-card strong {
+  color: #2563eb;
+  font-size: 25px;
+  line-height: 1.1;
+}
+
+.candidate-portal-leave-form {
+  max-width: 980px;
+}
+
+.candidate-portal-leave-form-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.candidate-portal-leave-form-grid .form-group {
+  min-width: 0;
+}
+
+.candidate-portal-page .form-select,
+.candidate-portal-page .form-textarea {
+  width: 100%;
+  padding: 13px;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  background: #ffffff;
+  color: #1e293b;
+  font: inherit;
+}
+
+.candidate-portal-page .form-textarea {
+  min-height: 108px;
+  resize: vertical;
+}
+
+.candidate-portal-page .form-select:focus,
+.candidate-portal-page .form-textarea:focus {
+  outline: none;
+  border-color: #2563eb;
+}
+
+.candidate-portal-page .info-banner {
+  margin-bottom: 18px;
+  padding: 14px 16px;
+  border: 1px solid #bfdbfe;
+  border-radius: 12px;
+  background: #eff6ff;
+  color: #1e3a8a;
+  line-height: 1.5;
+}
+
+.candidate-portal-leave-submit {
+  min-width: 190px;
+}
+
+.candidate-portal-table-section {
+  overflow: hidden;
+}
+
+.candidate-portal-table-wrap {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.candidate-portal-table-wrap table {
+  margin: 0;
+}
+
+@media (max-width: 900px) {
+  .candidate-portal-leave-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .candidate-portal-leave-form-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .candidate-portal-page {
+    padding: 16px;
+  }
+
+  .candidate-portal-header {
+    align-items: flex-start;
+    gap: 13px;
+    margin-bottom: 22px;
+  }
+
+  .candidate-portal-header .page-icon {
+    width: 50px;
+    height: 50px;
+  }
+
+  .candidate-portal-header .page-title-modern {
+    font-size: 26px;
+  }
+
+  .candidate-portal-top-summary,
+  .candidate-portal-page .candidate-details-grid,
+  .candidate-portal-leave-stats,
+  .candidate-portal-leave-form-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .candidate-portal-summary-card,
+  .candidate-portal-issued-documents,
+  .candidate-portal-section-card {
+    padding: 20px;
+  }
+
+  .candidate-portal-summary-card h2,
+  .candidate-portal-issued-documents h2,
+  .candidate-portal-section-card > h2 {
+    font-size: 19px;
+  }
+
+  .candidate-portal-leave-submit {
+    width: 100%;
+  }
+}
