@@ -5,6 +5,7 @@
  */
 
 import { supabase } from "./supabaseClient";
+import { EXIT_REASONS } from "../constants/exitFormOptions";
 
 const EXIT_ANALYTICS_LOAD_ERROR = "Unable to load exit analytics cases.";
 const EXIT_DETAILS_LOAD_ERROR = "Unable to load the completed Exit record.";
@@ -225,23 +226,9 @@ export async function getExitAnalyticsData(filters = {}) {
   // ---------------------------------------------------------------------------
   // 2. SECTION 1: EXIT REASONS
   // ---------------------------------------------------------------------------
-  const REASON_LABELS = {
-    higher_studies: "Higher Studies",
-    fulltime_job: "Full-time Job",
-    placement: "Placement",
-    personal_reasons: "Personal Reasons",
-    health: "Health",
-    family: "Family",
-    academic_workload: "Academic Workload",
-    workload: "Workload",
-    career_change: "Career Change",
-    stipend: "Stipend",
-    work_culture: "Work Culture",
-    manager_issues: "Manager Issues",
-    relocation: "Relocation",
-    other: "Other",
-    unsure: "Unsure",
-  };
+  const REASON_LABELS = Object.fromEntries(
+    EXIT_REASONS.map(({ value, label }) => [value, label]),
+  );
 
   const reasonCounts = {};
   Object.keys(REASON_LABELS).forEach((key) => {

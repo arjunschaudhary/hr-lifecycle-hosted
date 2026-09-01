@@ -66,6 +66,17 @@ type TerminalizedExitDocumentClaim = {
   attemptCount: number;
 };
 
+function getDocumentDomain(appliedRole: string, isLor: boolean): string {
+  const normalizedRole = appliedRole.trim();
+
+  if (!isLor) {
+    return normalizedRole;
+  }
+
+  const domain = normalizedRole.replace(/\s+Intern$/i, "").trim();
+  return domain || normalizedRole;
+}
+
 type ExitDocumentReservation = {
   requestId: string;
   documentId: string;
@@ -1119,7 +1130,10 @@ Deno.serve(
             candidate.full_name,
 
           "{{DOMAIN}}":
-            candidate.applied_role,
+            getDocumentDomain(
+              candidate.applied_role,
+              template.variant.includes("LOR"),
+            ),
 
           "{{START_DATE}}":
             lifecycle

@@ -100,6 +100,21 @@ function requiredDate(value: string, fieldName: string): string {
   return normalized;
 }
 
+function addCalendarMonth(value: string): string {
+  const [year, month, day] = value.split("-").map(Number);
+  const targetMonthStart = new Date(Date.UTC(year, month, 1));
+  const targetYear = targetMonthStart.getUTCFullYear();
+  const targetMonth = targetMonthStart.getUTCMonth();
+  const targetMonthLastDay = new Date(
+    Date.UTC(targetYear, targetMonth + 1, 0),
+  ).getUTCDate();
+  const targetDate = new Date(
+    Date.UTC(targetYear, targetMonth, Math.min(day, targetMonthLastDay)),
+  );
+
+  return targetDate.toISOString().slice(0, 10);
+}
+
 function escapeHtml(value: string): string {
   return value
     .replaceAll("&", "&amp;")
@@ -127,6 +142,7 @@ export function buildOfferLetterTemplate(
     "Expected end date",
   );
   const offerDate = requiredDate(input.offerDate, "Offer date");
+  const signedOfferCopyDeadline = addCalendarMonth(offerDate);
 
   if (!MID_PATTERN.test(mid)) {
     throw new Error("MID format is invalid.");
@@ -163,7 +179,7 @@ export function buildOfferLetterTemplate(
     "<< START DATE >>": joiningDate,
     "<< END DATE >>": expectedEndDate,
     "<<Months>>": duration,
-    "<<ACCEPTANCE_DATE>>": joiningDate,
+    "<<ACCEPTANCE_DATE>>": signedOfferCopyDeadline,
   };
   const subject = `Offer Letter - ${appliedRole}`;
   const text = [
