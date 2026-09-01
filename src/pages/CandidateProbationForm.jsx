@@ -226,6 +226,8 @@ export default function CandidateProbationForm() {
 
           <textarea
 
+            className="candidate-address-textarea"
+
             name="address"
 
             placeholder="Enter address"

@@ -336,6 +336,22 @@ border-color:#2563eb;
 
 }
 
+.candidate-address-textarea{
+  width:100%;
+  min-height:88px;
+  box-sizing:border-box;
+  padding:13px;
+  border:1px solid #cbd5e1;
+  border-radius:12px;
+  font:inherit;
+  resize:vertical;
+}
+
+.candidate-address-textarea:focus{
+  outline:none;
+  border-color:#2563eb;
+}
+
 
 
 
