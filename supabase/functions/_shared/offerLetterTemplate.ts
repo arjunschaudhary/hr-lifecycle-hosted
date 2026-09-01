@@ -81,6 +81,15 @@ function optionalText(value: string | null): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function offerDocumentPosition(appliedRole: string): string {
+  const normalizedRole = appliedRole.trim();
+  const roleWithoutTerminalIntern = normalizedRole
+    .replace(/\bIntern$/i, "")
+    .trim();
+
+  return roleWithoutTerminalIntern || normalizedRole;
+}
+
 function requiredDate(value: string, fieldName: string): string {
   const normalized = requiredText(value, fieldName);
 
@@ -142,6 +151,7 @@ export function buildOfferLetterTemplate(
     "Expected end date",
   );
   const offerDate = requiredDate(input.offerDate, "Offer date");
+  const documentPosition = offerDocumentPosition(appliedRole);
   const signedOfferCopyDeadline = addCalendarMonth(offerDate);
 
   if (!MID_PATTERN.test(mid)) {
@@ -173,7 +183,7 @@ export function buildOfferLetterTemplate(
     "<< CANDIDATE ADDRESS >>": optionalText(input.address),
     "<< CANDIDATE EMAIL >>": email,
     "<< CANDIDATE PHONE >>": optionalText(input.phone),
-    "<<POSITION>>": appliedRole,
+    "<<POSITION>>": documentPosition,
     "<<Paid/Unpaid>>": "Unpaid",
     "<<unpaid/paid>>": "unpaid",
     "<< START DATE >>": joiningDate,

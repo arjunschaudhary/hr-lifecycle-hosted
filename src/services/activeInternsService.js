@@ -12,6 +12,7 @@ const SAFE_EXIT_INITIATION_MESSAGES = new Set([
   "No lifecycle record was found for this candidate.",
   "Exit can only be initiated for a candidate in the Active Interns workflow.",
   "An Exit process has already been initiated for this candidate.",
+  "Exit cannot be initiated because multiple candidate pods cover the exit date.",
 ]);
 
 function getSafeExitInitiationMessage(error) {

@@ -495,7 +495,7 @@ export default function PodManagement() {
     if (inFlightRef.current) {
       return;
     }
-    if (modalMode === "assignCandidate") {
+    if (modalMode === "assignCandidate" || modalMode === "assignLead") {
       if (selectedAssignmentCandidate?.podAssignmentBlockReason === "PROBATION_REJECTED") {
         setModalError(
           "Probation-rejected candidates cannot be assigned to a pod.",
@@ -647,6 +647,7 @@ export default function PodManagement() {
       !form.podId ||
       !form.effectiveFrom ||
       !["POD_LEAD", "TECH_LEAD"].includes(form.leadType) ||
+      Boolean(modalContext?.podAssignmentBlockReason) ||
       isKnownInvalidProjectManagerAssignment
     );
 
@@ -1093,16 +1094,21 @@ export default function PodManagement() {
                               <button
                                 className="btn btn-secondary"
                                 type="button"
-                                disabled={!hasActivePortalAccount}
+                                disabled={
+                                  !hasActivePortalAccount ||
+                                  Boolean(podAssignmentEligibilityMessage)
+                                }
                                 aria-describedby={
-                                  hasActivePortalAccount
-                                    ? undefined
-                                    : leadRequirementId
+                                  !hasActivePortalAccount
+                                    ? leadRequirementId
+                                    : podAssignmentEligibilityMessage
+                                      ? podAssignmentRequirementId
+                                      : undefined
                                 }
                                 title={
-                                  hasActivePortalAccount
-                                    ? undefined
-                                    : "Activate the candidate portal before assigning a lead role."
+                                  !hasActivePortalAccount
+                                    ? "Activate the candidate portal before assigning a lead role."
+                                    : podAssignmentEligibilityMessage || undefined
                                 }
                                 onClick={() => openModal("assignLead", {
                                   ...candidate,
@@ -1116,21 +1122,24 @@ export default function PodManagement() {
                                 type="button"
                                 disabled={
                                   !hasActivePortalAccount ||
+                                  Boolean(podAssignmentEligibilityMessage) ||
                                   Boolean(projectManagerEligibilityMessage)
                                 }
                                 aria-describedby={
                                   !hasActivePortalAccount
                                     ? leadRequirementId
-                                    : projectManagerEligibilityMessage
-                                      ? projectManagerRequirementId
-                                      : undefined
+                                    : podAssignmentEligibilityMessage
+                                      ? podAssignmentRequirementId
+                                      : projectManagerEligibilityMessage
+                                        ? projectManagerRequirementId
+                                        : undefined
                                 }
                                 title={
                                   !hasActivePortalAccount
                                     ? "Activate the candidate portal before assigning a lead role."
-                                    : projectManagerEligibilityMessage
-                                      ? projectManagerEligibilityMessage
-                                      : undefined
+                                    : podAssignmentEligibilityMessage ||
+                                      projectManagerEligibilityMessage ||
+                                      undefined
                                 }
                                 onClick={() => openModal("assignLead", {
                                   ...candidate,
