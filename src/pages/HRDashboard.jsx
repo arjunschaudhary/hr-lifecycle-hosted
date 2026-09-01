@@ -22,6 +22,8 @@ import {
   LogOut,
   BarChart3,
   FileBadge,
+  CalendarDays,
+  FilePenLine,
 } from "lucide-react";
 
 import { fetchDashboardCounts, fetchPendingExitCases } from "../services/hrDashboardService";
@@ -178,10 +180,12 @@ export default function HRDashboard() {
     {
       label: "Leave Dashboard",
       path: "/leave-dashboard",
+      icon: <CalendarDays size={18} />,
     },
     {
       label: "Leave Application",
       path: "/leave-application",
+      icon: <FilePenLine size={18} />,
     },
     ...(hasInternshipExtensionAccess
       ? [
