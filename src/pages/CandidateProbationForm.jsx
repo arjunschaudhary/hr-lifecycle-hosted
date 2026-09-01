@@ -99,60 +99,61 @@ export default function CandidateProbationForm() {
 
 
         <div className="form-grid">
+          <section
+            className="candidate-information"
+            aria-labelledby="candidate-information-heading"
+          >
+            <h3
+              id="candidate-information-heading"
+              className="form-section-title"
+            >
+              Candidate Information
+            </h3>
 
+            <div className="candidate-information-grid">
+              <div className="form-group">
+                <label>
+                  Full Name
+                  <span className="required">*</span>
+                </label>
 
-          <div className="form-group">
-          <h3 className="form-section-title">
-  Candidate Information
-</h3>
-            <label>
-  Full Name
-  <span className="required">*</span>
-</label>
+                <input
+                  name="full_name"
+                  placeholder="Enter full name"
+                  value={formData.full_name}
+                  onChange={handleChange}
+                  required
+                />
+              </div>
 
-            <input
-              name="full_name"
-              placeholder="Enter full name"
-              value={formData.full_name}
-              onChange={handleChange}
-              required
-            />
-          </div>
+              <div className="form-group">
+                <label>
+                  Email
+                  <span className="required">*</span>
+                </label>
 
+                <input
+                  name="email"
+                  type="email"
+                  placeholder="Enter email"
+                  value={formData.email}
+                  onChange={handleChange}
+                  required
+                />
+              </div>
 
+              <div className="form-group">
+                <label>Phone</label>
 
-          <div className="form-group">
-            <label>
-  Email
-  <span className="required">*</span>
-</label>
-
-            <input
-              name="email"
-              type="email"
-              placeholder="Enter email"
-              value={formData.email}
-              onChange={handleChange}
-              required
-            />
-          </div>
-
-
-
-
-          <div className="form-group">
-            <label>Phone</label>
-
-            <input
-              name="phone"
-              placeholder="Enter phone number"
-              value={formData.phone}
-              onChange={handleChange}
-            />
-          </div>
-
-
-
+                <input
+                  name="phone"
+                  placeholder="Enter phone number"
+                  value={formData.phone}
+                  onChange={handleChange}
+                />
+              </div>
+            </div>
+          </section>
 
           <section
             className="candidate-position-details"

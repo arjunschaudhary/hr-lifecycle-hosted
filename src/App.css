@@ -692,6 +692,22 @@ grid-template-columns:1fr;
   margin-left:4px;
 }
 
+.candidate-information{
+  grid-column:1 / -1;
+  min-width:0;
+}
+
+.candidate-information-grid{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:18px;
+}
+
+.candidate-information-grid .form-group{
+  min-width:0;
+  margin-bottom:0;
+}
+
 .candidate-position-details{
   grid-column:1 / -1;
   min-width:0;
@@ -749,6 +765,13 @@ grid-template-columns:1fr;
   color:#64748b;
   font-size:12px;
   line-height:1.4;
+}
+
+@media(max-width:800px){
+  .candidate-information-grid{
+    grid-template-columns:1fr;
+    gap:18px;
+  }
 }
 
 @media(max-width:700px){
