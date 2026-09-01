@@ -201,58 +201,6 @@ export async function resubmitCurrentCandidateSignedOffer({ candidateId, file } 
     throw new Error("Candidate reference is invalid.");
   }
 
-  // ── DIAGNOSTIC: log session + eligibility before touching Storage ──────────
-  // Remove this block once the root cause is confirmed.
-  try {
-    const { data: authUser, error: authError } = await supabase.auth.getUser();
-    console.group("[SignedOffer resubmit] Pre-upload diagnostic");
-    console.log("1. supabase.auth.getUser():", authError ?? authUser?.user);
-
-    const normalizedIdForDiag = candidateId.trim().toLowerCase();
-    const diagUuid = typeof globalThis.crypto?.randomUUID === "function"
-      ? globalThis.crypto.randomUUID()
-      : "uuid-unavailable";
-    const diagPath = `candidate/${normalizedIdForDiag}/signed-offers/${diagUuid}.pdf`;
-    console.log("2. Object path that will be uploaded:", diagPath);
-    console.log("   candidateId passed in (normalised):", normalizedIdForDiag);
-
-    const { data: diagData, error: diagError } = await supabase.rpc(
-      "debug_signed_offer_resubmit_eligibility",
-    );
-    if (diagError) {
-      console.warn("3. debug_signed_offer_resubmit_eligibility() RPC error:", diagError);
-    } else {
-      console.log("3. debug_signed_offer_resubmit_eligibility():", diagData);
-      if (diagData && !diagData.uploadAllowed) {
-        console.warn("   ⚠️  uploadAllowed = false — failing conditions:");
-        if (!diagData.userIsActive)    console.warn("      ✗ current_user_is_active() = false");
-        if (!diagData.isCandidate)     console.warn("      ✗ current_user_has_role(CANDIDATE) = false");
-        if (!diagData.candidateId)     console.warn("      ✗ current_candidate_id() = null");
-        if (diagData.case1 && !diagData.case1.passes) {
-          console.warn("      ✗ Case 1 (first-time) fails:");
-          if (!diagData.case1.lifecycleOk)      console.warn("          lifecycle != ACTIVE");
-          if (!diagData.case1.noActiveFile)      console.warn("          active file already exists");
-          if (!diagData.case1.noActiveSov)       console.warn("          active verification already exists");
-          if (!diagData.case1.noStorageObjects)  console.warn("          storage objects already in path");
-        }
-        if (diagData.case2 && !diagData.case2.passes) {
-          console.warn("      ✗ Case 2 (re-upload) fails:");
-          if (!diagData.case2.lifecycleOk)           console.warn("          lifecycle != MISMATCH_REVIEW (actual:", diagData.lifecycleStatus, ")");
-          if (!diagData.case2.mismatchFileExists)     console.warn("          no MISMATCH_REVIEW file found");
-          if (!diagData.case2.noSubmittedOrVerified)  console.warn("          SUBMITTED or VERIFIED file still exists");
-          if (!diagData.case2.mismatchSovExists)      console.warn("          no MISMATCH_REVIEW verification found");
-        }
-      } else if (diagData?.uploadAllowed) {
-        console.log("   ✓ uploadAllowed = true — Storage upload should succeed.");
-        console.log("   Confirm the path above matches candidate/" + diagData.candidateId + "/signed-offers/<uuid>.pdf");
-      }
-    }
-    console.groupEnd();
-  } catch (diagEx) {
-    console.warn("[SignedOffer resubmit] Diagnostic failed (non-blocking):", diagEx);
-  }
-  // ── END DIAGNOSTIC ──────────────────────────────────────────────────────────
-
   const { storageBucket, objectPath, originalFilename, normalizedCandidateId } =
     await uploadSignedOfferFile(candidateId, file);
 
