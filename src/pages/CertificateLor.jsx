@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { FileBadge, RefreshCw } from "lucide-react";
+import { Link } from "react-router-dom";
+import { ArrowLeft, FileBadge, RefreshCw } from "lucide-react";
 
 import DocumentSelectionModal from "../components/certificateLor/DocumentSelectionModal";
 import {
@@ -94,14 +95,19 @@ export default function CertificateLor() {
 
   return (
     <div className="page-container">
-      <div className="page-header" style={{ alignItems: "center" }}>
+      <div className="page-header certificate-lor-page-header">
         <div>
           <h1 className="page-title">Certificate &amp; LOR</h1>
           <p className="page-subtitle">Review all initiated exit cases and create Certificate and LOR requests.</p>
         </div>
-        <button className="btn btn-secondary" type="button" onClick={loadExitCases} disabled={loading}>
-          <RefreshCw size={16} /> Refresh
-        </button>
+        <div className="certificate-lor-header-actions">
+          <Link className="btn btn-secondary" to="/">
+            <ArrowLeft size={16} /> Back to Dashboard
+          </Link>
+          <button className="btn btn-secondary" type="button" onClick={loadExitCases} disabled={loading}>
+            <RefreshCw size={16} /> Refresh
+          </button>
+        </div>
       </div>
 
       <div className="card" style={{ marginBottom: 20, padding: 16 }}>
