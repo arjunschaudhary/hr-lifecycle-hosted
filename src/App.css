@@ -1717,19 +1717,11 @@ grid-template-columns:1fr;
   gap: 18px;
 }
 
-.certificate-lor-header-actions {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  flex-shrink: 0;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-.certificate-lor-header-actions .btn {
+.certificate-lor-page-header > .btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
   gap: 7px;
   white-space: nowrap;
 }
@@ -1916,15 +1908,6 @@ grid-template-columns:1fr;
   .certificate-lor-page-header {
     align-items: stretch;
     flex-direction: column;
-  }
-
-  .certificate-lor-header-actions {
-    width: 100%;
-    justify-content: flex-start;
-  }
-
-  .certificate-lor-header-actions .btn {
-    flex: 1 1 180px;
   }
 
   .document-selection-modal {
