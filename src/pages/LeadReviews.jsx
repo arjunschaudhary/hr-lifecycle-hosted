@@ -1,15 +1,22 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
+  AlertCircle,
   CheckCircle2,
   ClipboardCheck,
   Clock3,
   FilePenLine,
+  Inbox,
+  ListChecks,
+  LoaderCircle,
+  Search,
+  SlidersHorizontal,
   Users,
 } from "lucide-react";
 
 import { useAuth } from "../context/authContext";
 import { fetchLeadReviewTasks } from "../services/leadReviewService";
+import "./LeadReviews.css";
 
 const DATE_FORMATTER = new Intl.DateTimeFormat("en-IN", {
   day: "numeric",
@@ -68,14 +75,68 @@ const getReviewBadgeClass = (status) => {
   return "badge-primary";
 };
 
-const MetricCard = ({ icon: Icon, title, value }) => (
-  <article className="metric-card">
-    <div className="metric-card__icon" aria-hidden="true">
+const MetricCard = ({ icon: Icon, title, value, tone }) => (
+  <article className={`lead-reviews-metric lead-reviews-metric--${tone}`}>
+    <div className="lead-reviews-metric__icon" aria-hidden="true">
       <Icon size={22} />
     </div>
-    <p className="metric-title">{title}</p>
-    <p className="metric-value">{formatNullableValue(value)}</p>
+    <div>
+      <p className="lead-reviews-metric__label">{title}</p>
+      <p className="lead-reviews-metric__value">
+        {formatNullableValue(value)}
+      </p>
+    </div>
   </article>
+);
+
+const DailyProgress = ({ task }) => {
+  const scoredDays = Number(task.scoredDays);
+  const eligibleDays = Number(task.eligibleDays);
+  const progressPercent =
+    eligibleDays > 0
+      ? Math.min(100, Math.max(0, (scoredDays / eligibleDays) * 100))
+      : 0;
+
+  return (
+    <div className="lead-reviews-progress">
+      <span className="lead-reviews-progress__count">
+        {task.scoredDays} / {task.eligibleDays}
+      </span>
+      <span className="lead-reviews-progress__track" aria-hidden="true">
+        <span
+          className="lead-reviews-progress__fill"
+          style={{ width: `${progressPercent}%` }}
+        />
+      </span>
+      <span
+        className={`lead-reviews-progress__status ${
+          task.dailyScoringComplete
+            ? "lead-reviews-progress__status--complete"
+            : "lead-reviews-progress__status--pending"
+        }`}
+      >
+        {task.dailyScoringComplete ? "Complete" : "Pending"}
+      </span>
+    </div>
+  );
+};
+
+const WorkspaceState = ({ icon: Icon, title, children, role = "status" }) => (
+  <section
+    className="lead-reviews-state"
+    role={role}
+    aria-live={role === "alert" ? undefined : "polite"}
+  >
+    <div className="lead-reviews-state__icon" aria-hidden="true">
+      <Icon size={22} />
+    </div>
+    <div className="lead-reviews-state__content">
+      <div>
+        {title && <h2>{title}</h2>}
+        {children}
+      </div>
+    </div>
+  </section>
 );
 
 const TaskAction = ({ task }) => {
@@ -269,14 +330,15 @@ const LeadReviews = () => {
   };
 
   return (
-    <main className="app-page">
-      <header className="page-header-modern">
-        <div className="page-icon" aria-hidden="true">
-          <ClipboardCheck size={28} />
+    <main className="app-page lead-reviews-page">
+      <header className="lead-reviews-hero">
+        <div className="lead-reviews-hero__icon" aria-hidden="true">
+          <ClipboardCheck size={32} />
         </div>
-        <div>
-          <h1 className="page-title-modern">Lead Reviews</h1>
-          <p className="page-subtitle">
+        <div className="lead-reviews-hero__content">
+          <p className="lead-reviews-hero__eyebrow">Performance Review</p>
+          <h1>Lead Reviews</h1>
+          <p>
             Review candidate performance for the cycles and pods assigned to
             you.
           </p>
@@ -284,132 +346,182 @@ const LeadReviews = () => {
       </header>
 
       {!hasLeadReviewAccess ? (
-        <section className="info-banner" role="status" aria-live="polite">
-          <h2>Lead Review workspace access unavailable</h2>
+        <WorkspaceState
+          icon={AlertCircle}
+          title="Lead Review workspace access unavailable"
+        >
           <p>Your account does not have access to Lead Review tasks.</p>
-        </section>
+        </WorkspaceState>
       ) : isLoading ? (
-        <p role="status" aria-live="polite">
-          Loading Lead Reviews...
-        </p>
+        <WorkspaceState icon={LoaderCircle}>
+          <p>Loading Lead Reviews...</p>
+        </WorkspaceState>
       ) : pageError ? (
-        <section className="info-banner" role="alert">
+        <WorkspaceState icon={AlertCircle} role="alert">
           <p>{pageError}</p>
           <button className="btn btn-primary" type="button" onClick={handleRetry}>
             Retry
           </button>
-        </section>
+        </WorkspaceState>
       ) : tasks.length === 0 ? (
-        <p className="info-banner" role="status" aria-live="polite">
-          No Lead Review tasks are currently available for your assigned pods.
-        </p>
+        <WorkspaceState icon={Inbox}>
+          <p>
+            No Lead Review tasks are currently available for your assigned
+            pods.
+          </p>
+        </WorkspaceState>
       ) : (
         <>
-          <section aria-labelledby="lead-review-overview-heading">
-            <h2 id="lead-review-overview-heading">Review Overview</h2>
-            <div className="metric-grid">
+          <section
+            className="lead-reviews-overview"
+            aria-labelledby="lead-review-overview-heading"
+          >
+            <div className="lead-reviews-section-heading">
+              <div
+                className="lead-reviews-section-heading__icon"
+                aria-hidden="true"
+              >
+                <Users size={20} />
+              </div>
+              <div>
+                <h2 id="lead-review-overview-heading">Review Overview</h2>
+                <p>Your assigned Lead Review workload at a glance.</p>
+              </div>
+            </div>
+            <div className="lead-reviews-metrics-grid">
               <MetricCard
                 icon={Users}
                 title="Total Tasks"
                 value={metrics.total}
+                tone="blue"
               />
               <MetricCard
                 icon={ClipboardCheck}
                 title="Ready to Review"
                 value={metrics.ready}
+                tone="indigo"
               />
               <MetricCard
                 icon={FilePenLine}
                 title="Draft Reviews"
                 value={metrics.draft}
+                tone="amber"
               />
               <MetricCard
                 icon={CheckCircle2}
                 title="Submitted Reviews"
                 value={metrics.submitted}
+                tone="emerald"
               />
               <MetricCard
                 icon={Clock3}
                 title="Waiting for Daily Marking"
                 value={metrics.waiting}
+                tone="orange"
               />
             </div>
           </section>
 
-          <section aria-labelledby="lead-review-tasks-heading">
-            <h2 id="lead-review-tasks-heading">Review Tasks</h2>
-
-            <div className="action-group" aria-label="Review task category">
-              {Object.keys(TASK_CATEGORIES).map((category) => (
-                <button
-                  key={category}
-                  className={
-                    selectedCategory === category
-                      ? "btn btn-primary"
-                      : "btn"
-                  }
-                  type="button"
-                  aria-pressed={selectedCategory === category}
-                  onClick={() => setSelectedCategory(category)}
+          <section
+            className="lead-reviews-workspace"
+            aria-labelledby="lead-review-tasks-heading"
+          >
+            <div className="lead-reviews-workspace__header">
+              <div className="lead-reviews-section-heading">
+                <div
+                  className="lead-reviews-section-heading__icon"
+                  aria-hidden="true"
                 >
-                  {formatStatus(category)}
-                </button>
-              ))}
+                  <ListChecks size={20} />
+                </div>
+                <div>
+                  <h2 id="lead-review-tasks-heading">Review Tasks</h2>
+                  <p>
+                    Find and manage candidate reviews for your assigned pods.
+                  </p>
+                </div>
+              </div>
+
+              <div
+                className="lead-reviews-tabs"
+                aria-label="Review task category"
+              >
+                {Object.keys(TASK_CATEGORIES).map((category) => (
+                  <button
+                    key={category}
+                    className="lead-reviews-tab"
+                    type="button"
+                    aria-pressed={selectedCategory === category}
+                    onClick={() => setSelectedCategory(category)}
+                  >
+                    {formatStatus(category)}
+                  </button>
+                ))}
+              </div>
             </div>
 
-            <div className="form-grid">
-              <div className="form-group">
-                <label htmlFor="lead-review-search">Search Candidate</label>
-                <input
-                  id="lead-review-search"
-                  className="form-input"
-                  type="search"
-                  value={searchTerm}
-                  onChange={(event) => setSearchTerm(event.target.value)}
-                  placeholder="Search name, role, or role code"
-                />
+            <div className="lead-reviews-filters">
+              <div className="lead-reviews-filters__heading">
+                <SlidersHorizontal size={18} aria-hidden="true" />
+                <span>Filter review tasks</span>
               </div>
-              <div className="form-group">
-                <label htmlFor="lead-review-pod-filter">Pod</label>
-                <select
-                  id="lead-review-pod-filter"
-                  className="form-select"
-                  value={selectedPod}
-                  onChange={(event) => setSelectedPod(event.target.value)}
-                >
-                  <option value="">All Pods</option>
-                  {podOptions.map((pod) => (
-                    <option key={pod.value} value={pod.value}>
-                      {pod.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="form-group">
-                <label htmlFor="lead-review-cycle-filter">Cycle</label>
-                <select
-                  id="lead-review-cycle-filter"
-                  className="form-select"
-                  value={selectedCycle}
-                  onChange={(event) => setSelectedCycle(event.target.value)}
-                >
-                  <option value="">All Cycles</option>
-                  {cycleOptions.map((cycle) => (
-                    <option key={cycle.value} value={cycle.value}>
-                      {cycle.label}
-                    </option>
-                  ))}
-                </select>
+              <div className="lead-reviews-filters__grid">
+                <div className="lead-reviews-field">
+                  <label htmlFor="lead-review-search">Search Candidate</label>
+                  <div className="lead-reviews-search-control">
+                    <Search size={18} aria-hidden="true" />
+                    <input
+                      id="lead-review-search"
+                      className="lead-reviews-control lead-reviews-control--search"
+                      type="search"
+                      value={searchTerm}
+                      onChange={(event) => setSearchTerm(event.target.value)}
+                      placeholder="Search name, role, or role code"
+                    />
+                  </div>
+                </div>
+                <div className="lead-reviews-field">
+                  <label htmlFor="lead-review-pod-filter">Pod</label>
+                  <select
+                    id="lead-review-pod-filter"
+                    className="lead-reviews-control"
+                    value={selectedPod}
+                    onChange={(event) => setSelectedPod(event.target.value)}
+                  >
+                    <option value="">All Pods</option>
+                    {podOptions.map((pod) => (
+                      <option key={pod.value} value={pod.value}>
+                        {pod.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="lead-reviews-field">
+                  <label htmlFor="lead-review-cycle-filter">Cycle</label>
+                  <select
+                    id="lead-review-cycle-filter"
+                    className="lead-reviews-control"
+                    value={selectedCycle}
+                    onChange={(event) => setSelectedCycle(event.target.value)}
+                  >
+                    <option value="">All Cycles</option>
+                    {cycleOptions.map((cycle) => (
+                      <option key={cycle.value} value={cycle.value}>
+                        {cycle.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
             </div>
 
             {filteredTasks.length === 0 ? (
-              <p className="info-banner" role="status" aria-live="polite">
-                No Lead Review tasks match the selected filters.
-              </p>
+              <WorkspaceState icon={Inbox}>
+                <p>No Lead Review tasks match the selected filters.</p>
+              </WorkspaceState>
             ) : (
-              <div className="table-container">
-                <table className="table">
+              <div className="lead-reviews-table-wrap">
+                <table className="lead-reviews-table">
                   <thead>
                     <tr>
                       <th>Candidate</th>
@@ -428,8 +540,20 @@ const LeadReviews = () => {
                   </thead>
                   <tbody>
                     {filteredTasks.map((task) => (
-                      <tr key={task.candidateCycleId}>
-                        <td>{task.fullName}</td>
+                      <tr
+                        key={task.candidateCycleId}
+                        className={
+                          task.reviewDisplayStatus ===
+                          "WAITING_FOR_DAILY_MARKING"
+                            ? "lead-reviews-row--waiting"
+                            : undefined
+                        }
+                      >
+                        <td>
+                          <strong className="lead-reviews-candidate-name">
+                            {task.fullName}
+                          </strong>
+                        </td>
                         <td>
                           {formatNullableValue(task.appliedRole)}
                           {task.roleCode ? ` (${task.roleCode})` : ""}
@@ -452,9 +576,7 @@ const LeadReviews = () => {
                           )}
                         </td>
                         <td>
-                          {task.scoredDays} / {task.eligibleDays}
-                          <br />
-                          {task.dailyScoringComplete ? "Complete" : "Pending"}
+                          <DailyProgress task={task} />
                         </td>
                         <td>
                           {task.dailyComponentScore === null
@@ -478,7 +600,7 @@ const LeadReviews = () => {
                         <td>{formatNullableValue(task.reviewerName)}</td>
                         <td>{formatDate(task.submittedAt)}</td>
                         <td>
-                          <div className="action-group">
+                          <div className="lead-reviews-table__action">
                             <TaskAction task={task} />
                           </div>
                         </td>
