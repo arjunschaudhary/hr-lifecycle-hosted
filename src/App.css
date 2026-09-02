@@ -1994,124 +1994,412 @@ grid-template-columns:1fr;
 /* Candidate Portal workspace */
 .candidate-portal-page {
   width: 100%;
-  max-width: 1220px;
+  max-width: 1240px;
   margin: 0 auto;
-  padding: clamp(20px, 3vw, 36px);
+  padding: clamp(20px, 3vw, 38px);
+  background:
+    radial-gradient(circle at 8% 4%, rgba(219, 234, 254, .58), transparent 24%),
+    radial-gradient(circle at 94% 12%, rgba(224, 231, 255, .62), transparent 25%),
+    linear-gradient(180deg, rgba(248, 250, 252, .9), rgba(248, 250, 252, .35));
 }
 
-.candidate-portal-page > .card {
+.candidate-portal-page > .card,
+.candidate-portal-page > .candidate-portal-section-card {
   margin-bottom: 24px;
 }
 
-.candidate-portal-header {
-  margin-bottom: 28px;
+.candidate-portal-hero {
+  position: relative;
+  overflow: hidden;
+  margin-bottom: 22px;
+  padding: 34px;
+  border: 1px solid #c7d2fe;
+  border-radius: 24px;
+  background: linear-gradient(135deg, #eff6ff 0%, #eef2ff 58%, #f8fafc 100%);
+  box-shadow: 0 16px 36px rgba(30, 64, 175, .09);
 }
 
-.candidate-portal-header .page-icon {
-  width: 62px;
-  height: 62px;
-  flex-shrink: 0;
+.candidate-portal-hero__orb {
+  position: absolute;
+  top: -100px;
+  right: -70px;
+  width: 280px;
+  height: 280px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(129, 140, 248, .23), rgba(191, 219, 254, 0));
+  pointer-events: none;
 }
 
-.candidate-portal-header .page-title-modern {
-  margin: 0;
-  font-size: clamp(28px, 3vw, 36px);
-  line-height: 1.15;
+.candidate-portal-hero__main {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 22px;
 }
 
-.candidate-portal-header .page-subtitle {
-  margin: 7px 0 0;
-  font-size: 15px;
-}
-
-.candidate-portal-top-summary {
+.candidate-portal-hero__avatar {
+  width: 76px;
+  height: 76px;
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 20px;
+  place-items: center;
+  flex-shrink: 0;
+  border: 1px solid rgba(255, 255, 255, .9);
+  border-radius: 22px;
+  background: linear-gradient(145deg, #2563eb, #4f46e5);
+  color: #ffffff;
+  box-shadow: 0 12px 26px rgba(37, 99, 235, .22);
+}
+
+.candidate-portal-hero__content {
+  min-width: 0;
+}
+
+.candidate-portal-hero__eyebrow {
+  display: block;
+  margin-bottom: 7px;
+  color: #4338ca;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: .11em;
+  text-transform: uppercase;
+}
+
+.candidate-portal-hero h1 {
+  margin: 0;
+  color: #0f172a;
+  font-size: clamp(29px, 4vw, 42px);
+  line-height: 1.12;
+  letter-spacing: -.035em;
+}
+
+.candidate-portal-hero__content > p {
+  margin: 9px 0 0;
+  color: #475569;
+  font-size: 16px;
+}
+
+.candidate-portal-hero__badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 17px;
+}
+
+.candidate-portal-role-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 27px;
+  padding: 5px 11px;
+  border: 1px solid #bfdbfe;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .76);
+  color: #1e40af;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.candidate-portal-hero__status-strip {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: 1.5fr .75fr 1fr;
+  gap: 12px;
+  margin-top: 28px;
+  padding: 14px;
+  border: 1px solid rgba(255, 255, 255, .92);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, .64);
+  backdrop-filter: blur(8px);
+}
+
+.candidate-portal-hero__status-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+  padding: 7px 9px;
+  color: #2563eb;
+}
+
+.candidate-portal-hero__status-item div {
+  min-width: 0;
+}
+
+.candidate-portal-hero__status-item span,
+.candidate-portal-quick-card span {
+  display: block;
+  margin-bottom: 4px;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.candidate-portal-hero__status-item strong,
+.candidate-portal-quick-card strong {
+  display: block;
+  color: #0f172a;
+  font-size: 15px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.candidate-portal-quick-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
   margin-bottom: 24px;
 }
 
-.candidate-portal-summary-card,
-.candidate-portal-issued-documents,
+.candidate-portal-quick-card {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  min-width: 0;
+  padding: 19px 20px;
+  border: 1px solid #e2e8f0;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, .92);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, .05);
+  transition: transform .2s ease, box-shadow .2s ease;
+}
+
+.candidate-portal-quick-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 28px rgba(15, 23, 42, .08);
+}
+
+.candidate-portal-quick-card > div:last-child {
+  min-width: 0;
+}
+
+.candidate-portal-quick-card__icon,
+.candidate-portal-section-icon,
+.candidate-portal-detail-icon,
+.candidate-portal-empty-state__icon {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  color: #2563eb;
+  background: #dbeafe;
+}
+
+.candidate-portal-quick-card__icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 13px;
+}
+
+.candidate-portal-quick-card--indigo .candidate-portal-quick-card__icon {
+  color: #4f46e5;
+  background: #e0e7ff;
+}
+
+.candidate-portal-quick-card--emerald .candidate-portal-quick-card__icon {
+  color: #047857;
+  background: #d1fae5;
+}
+
+.candidate-portal-profile-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 22px;
+  margin-bottom: 24px;
+}
+
+.candidate-portal-profile-grid .candidate-portal-section-card {
+  height: 100%;
+}
+
 .candidate-portal-section-card {
   min-width: 0;
   padding: 26px;
+  border: 1px solid #e2e8f0;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, .96);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, .05);
 }
 
-.candidate-portal-summary-card h2,
-.candidate-portal-issued-documents h2,
-.candidate-portal-section-card > h2 {
-  margin: 0 0 18px;
+.candidate-portal-section-heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.candidate-portal-section-heading h2 {
+  margin: 0;
   color: #0f172a;
   font-size: 21px;
   line-height: 1.25;
 }
 
-.candidate-portal-summary-card p {
-  margin: 0 0 16px;
-  line-height: 1.6;
-  overflow-wrap: anywhere;
+.candidate-portal-section-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
 }
 
-.candidate-portal-issued-documents {
-  grid-column: 1 / -1;
+.candidate-portal-section-aside {
+  margin-left: auto;
 }
 
 .candidate-portal-page .candidate-details-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
-}
-
-.candidate-portal-page .candidate-portal-issued-document-grid {
-  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 13px;
 }
 
 .candidate-portal-page .candidate-detail-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
   min-width: 0;
-  padding: 19px 20px;
+  padding: 15px 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  background: #f8fafc;
+  box-shadow: none;
+  transform: none;
+}
+
+.candidate-portal-page .candidate-detail-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 7px 18px rgba(15, 23, 42, .05);
+}
+
+.candidate-portal-detail-content {
+  min-width: 0;
+}
+
+.candidate-portal-detail-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 11px;
 }
 
 .candidate-portal-page .candidate-detail-card span {
-  margin-bottom: 9px;
-  font-size: 12px;
-  letter-spacing: 0.03em;
+  margin-bottom: 7px;
+  color: #64748b;
+  font-size: 11px;
+  letter-spacing: .05em;
   text-transform: uppercase;
 }
 
 .candidate-portal-page .candidate-detail-card strong {
   display: block;
-  font-size: 16px;
+  color: #0f172a;
+  font-size: 15px;
   line-height: 1.45;
   overflow-wrap: anywhere;
 }
 
+.candidate-portal-page .candidate-portal-issued-document-grid {
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+
 .candidate-portal-issued-document-grid .candidate-detail-card {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
 }
 
 .candidate-portal-issued-document-grid .btn {
+  width: 100%;
   margin-top: 4px;
 }
 
-.candidate-portal-exit-callout {
-  border-left: 4px solid #2563eb;
+.candidate-portal-empty-state {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  border: 1px solid #dbeafe;
+  border-radius: 14px;
+  background: linear-gradient(145deg, #f8fafc, #eff6ff);
+  text-align: left;
 }
 
-.candidate-portal-leave-stats {
-  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+.candidate-portal-empty-state__icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 13px;
+}
+
+.candidate-portal-empty-state__content {
+  min-width: 0;
+}
+
+.candidate-portal-empty-state__content > strong {
+  display: block;
+  color: #0f172a;
+  font-size: 16px;
+  line-height: 1.35;
+}
+
+.candidate-portal-empty-state .page-subtitle {
+  margin: 3px 0 0;
+  line-height: 1.4;
+}
+
+.candidate-portal-exit-callout {
+  border-color: #c7d2fe;
+  border-left: 4px solid #4f46e5;
+  background: linear-gradient(135deg, #eff6ff, #eef2ff);
+}
+
+.candidate-portal-page .candidate-portal-leave-stats {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .candidate-portal-leave-stats .candidate-detail-card {
-  padding: 18px;
+  position: relative;
+  min-height: 116px;
+  padding: 17px;
+  background: #ffffff;
 }
 
 .candidate-portal-leave-stats .candidate-detail-card strong {
-  color: #2563eb;
-  font-size: 25px;
+  font-size: 27px;
   line-height: 1.1;
+}
+
+.candidate-portal-detail--blue .candidate-portal-detail-icon,
+.candidate-portal-detail--blue strong {
+  color: #2563eb;
+}
+
+.candidate-portal-detail--emerald .candidate-portal-detail-icon,
+.candidate-portal-detail--emerald strong {
+  color: #047857;
+}
+
+.candidate-portal-detail--emerald .candidate-portal-detail-icon {
+  background: #d1fae5;
+}
+
+.candidate-portal-detail--indigo .candidate-portal-detail-icon,
+.candidate-portal-detail--indigo strong {
+  color: #4f46e5;
+}
+
+.candidate-portal-detail--indigo .candidate-portal-detail-icon {
+  background: #e0e7ff;
+}
+
+.candidate-portal-detail--amber .candidate-portal-detail-icon,
+.candidate-portal-detail--amber strong {
+  color: #b45309;
+}
+
+.candidate-portal-detail--amber .candidate-portal-detail-icon {
+  background: #fef3c7;
+}
+
+.candidate-portal-leave-application {
+  border-color: #dbeafe;
+  background: linear-gradient(145deg, #ffffff, #f8fbff);
 }
 
 .candidate-portal-leave-form {
@@ -2161,7 +2449,9 @@ grid-template-columns:1fr;
 }
 
 .candidate-portal-leave-submit {
+  display: block;
   min-width: 190px;
+  margin-left: auto;
 }
 
 .candidate-portal-table-section {
@@ -2172,62 +2462,99 @@ grid-template-columns:1fr;
   width: 100%;
   max-width: 100%;
   overflow-x: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
 }
 
 .candidate-portal-table-wrap table {
   margin: 0;
 }
 
-@media (max-width: 900px) {
-  .candidate-portal-leave-stats {
-    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+@media (max-width: 1100px) {
+  .candidate-portal-quick-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .candidate-portal-hero__status-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .candidate-portal-page .candidate-portal-leave-stats,
   .candidate-portal-leave-form-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
-@media (max-width: 640px) {
+@media (max-width: 820px) {
+  .candidate-portal-profile-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .candidate-portal-page .candidate-details-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 700px) {
   .candidate-portal-page {
-    padding: 16px;
+    padding: 14px;
   }
 
-  .candidate-portal-header {
+  .candidate-portal-hero {
+    padding: 24px 20px 20px;
+  }
+
+  .candidate-portal-hero__main {
     align-items: flex-start;
-    gap: 13px;
-    margin-bottom: 22px;
+    flex-direction: column;
+    gap: 17px;
   }
 
-  .candidate-portal-header .page-icon {
-    width: 50px;
-    height: 50px;
+  .candidate-portal-hero__avatar {
+    width: 60px;
+    height: 60px;
+    border-radius: 18px;
   }
 
-  .candidate-portal-header .page-title-modern {
-    font-size: 26px;
+  .candidate-portal-hero h1 {
+    font-size: 29px;
   }
 
-  .candidate-portal-top-summary,
-  .candidate-portal-page .candidate-details-grid,
-  .candidate-portal-leave-stats,
+  .candidate-portal-hero__status-strip,
+  .candidate-portal-quick-grid,
   .candidate-portal-leave-form-grid {
-    grid-template-columns: 1fr !important;
+    grid-template-columns: 1fr;
   }
 
-  .candidate-portal-summary-card,
-  .candidate-portal-issued-documents,
   .candidate-portal-section-card {
     padding: 20px;
   }
 
-  .candidate-portal-summary-card h2,
-  .candidate-portal-issued-documents h2,
-  .candidate-portal-section-card > h2 {
+  .candidate-portal-section-heading {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .candidate-portal-section-heading h2 {
     font-size: 19px;
+  }
+
+  .candidate-portal-section-aside {
+    width: 100%;
+    margin-left: 52px;
   }
 
   .candidate-portal-leave-submit {
     width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .candidate-portal-page .candidate-portal-leave-stats {
+    grid-template-columns: 1fr;
+  }
+
+  .candidate-portal-hero__status-item {
+    padding-inline: 4px;
   }
 }

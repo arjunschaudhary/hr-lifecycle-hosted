@@ -2,7 +2,24 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 
 import { Link } from "react-router-dom";
-import { BriefcaseBusiness, ClipboardList } from "lucide-react";
+import {
+  BadgeCheck,
+  BriefcaseBusiness,
+  CalendarClock,
+  CalendarDays,
+  CirclePlus,
+  ClipboardList,
+  FileCheck,
+  FilePenLine,
+  Files,
+  Gauge,
+  History,
+  IdCard,
+  LogOut,
+  Mail,
+  UserRound,
+  Users,
+} from "lucide-react";
 
 import { useAuth } from "../context/authContext";
 import {
@@ -27,6 +44,19 @@ const INITIAL_LEAVE_FORM = {
   reason: "",
   supportingDocument: "",
   otherLeaveTypeReason: "",
+};
+
+const PORTAL_SECTION_ICONS = {
+  "Personal Information": UserRound,
+  "Internship Information": BriefcaseBusiness,
+  "Issued Documents": Files,
+  "Leave Summary": CalendarDays,
+  "Leave Application": FilePenLine,
+  "Leave Request History": History,
+  "On Leave Today": Users,
+  "Signed Offer": FileCheck,
+  "Performance History": Gauge,
+  "Exit Questionnaire": LogOut,
 };
 import { getCandidateExitCase } from "../services/exitService";
 
@@ -108,25 +138,64 @@ function SummaryFields({ fields, className = "" }) {
 
   return (
     <div className={`candidate-details-grid ${className}`.trim()}>
-      {availableFields.map((field) => (
-        <div className="candidate-detail-card" key={field.label}>
-          <span>{field.label}</span>
-          <strong>{field.value}</strong>
-        </div>
-      ))}
+      {availableFields.map((field) => {
+        const FieldIcon = field.icon;
+
+        return (
+          <div
+            className={`candidate-detail-card${field.tone ? ` candidate-portal-detail--${field.tone}` : ""}`}
+            key={field.label}
+          >
+            {FieldIcon && (
+              <div className="candidate-portal-detail-icon" aria-hidden="true">
+                <FieldIcon size={18} />
+              </div>
+            )}
+            <div className="candidate-portal-detail-content">
+              <span>{field.label}</span>
+              <strong>{field.value}</strong>
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
 
-function SummaryCard({ title, children, className = "" }) {
+function SummaryCard({ title, children, className = "", headerAside = null }) {
+  const SectionIcon = PORTAL_SECTION_ICONS[title];
+  const titleId = `${title.toLowerCase().replaceAll(" ", "-")}-title`;
+
   return (
     <section
       className={`card candidate-portal-section-card ${className}`.trim()}
-      aria-labelledby={`${title.toLowerCase().replaceAll(" ", "-")}-title`}
+      aria-labelledby={titleId}
     >
-      <h2 id={`${title.toLowerCase().replaceAll(" ", "-")}-title`}>{title}</h2>
+      <div className="candidate-portal-section-heading">
+        {SectionIcon && (
+          <div className="candidate-portal-section-icon" aria-hidden="true">
+            <SectionIcon size={20} />
+          </div>
+        )}
+        <h2 id={titleId}>{title}</h2>
+        {headerAside && <div className="candidate-portal-section-aside">{headerAside}</div>}
+      </div>
       {children}
     </section>
+  );
+}
+
+function PortalEmptyState({ icon: Icon, title, children }) {
+  return (
+    <div className="candidate-portal-empty-state">
+      <div className="candidate-portal-empty-state__icon" aria-hidden="true">
+        <Icon size={24} />
+      </div>
+      <div className="candidate-portal-empty-state__content">
+        <strong>{title}</strong>
+        <p className="page-subtitle">{children}</p>
+      </div>
+    </div>
   );
 }
 
@@ -157,7 +226,9 @@ function CandidatePerformanceSection({ cycles, loading, error }) {
   return (
     <SummaryCard title="Performance History">
       {cycles.length === 0 ? (
-        <p className="page-subtitle">No performance cycles available yet.</p>
+        <PortalEmptyState icon={Gauge} title="No performance cycles yet">
+          No performance cycles available yet.
+        </PortalEmptyState>
       ) : (
         <div className="table-wrapper candidate-portal-table-wrap">
           <table>
@@ -219,6 +290,40 @@ function CandidatePerformanceSection({ cycles, loading, error }) {
   );
 }
 
+function CandidateIssuedDocumentsSection({ documents, error, onViewDocument }) {
+  return (
+    <SummaryCard title="Issued Documents">
+      {error && <p className="auth-inline-error" role="alert">{error}</p>}
+      {documents.length === 0 ? (
+        <PortalEmptyState icon={Files} title="No issued documents yet">
+          No issued documents are available yet.
+        </PortalEmptyState>
+      ) : (
+        <div className="candidate-details-grid candidate-portal-issued-document-grid">
+          {documents.map((document) => (
+            <div className="candidate-detail-card" key={document.document_id}>
+              <div className="candidate-portal-detail-icon" aria-hidden="true">
+                <FileCheck size={18} />
+              </div>
+              <div className="candidate-portal-detail-content">
+                <span>{formatStatus(document.document_variant || document.document_type)}</span>
+                <strong>{formatDate(document.issued_at)}</strong>
+              </div>
+              <button
+                className="btn btn-primary"
+                type="button"
+                onClick={() => onViewDocument(document.storage_path)}
+              >
+                View / Download
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </SummaryCard>
+  );
+}
+
 const getLeaveStatusBadgeClass = (status) => {
   if (status === "APPROVED") {
     return "badge-success";
@@ -256,7 +361,7 @@ function CandidateLeaveSection({
 
   return (
     <>
-      <SummaryCard title="Leave Application">
+      <SummaryCard title="Leave Application" className="candidate-portal-leave-application">
         {hasPendingRequest && (
           <div className="info-banner" role="status" aria-live="polite">
             You already have a pending leave request. Wait for HR to review it
@@ -584,6 +689,9 @@ function PortalSummary({
   podLeave,
   podLeaveLoading,
   podLeaveError,
+  issuedDocuments,
+  issuedDocumentsError,
+  onViewIssuedDocument,
   children,
 }) {
   const profile = summary.profile;
@@ -621,13 +729,21 @@ function PortalSummary({
 
   return (
     <>
-      <SummaryCard title="Personal Information">
-        <SummaryFields fields={profileFields} />
-      </SummaryCard>
+      <div className="candidate-portal-profile-grid">
+        <SummaryCard title="Personal Information">
+          <SummaryFields fields={profileFields} />
+        </SummaryCard>
 
-      <SummaryCard title="Internship Information">
-        <SummaryFields fields={internshipFields} />
-      </SummaryCard>
+        <SummaryCard title="Internship Information">
+          <SummaryFields fields={internshipFields} />
+        </SummaryCard>
+      </div>
+
+      <CandidateIssuedDocumentsSection
+        documents={issuedDocuments}
+        error={issuedDocumentsError}
+        onViewDocument={onViewIssuedDocument}
+      />
 
       {exitCase && (
         <SummaryCard title="Exit Questionnaire" className="candidate-portal-exit-callout">
@@ -661,10 +777,30 @@ function PortalSummary({
           <SummaryFields
             className="candidate-portal-leave-stats"
             fields={[
-              { label: "Allocated Leave", value: formatValue(leave.allocatedLeaveDays) },
-              { label: "Approved Leave", value: formatValue(leave.approvedLeaveDays) },
-              { label: "Remaining Leave", value: formatValue(leave.remainingLeaveDays) },
-              { label: "Extra Leave", value: formatValue(leave.extraLeaveDays) },
+              {
+                label: "Allocated Leave",
+                value: formatValue(leave.allocatedLeaveDays),
+                icon: CalendarDays,
+                tone: "blue",
+              },
+              {
+                label: "Approved Leave",
+                value: formatValue(leave.approvedLeaveDays),
+                icon: BadgeCheck,
+                tone: "emerald",
+              },
+              {
+                label: "Remaining Leave",
+                value: formatValue(leave.remainingLeaveDays),
+                icon: CalendarClock,
+                tone: "indigo",
+              },
+              {
+                label: "Extra Leave",
+                value: formatValue(leave.extraLeaveDays),
+                icon: CirclePlus,
+                tone: "amber",
+              },
             ]}
           />
         ) : (
@@ -723,33 +859,31 @@ function CandidateSignedOfferSection({
   const canSubmit = signedOffer?.canSubmit;
   const canResubmit = signedOffer?.canResubmit;
   const verificationNotes = signedOffer?.verificationNotes;
+  const statusLabel = status === "SIGNED_OFFER_VERIFIED"
+    ? "Signed offer verified"
+    : status === "SIGNED_OFFER_SUBMITTED"
+      ? "Pending HR review"
+      : formatStatus(status) || "Not submitted";
+  const statusBadgeClass = status === "SIGNED_OFFER_VERIFIED"
+    ? "badge-success"
+    : status === "SIGNED_OFFER_SUBMITTED"
+      ? "badge-info"
+      : status === "MISMATCH_REVIEW"
+        ? "badge-warning"
+        : "badge-secondary";
 
   const signedOfferFields = [
-    {
-      label: "Current Status",
-      value: formatStatus(status) || "Not submitted",
-    },
+    { label: "Current Status", value: formatStatus(status) || "Not submitted" },
     { label: "Submitted Date", value: formatDate(signedOffer?.submittedAt) },
     { label: "Verified Date", value: formatDate(signedOffer?.verifiedAt) },
   ];
 
   return (
-    <SummaryCard title="Signed Offer">
+    <SummaryCard
+      title="Signed Offer"
+      headerAside={<span className={`badge ${statusBadgeClass}`}>{statusLabel}</span>}
+    >
       <SummaryFields fields={signedOfferFields} />
-
-      {/* ── Verified (accepted) ─────────────────────────────── */}
-      {status === "SIGNED_OFFER_VERIFIED" && (
-        <div style={{ marginTop: 12 }}>
-          <span className="badge badge-success">Signed offer verified</span>
-        </div>
-      )}
-
-      {/* ── Pending review ───────────────────────────────────── */}
-      {status === "SIGNED_OFFER_SUBMITTED" && (
-        <div style={{ marginTop: 12 }}>
-          <span className="badge badge-info">Pending HR review</span>
-        </div>
-      )}
 
       {/* ── Rejected / MISMATCH_REVIEW ───────────────────────── */}
       {canResubmit && (
@@ -1404,56 +1538,103 @@ export default function CandidatePortal() {
     }
   };
 
+  const candidateName = formatValue(summary?.profile?.fullName);
+  const candidateRole = formatValue(summary?.profile?.appliedRole);
+  const candidateMid = formatValue(summary?.profile?.mid);
+  const lifecycleStatus = formatStatus(summary?.internship?.lifecycleStatus);
+  const internshipEndDate = formatDate(summary?.internship?.currentEndDate);
+  const signedOfferRawStatus = summary?.signedOffer?.status;
+  const signedOfferStatus = formatStatus(signedOfferRawStatus);
+  const signedOfferBadgeClass = signedOfferRawStatus === "SIGNED_OFFER_VERIFIED"
+    ? "badge-success"
+    : signedOfferRawStatus === "MISMATCH_REVIEW"
+      ? "badge-warning"
+      : "badge-info";
+  const showSignedOfferBadge = Boolean(
+    signedOfferStatus && signedOfferStatus !== lifecycleStatus,
+  );
+
   return (
     <main className="app-page candidate-portal-page">
-      <header className="page-header-modern candidate-portal-header">
-        <div className="page-icon" aria-hidden="true">
-          <BriefcaseBusiness />
+      <header className="candidate-portal-hero" aria-labelledby="candidate-portal-title">
+        <div className="candidate-portal-hero__orb" aria-hidden="true" />
+        <div className="candidate-portal-hero__main">
+          <div className="candidate-portal-hero__avatar" aria-hidden="true">
+            <UserRound size={34} />
+          </div>
+          <div className="candidate-portal-hero__content">
+            <span className="candidate-portal-hero__eyebrow">Candidate Portal</span>
+            <h1 id="candidate-portal-title">
+              {candidateName ? `Welcome back, ${candidateName}` : "Welcome back"}
+            </h1>
+            <p>Your secure candidate workspace.</p>
+
+            <div className="candidate-portal-hero__badges">
+              {candidateRole && <span className="candidate-portal-role-pill">{candidateRole}</span>}
+              {lifecycleStatus && <span className="badge badge-info">{lifecycleStatus}</span>}
+              {showSignedOfferBadge && (
+                <span className={`badge ${signedOfferBadgeClass}`}>{signedOfferStatus}</span>
+              )}
+            </div>
+          </div>
         </div>
-        <div>
-          <h1 className="page-title-modern">Candidate Portal</h1>
-          <p className="page-subtitle">Your secure candidate workspace.</p>
+
+        <div className="candidate-portal-hero__status-strip">
+          <div className="candidate-portal-hero__status-item">
+            <Mail size={17} aria-hidden="true" />
+            <div>
+              <span>Email</span>
+              <strong>{user?.email || "Unknown account"}</strong>
+            </div>
+          </div>
+          <div className="candidate-portal-hero__status-item">
+            <BadgeCheck size={17} aria-hidden="true" />
+            <div>
+              <span>Portal Status</span>
+              <strong>Active</strong>
+            </div>
+          </div>
+          <div className="candidate-portal-hero__status-item">
+            <IdCard size={17} aria-hidden="true" />
+            <div>
+              <span>MID</span>
+              <strong>{loading ? "Loading..." : candidateMid || "Not generated yet"}</strong>
+            </div>
+          </div>
         </div>
       </header>
 
-      <div className="candidate-portal-top-summary">
-        <section className="card candidate-portal-summary-card" aria-labelledby="candidate-account-title">
-          <h2 id="candidate-account-title">Account</h2>
-          <p>
-            Signed in as <strong>{user?.email || "Unknown account"}</strong>
-          </p>
-          <span className="badge badge-success">Portal account active</span>
+      {!loading && !error && summary && (
+        <section className="candidate-portal-quick-grid" aria-label="Candidate overview">
+          <article className="candidate-portal-quick-card candidate-portal-quick-card--blue">
+            <div className="candidate-portal-quick-card__icon" aria-hidden="true">
+              <IdCard size={21} />
+            </div>
+            <div>
+              <span>Candidate ID</span>
+              <strong>{candidateMid || "Not generated yet"}</strong>
+            </div>
+          </article>
+          <article className="candidate-portal-quick-card candidate-portal-quick-card--indigo">
+            <div className="candidate-portal-quick-card__icon" aria-hidden="true">
+              <BriefcaseBusiness size={21} />
+            </div>
+            <div>
+              <span>Lifecycle Status</span>
+              <strong>{lifecycleStatus || "Not available"}</strong>
+            </div>
+          </article>
+          <article className="candidate-portal-quick-card candidate-portal-quick-card--emerald">
+            <div className="candidate-portal-quick-card__icon" aria-hidden="true">
+              <CalendarDays size={21} />
+            </div>
+            <div>
+              <span>Internship End Date</span>
+              <strong>{internshipEndDate || "Not available"}</strong>
+            </div>
+          </article>
         </section>
-
-        <section className="card candidate-portal-summary-card" aria-labelledby="candidate-reference-title">
-          <h2 id="candidate-reference-title">Candidate reference</h2>
-
-          <p>
-            MID:{" "}
-            <strong>
-              {loading
-                ? "Loading..."
-                : formatValue(summary?.profile?.mid) || "Not generated yet"}
-            </strong>
-          </p>
-        </section>
-
-        {!loading && !error && summary && (
-          <section className="card candidate-portal-issued-documents" aria-labelledby="issued-documents-title">
-            <h2 id="issued-documents-title">Issued Documents</h2>
-            {issuedDocumentsError && <p className="auth-inline-error" role="alert">{issuedDocumentsError}</p>}
-            {issuedDocuments.length === 0 ? <p className="page-subtitle">No issued documents are available yet.</p> : (
-              <div className="candidate-details-grid candidate-portal-issued-document-grid">{issuedDocuments.map((document) => (
-                <div className="candidate-detail-card" key={document.document_id}>
-                  <span>{formatStatus(document.document_variant || document.document_type)}</span>
-                  <strong>{formatDate(document.issued_at)}</strong>
-                  <button className="btn btn-primary" type="button" onClick={() => handleViewIssuedDocument(document.storage_path)}>View / Download</button>
-                </div>
-              ))}</div>
-            )}
-          </section>
-        )}
-      </div>
+      )}
 
       {loading && (
         <section className="card" role="status" aria-live="polite">
@@ -1501,6 +1682,9 @@ export default function CandidatePortal() {
           podLeave={podLeave}
           podLeaveLoading={podLeaveLoading}
           podLeaveError={podLeaveError}
+          issuedDocuments={issuedDocuments}
+          issuedDocumentsError={issuedDocumentsError}
+          onViewIssuedDocument={handleViewIssuedDocument}
         >
           <CandidateLeaveSection
             form={leaveForm}
