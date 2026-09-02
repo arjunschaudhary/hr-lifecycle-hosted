@@ -7,6 +7,10 @@ import {
 } from "react";
 import {
   AlertTriangle,
+  CheckCircle2,
+  Info,
+  ListChecks,
+  LoaderCircle,
   Network,
   Plus,
   Search,
@@ -26,6 +30,7 @@ import {
   searchPodCandidates,
   searchPodHrPsyconnectReviewers,
 } from "../services/podManagementService";
+import "./PodManagement.css";
 
 const EMPTY_FORM = {
   podCode: "",
@@ -112,16 +117,45 @@ function getMembershipTypeLabel(membershipType) {
 
 function CandidateButton({ candidateId, name, onOpen }) {
   if (!candidateId) {
-    return name;
+    return <strong className="pod-management-member-name">{name}</strong>;
   }
   return (
     <button
-      className="candidate-link"
+      className="candidate-link pod-management-member-name"
       type="button"
       onClick={() => onOpen(candidateId)}
     >
       {name}
     </button>
+  );
+}
+
+function PodMetricCard({ icon: Icon, title, value, tone }) {
+  return (
+    <article className={`pod-management-metric pod-management-metric--${tone}`}>
+      <div className="pod-management-metric__icon" aria-hidden="true">
+        <Icon size={22} />
+      </div>
+      <div>
+        <p className="pod-management-metric__label">{title}</p>
+        <p className="pod-management-metric__value">{value}</p>
+      </div>
+    </article>
+  );
+}
+
+function PodStatusPanel({ icon: Icon, children, tone = "info", role = "status" }) {
+  return (
+    <section
+      className={`pod-management-status pod-management-status--${tone}`}
+      role={role}
+      aria-live={role === "alert" ? undefined : "polite"}
+    >
+      <div className="pod-management-status__icon" aria-hidden="true">
+        <Icon size={20} />
+      </div>
+      <div className="pod-management-status__content">{children}</div>
+    </section>
   );
 }
 
@@ -663,14 +697,15 @@ export default function PodManagement() {
   const renderMembershipRows = (records, allowEnd) => {
     if (records.length === 0) {
       return (
-        <p className="info-banner" role="status">
-          No memberships in this section.
-        </p>
+        <div className="pod-management-empty" role="status">
+          <Users size={18} aria-hidden="true" />
+          <span>No memberships in this section.</span>
+        </div>
       );
     }
     return (
-      <div className="table-container">
-        <table>
+      <div className="pod-management-table-wrap">
+        <table className="pod-management-table pod-management-table--memberships">
           <thead>
             <tr>
               <th>Member</th>
@@ -713,7 +748,7 @@ export default function PodManagement() {
                 {allowEnd && (
                   <td>
                     <button
-                      className="btn btn-warning"
+                      className="btn btn-warning pod-management-table-action"
                       type="button"
                       onClick={() => openModal("endMembership", membership)}
                     >
@@ -735,14 +770,15 @@ export default function PodManagement() {
         Back to Dashboard
       </Link>
 
-      <header className="pod-page-header">
-        <div className="page-header-modern">
-          <div className="page-icon">
-            <Network aria-hidden="true" />
+      <header className="pod-management-hero">
+        <div className="pod-management-hero__intro">
+          <div className="pod-management-hero__icon" aria-hidden="true">
+            <Network size={32} />
           </div>
-          <div>
-            <h1 className="page-title-modern">Pod Management</h1>
-            <p className="page-subtitle">
+          <div className="pod-management-hero__content">
+            <p className="pod-management-hero__eyebrow">HR Psyconnect Workspace</p>
+            <h1>Pod Management</h1>
+            <p>
               Manage pods, candidate assignments, lead memberships, and
               performance-assignment follow-up.
             </p>
@@ -759,7 +795,7 @@ export default function PodManagement() {
       </header>
 
       {pageError && (
-        <section className="info-banner" role="alert">
+        <PodStatusPanel icon={AlertTriangle} tone="error" role="alert">
           <p>{pageError}</p>
           <button
             className="btn btn-primary"
@@ -768,70 +804,77 @@ export default function PodManagement() {
           >
             Retry
           </button>
-        </section>
+        </PodStatusPanel>
       )}
       {successMessage && (
-        <p className="auth-success-message" role="status" aria-live="polite">
-          {successMessage}
-        </p>
+        <PodStatusPanel icon={CheckCircle2} tone="success">
+          <p>{successMessage}</p>
+        </PodStatusPanel>
       )}
       {performanceMessage && (
-        <p className="info-banner" role="status" aria-live="polite">
-          <strong>Performance assignment:</strong> {performanceMessage}
-        </p>
+        <PodStatusPanel icon={Info}>
+          <p>
+            <strong>Performance assignment:</strong> {performanceMessage}
+          </p>
+        </PodStatusPanel>
       )}
 
       {isLoading ? (
-        <p className="info-banner" role="status" aria-live="polite">
-          Loading Pod Management...
-        </p>
+        <PodStatusPanel icon={LoaderCircle}>
+          <p>Loading Pod Management...</p>
+        </PodStatusPanel>
       ) : (
         <>
-          <section className="metric-grid pod-metric-grid" aria-label="Pod metrics">
-            <div className="metric-card">
-              <Network className="metric-card__icon" aria-hidden="true" />
-              <div>
-                <p className="metric-title">Total Pods</p>
-                <p className="metric-value">{metrics.totalPods}</p>
-              </div>
-            </div>
-            <div className="metric-card">
-              <ShieldCheck className="metric-card__icon" aria-hidden="true" />
-              <div>
-                <p className="metric-title">Active Pods</p>
-                <p className="metric-value">{metrics.activePods}</p>
-              </div>
-            </div>
-            <div className="metric-card">
-              <AlertTriangle className="metric-card__icon" aria-hidden="true" />
-              <div>
-                <p className="metric-title">Awaiting Pod</p>
-                <p className="metric-value">{metrics.waitingCandidates}</p>
-              </div>
-            </div>
-            <div className="metric-card">
-              <Users className="metric-card__icon" aria-hidden="true" />
-              <div>
-                <p className="metric-title">
-                  Current Pod Leads / Project Managers
-                </p>
-                <p className="metric-value">{metrics.currentLeads}</p>
-              </div>
-            </div>
+          <section
+            className="pod-management-metrics"
+            aria-label="Pod metrics"
+          >
+            <PodMetricCard
+              icon={Network}
+              title="Total Pods"
+              value={metrics.totalPods}
+              tone="blue"
+            />
+            <PodMetricCard
+              icon={ShieldCheck}
+              title="Active Pods"
+              value={metrics.activePods}
+              tone="emerald"
+            />
+            <PodMetricCard
+              icon={AlertTriangle}
+              title="Awaiting Pod"
+              value={metrics.waitingCandidates}
+              tone="amber"
+            />
+            <PodMetricCard
+              icon={Users}
+              title="Current Pod Leads / Project Managers"
+              value={metrics.currentLeads}
+              tone="indigo"
+            />
           </section>
 
-          <section className="pod-section">
-            <div className="pod-section-header">
-              <div>
+          <section className="pod-management-section">
+            <div className="pod-management-section__header">
+              <div className="pod-management-section__heading">
+                <div className="pod-management-section__icon" aria-hidden="true">
+                  <Network size={20} />
+                </div>
+                <div>
                 <h2>Pods</h2>
                 <p>Select a pod to inspect its current and historical members.</p>
+                </div>
               </div>
             </div>
             {pods.length === 0 ? (
-              <p className="info-banner" role="status">No pods found.</p>
+              <div className="pod-management-empty" role="status">
+                <Network size={18} aria-hidden="true" />
+                <span>No pods found.</span>
+              </div>
             ) : (
-              <div className="table-container">
-                <table>
+              <div className="pod-management-table-wrap">
+                <table className="pod-management-table">
                   <thead>
                     <tr>
                       <th>Code</th>
@@ -865,7 +908,7 @@ export default function PodManagement() {
                             "None"}
                         </td>
                         <td>
-                          <div className="action-group">
+                          <div className="pod-management-actions pod-management-actions--compact">
                             <button
                               className="btn btn-secondary"
                               type="button"
@@ -890,20 +933,29 @@ export default function PodManagement() {
             )}
           </section>
 
-          <section className="pod-section">
-            <div className="pod-section-header">
-              <div>
+          <section className="pod-management-section pod-management-section--attention">
+            <div className="pod-management-section__header">
+              <div className="pod-management-section__heading">
+                <div
+                  className="pod-management-section__icon pod-management-section__icon--attention"
+                  aria-hidden="true"
+                >
+                  <AlertTriangle size={20} />
+                </div>
+                <div>
                 <h2>Candidates Awaiting Pod</h2>
                 <p>Resolve pod-dependent performance assignments without creating new jobs.</p>
+                </div>
               </div>
             </div>
             {waitingCandidates.length === 0 ? (
-              <p className="info-banner" role="status">
-                No candidates are currently waiting for a pod.
-              </p>
+              <div className="pod-management-empty" role="status">
+                <CheckCircle2 size={18} aria-hidden="true" />
+                <span>No candidates are currently waiting for a pod.</span>
+              </div>
             ) : (
-              <div className="table-container">
-                <table>
+              <div className="pod-management-table-wrap">
+                <table className="pod-management-table">
                   <thead>
                     <tr>
                       <th>Candidate</th>
@@ -969,24 +1021,32 @@ export default function PodManagement() {
             )}
           </section>
 
-          <section className="pod-section">
-            <div className="pod-section-header">
-              <div>
+          <section className="pod-management-section pod-management-search-workspace">
+            <div className="pod-management-section__header">
+              <div className="pod-management-section__heading">
+                <div className="pod-management-section__icon" aria-hidden="true">
+                  <Search size={20} />
+                </div>
+                <div>
                 <h2>Candidate Search</h2>
                 <p>Search by full name, email, or MID.</p>
+                </div>
               </div>
             </div>
-            <form className="pod-search-form" onSubmit={handleSearch}>
-              <div className="form-group">
+            <form className="pod-management-search" onSubmit={handleSearch}>
+              <div className="pod-management-field">
                 <label htmlFor="pod-candidate-search">Candidate search</label>
-                <input
-                  id="pod-candidate-search"
-                  type="search"
-                  value={searchTerm}
-                  maxLength={150}
-                  onChange={handleSearchTermChange}
-                  placeholder="Name, email, or MID"
-                />
+                <div className="pod-management-search__control">
+                  <Search size={19} aria-hidden="true" />
+                  <input
+                    id="pod-candidate-search"
+                    type="search"
+                    value={searchTerm}
+                    maxLength={150}
+                    onChange={handleSearchTermChange}
+                    placeholder="Name, email, or MID"
+                  />
+                </div>
               </div>
               <button className="btn btn-primary" type="submit" disabled={searchLoading}>
                 <Search size={18} aria-hidden="true" />
@@ -994,16 +1054,18 @@ export default function PodManagement() {
               </button>
             </form>
             {!hasSearchedCandidates ? (
-              <p className="info-banner" role="status">
-                Enter a search term to find candidates.
-              </p>
+              <div className="pod-management-empty" role="status">
+                <Search size={18} aria-hidden="true" />
+                <span>Enter a search term to find candidates.</span>
+              </div>
             ) : searchResults.length === 0 ? (
-              <p className="info-banner" role="status">
-                No candidates match the search.
-              </p>
+              <div className="pod-management-empty" role="status">
+                <Users size={18} aria-hidden="true" />
+                <span>No candidates match the search.</span>
+              </div>
             ) : (
-              <div className="table-container">
-                <table>
+              <div className="pod-management-table-wrap">
+                <table className="pod-management-table pod-management-table--search-results">
                   <thead>
                     <tr>
                       <th>Candidate</th>
@@ -1055,14 +1117,26 @@ export default function PodManagement() {
                             </span>
                           </td>
                           <td>
-                            {candidate.appliedRole || "Not available"}
+                            <span className="pod-management-role-name">
+                              {candidate.appliedRole || "Not available"}
+                            </span>
                             <span className="pod-secondary-text">
                               MID: {candidate.mid || "Not generated"}
                             </span>
                           </td>
-                          <td>{candidate.activePodCode || "Not assigned"}</td>
                           <td>
-                            <span className={`badge ${
+                            <span
+                              className={
+                                candidate.activePodCode
+                                  ? undefined
+                                  : "pod-management-muted-value"
+                              }
+                            >
+                              {candidate.activePodCode || "Not assigned"}
+                            </span>
+                          </td>
+                          <td>
+                            <span className={`badge pod-management-portal-badge ${
                               hasActivePortalAccount
                                 ? "badge-success"
                                 : "badge-primary"
@@ -1074,7 +1148,7 @@ export default function PodManagement() {
                             </span>
                           </td>
                           <td>
-                            <div className="action-group">
+                            <div className="pod-management-actions pod-management-candidate-actions">
                               <button
                                 className="btn btn-primary"
                                 type="button"
@@ -1150,31 +1224,41 @@ export default function PodManagement() {
                                 Assign Project Manager
                               </button>
                             </div>
-                            {podAssignmentEligibilityMessage && (
-                              <span
-                                id={podAssignmentRequirementId}
-                                className="pod-secondary-text"
-                              >
-                                {podAssignmentEligibilityMessage}
-                              </span>
-                            )}
-                            {!hasActivePortalAccount && (
-                              <span
-                                id={leadRequirementId}
-                                className="pod-secondary-text"
-                              >
-                                Activate the candidate portal before assigning a
-                                lead role.
-                              </span>
-                            )}
-                            {hasActivePortalAccount &&
-                              projectManagerEligibilityMessage && (
-                              <span
-                                id={projectManagerRequirementId}
-                                className="pod-secondary-text"
-                              >
-                                {projectManagerEligibilityMessage}
-                              </span>
+                            {(podAssignmentEligibilityMessage ||
+                              !hasActivePortalAccount ||
+                              (hasActivePortalAccount &&
+                                projectManagerEligibilityMessage)) && (
+                              <div className="pod-management-requirements">
+                                {podAssignmentEligibilityMessage && (
+                                  <span
+                                    id={podAssignmentRequirementId}
+                                    className="pod-management-requirement"
+                                  >
+                                    <AlertTriangle size={14} aria-hidden="true" />
+                                    {podAssignmentEligibilityMessage}
+                                  </span>
+                                )}
+                                {!hasActivePortalAccount && (
+                                  <span
+                                    id={leadRequirementId}
+                                    className="pod-management-requirement"
+                                  >
+                                    <Info size={14} aria-hidden="true" />
+                                    Activate the candidate portal before assigning a
+                                    lead role.
+                                  </span>
+                                )}
+                                {hasActivePortalAccount &&
+                                  projectManagerEligibilityMessage && (
+                                  <span
+                                    id={projectManagerRequirementId}
+                                    className="pod-management-requirement"
+                                  >
+                                    <Info size={14} aria-hidden="true" />
+                                    {projectManagerEligibilityMessage}
+                                  </span>
+                                )}
+                              </div>
                             )}
                           </td>
                         </tr>
@@ -1188,21 +1272,26 @@ export default function PodManagement() {
 
           <section
             ref={selectedPodDetailsRef}
-            className="pod-section"
+            className="pod-management-section pod-management-details"
             tabIndex={-1}
             aria-labelledby="selected-pod-details-title"
           >
-            <div className="pod-section-header">
-              <div>
+            <div className="pod-management-section__header pod-management-details__header">
+              <div className="pod-management-section__heading">
+                <div className="pod-management-section__icon" aria-hidden="true">
+                  <ListChecks size={20} />
+                </div>
+                <div>
                 <h2 id="selected-pod-details-title">Selected Pod Details</h2>
                 <p>
                   {selectedPod
                     ? `${selectedPod.podCode} — ${selectedPod.podName}`
                     : "Select a pod to inspect memberships."}
                 </p>
+                </div>
               </div>
               {pods.length > 0 && (
-                <div className="form-group pod-selector">
+                <div className="pod-management-field pod-management-selector">
                   <label htmlFor="pod-detail-selector">Pod</label>
                   <select
                     id="pod-detail-selector"
@@ -1220,18 +1309,28 @@ export default function PodManagement() {
             </div>
 
             {membershipsLoading ? (
-              <p className="info-banner" role="status">Loading memberships...</p>
+              <PodStatusPanel icon={LoaderCircle}>
+                <p>Loading memberships...</p>
+              </PodStatusPanel>
             ) : selectedPod ? (
-              <div className="pod-membership-groups">
-                <section>
-                  <h3>HR Psyconnect Reviewer</h3>
+              <div className="pod-management-membership-groups">
+                <section className="pod-management-membership-group">
+                  <div className="pod-management-membership-group__header">
+                    <h3>HR Psyconnect Reviewer</h3>
+                    <span className="pod-management-count-badge">
+                      {currentHrReviewer ? 1 : 0}
+                    </span>
+                  </div>
                   {currentHrReviewer ? (
                     renderMembershipRows([currentHrReviewer], true)
                   ) : (
                     <>
-                      <p className="info-banner" role="status">
-                        No HR Psyconnect reviewer is assigned to this pod.
-                      </p>
+                      <div className="pod-management-empty" role="status">
+                        <Users size={18} aria-hidden="true" />
+                        <span>
+                          No HR Psyconnect reviewer is assigned to this pod.
+                        </span>
+                      </div>
                       {selectedPod.isActive && (
                         <button
                           className="btn btn-primary"
@@ -1246,25 +1345,48 @@ export default function PodManagement() {
                     </>
                   )}
                 </section>
-                <section>
-                  <h3>Current Candidate Members</h3>
+                <section className="pod-management-membership-group">
+                  <div className="pod-management-membership-group__header">
+                    <h3>Current Candidate Members</h3>
+                    <span className="pod-management-count-badge">
+                      {currentCandidates.length}
+                    </span>
+                  </div>
                   {renderMembershipRows(currentCandidates, true)}
                 </section>
-                <section>
-                  <h3>Current Pod Leads</h3>
+                <section className="pod-management-membership-group">
+                  <div className="pod-management-membership-group__header">
+                    <h3>Current Pod Leads</h3>
+                    <span className="pod-management-count-badge">
+                      {currentPodLeads.length}
+                    </span>
+                  </div>
                   {renderMembershipRows(currentPodLeads, true)}
                 </section>
-                <section>
-                  <h3>Current Project Managers</h3>
+                <section className="pod-management-membership-group">
+                  <div className="pod-management-membership-group__header">
+                    <h3>Current Project Managers</h3>
+                    <span className="pod-management-count-badge">
+                      {currentTechLeads.length}
+                    </span>
+                  </div>
                   {renderMembershipRows(currentTechLeads, true)}
                 </section>
-                <section>
-                  <h3>Historical Memberships</h3>
+                <section className="pod-management-membership-group pod-management-membership-group--historical">
+                  <div className="pod-management-membership-group__header">
+                    <h3>Historical Memberships</h3>
+                    <span className="pod-management-count-badge">
+                      {historicalMemberships.length}
+                    </span>
+                  </div>
                   {renderMembershipRows(historicalMemberships, false)}
                 </section>
               </div>
             ) : (
-              <p className="info-banner" role="status">No pod selected.</p>
+              <div className="pod-management-empty" role="status">
+                <Network size={18} aria-hidden="true" />
+                <span>No pod selected.</span>
+              </div>
             )}
           </section>
         </>
