@@ -217,6 +217,10 @@ const HrReviewQueue = () => {
 
   return (
     <main className="app-page">
+      <Link to="/" className="back-link">
+        ← Back to Dashboard
+      </Link>
+
       <header className="page-header-modern">
         <div className="page-icon" aria-hidden="true">
           <ClipboardCheck size={28} />
